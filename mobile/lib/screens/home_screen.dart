@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
+import '../main.dart';
 import 'loan_application_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -11,125 +12,275 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  int _selectedIndex = 0;
+
   @override
   void initState() {
     super.initState();
-    Future.microtask(() {
-      context.read<AuthService>().loadUserProfile();
-    });
+    Future.microtask(() => context.read<AuthService>().loadUserProfile());
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.blue.shade600,
-        title: const Text('FinTech Loan'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () {
-              context.read<AuthService>().logout();
-              Navigator.of(context).pushReplacementNamed('/login');
-            },
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            Container(
-              color: Colors.blue.shade600,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
-              child: Consumer<AuthService>(
-                builder: (context, authService, _) {
-                  final user = authService.user;
-                  return Column(
+      backgroundColor: kNavy,
+      body: Column(
+        children: [
+          // ── Navy header ──────────────────────────────────────────
+          SafeArea(
+            bottom: false,
+            child: Consumer<AuthService>(
+              builder: (context, auth, _) {
+                final user = auth.user;
+                final name = '${user?['firstName'] ?? ''} ${user?['lastName'] ?? ''}'.trim();
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const SizedBox(height: 10),
-                      Text(
-                        'Welcome,',
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                              color: Colors.white70,
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          RichText(
+                            text: const TextSpan(
+                              children: [
+                                TextSpan(
+                                  text: 'Fintech',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                TextSpan(
+                                  text: 'LOAN',
+                                  style: TextStyle(
+                                    color: kGreen,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ],
                             ),
-                      ),
-                      Text(
-                        '${user?['firstName'] ?? ''} ${user?['lastName'] ?? ''}',
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
+                          ),
+                          GestureDetector(
+                            onTap: () {
+                              auth.logout();
+                              Navigator.of(context).pushReplacementNamed('/login');
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(Icons.logout_rounded,
+                                  color: Colors.white, size: 20),
                             ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 5),
+                      const SizedBox(height: 24),
                       Text(
-                        user?['email'] ?? '',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Colors.white70,
-                            ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildQuickActionCard(
-                    context,
-                    icon: Icons.description,
-                    title: 'Apply for Loan',
-                    subtitle: 'Get instant loan approval',
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const LoanApplicationScreen(),
+                        'Good day, ${name.isNotEmpty ? name.split(' ')[0] : 'User'} 👋',
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
                         ),
-                      );
-                    },
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Manage your loans easily',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Credit limit card
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.white.withOpacity(0.2)),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'PRE-APPROVED LIMIT',
+                                    style: TextStyle(
+                                      color: Colors.white60,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      letterSpacing: 0.8,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  const Text(
+                                    '₹5,00,000',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 28,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 8, vertical: 3),
+                                        decoration: BoxDecoration(
+                                          color: kGreen.withOpacity(0.2),
+                                          borderRadius: BorderRadius.circular(20),
+                                        ),
+                                        child: const Text(
+                                          '✓ Eligible',
+                                          style: TextStyle(
+                                              color: kGreen,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: kGreen,
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: const Icon(Icons.account_balance_wallet_rounded,
+                                  color: Colors.white, size: 28),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 28),
+                    ],
                   ),
-                  const SizedBox(height: 15),
-                  _buildQuickActionCard(
-                    context,
-                    icon: Icons.history,
-                    title: 'Loan History',
-                    subtitle: 'View all your loan applications',
-                    onTap: () {},
-                  ),
-                  const SizedBox(height: 15),
-                  _buildQuickActionCard(
-                    context,
-                    icon: Icons.payment,
-                    title: 'EMI Calculator',
-                    subtitle: 'Calculate your monthly payments',
-                    onTap: () {},
-                  ),
-                  const SizedBox(height: 15),
-                  _buildQuickActionCard(
-                    context,
-                    icon: Icons.person,
-                    title: 'My Profile',
-                    subtitle: 'Update your personal information',
-                    onTap: () {},
-                  ),
-                ],
+                );
+              },
+            ),
+          ),
+
+          // ── White card body ──────────────────────────────────────
+          Expanded(
+            child: Container(
+              decoration: const BoxDecoration(
+                color: kBg,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Quick Actions',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF111827),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // 2×2 grid actions
+                    GridView.count(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                      childAspectRatio: 1.3,
+                      children: [
+                        _actionCard(
+                          icon: Icons.description_rounded,
+                          label: 'Apply for\nLoan',
+                          color: kNavy,
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                                builder: (_) => const LoanApplicationScreen()),
+                          ),
+                        ),
+                        _actionCard(
+                          icon: Icons.history_rounded,
+                          label: 'Loan\nHistory',
+                          color: const Color(0xFF7C3AED),
+                          onTap: () => _showComingSoon('Loan History'),
+                        ),
+                        _actionCard(
+                          icon: Icons.calculate_rounded,
+                          label: 'EMI\nCalculator',
+                          color: const Color(0xFF0891B2),
+                          onTap: () => _showComingSoon('EMI Calculator'),
+                        ),
+                        _actionCard(
+                          icon: Icons.person_rounded,
+                          label: 'My\nProfile',
+                          color: const Color(0xFFD97706),
+                          onTap: () => _showComingSoon('Profile'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Loan offers section
+                    const Text(
+                      'Loan Offers',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF111827),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _offerCard(
+                      title: 'Personal Loan',
+                      subtitle: 'Up to ₹5,00,000 • 15% p.a.',
+                      icon: Icons.person_pin_rounded,
+                      color: kNavy,
+                    ),
+                    const SizedBox(height: 10),
+                    _offerCard(
+                      title: 'Business Loan',
+                      subtitle: 'Up to ₹25,00,000 • 14% p.a.',
+                      icon: Icons.business_center_rounded,
+                      color: const Color(0xFF7C3AED),
+                    ),
+                    const SizedBox(height: 10),
+                    _offerCard(
+                      title: 'Education Loan',
+                      subtitle: 'Up to ₹10,00,000 • 12% p.a.',
+                      icon: Icons.school_rounded,
+                      color: const Color(0xFF0891B2),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildQuickActionCard(
-    BuildContext context, {
+  Widget _actionCard({
     required IconData icon,
-    required String title,
-    required String subtitle,
+    required String label,
+    required Color color,
     required VoidCallback onTap,
   }) {
     return GestureDetector(
@@ -138,49 +289,112 @@ class _HomeScreenState extends State<HomeScreen> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.shade200,
-              blurRadius: 8,
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
               offset: const Offset(0, 2),
             ),
           ],
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.blue.shade50,
+                color: color.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(icon, color: Colors.blue.shade600, size: 28),
+              child: Icon(icon, color: color, size: 22),
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    subtitle,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.grey.shade600,
-                        ),
-                  ),
-                ],
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: color,
+                height: 1.3,
               ),
             ),
-            Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey.shade400),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _offerCard({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: color, size: 22),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                        color: Color(0xFF111827))),
+                const SizedBox(height: 2),
+                Text(subtitle,
+                    style: const TextStyle(
+                        fontSize: 12, color: Color(0xFF6B7280))),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: kNavy,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: const Text('Apply',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showComingSoon(String feature) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$feature — coming soon!'),
+        backgroundColor: kNavy,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }

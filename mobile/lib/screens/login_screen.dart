@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
+import '../main.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -10,16 +11,9 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  late TextEditingController _emailController;
-  late TextEditingController _passwordController;
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
   bool _obscurePassword = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _emailController = TextEditingController();
-    _passwordController = TextEditingController();
-  }
 
   @override
   void dispose() {
@@ -30,178 +24,231 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _login() async {
     final authService = context.read<AuthService>();
-
     final success = await authService.login(
       email: _emailController.text.trim(),
       password: _passwordController.text,
     );
-
     if (success && mounted) {
       Navigator.of(context).pushReplacementNamed('/home');
-    } else if (!mounted) return;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
     return Scaffold(
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 40),
-              Center(
-                child: Icon(
-                  Icons.credit_card,
-                  size: 60,
-                  color: Colors.blue.shade600,
-                ),
-              ),
-              const SizedBox(height: 30),
-              Center(
-                child: Text(
-                  'Welcome Back',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
+      backgroundColor: kNavy,
+      body: Column(
+        children: [
+          // ── Navy header ──────────────────────────────────────────
+          SizedBox(
+            height: size.height * 0.40,
+            child: SafeArea(
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    RichText(
+                      text: const TextSpan(
+                        children: [
+                          TextSpan(
+                            text: 'Fintech',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 32,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                          TextSpan(
+                            text: 'LOAN',
+                            style: TextStyle(
+                              color: kGreen,
+                              fontSize: 32,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                        ],
                       ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              Center(
-                child: Text(
-                  'Login to your account',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Colors.grey.shade600,
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Sign in to continue',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
                       ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 40),
-              Text(
-                'Email Address',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w500,
+            ),
+          ),
+          // ── White card ───────────────────────────────────────────
+          Expanded(
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Enter your credentials to get started',
+                      style: TextStyle(color: Color(0xFF6B7280), fontSize: 14),
                     ),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: _emailController,
-                decoration: InputDecoration(
-                  hintText: 'Enter your email',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                ),
-                keyboardType: TextInputType.emailAddress,
-              ),
-              const SizedBox(height: 20),
-              Text(
-                'Password',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w500,
+                    const SizedBox(height: 24),
+
+                    // Email
+                    const Text(
+                      'EMAIL ADDRESS',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF6B7280),
+                        letterSpacing: 0.8,
+                      ),
                     ),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: _passwordController,
-                decoration: InputDecoration(
-                  hintText: 'Enter your password',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: InputDecoration(
+                        hintText: 'you@example.com',
+                        prefixIcon: const Icon(Icons.email_outlined, size: 20, color: Color(0xFF9CA3AF)),
+                        hintStyle: const TextStyle(color: Color(0xFFD1D5DB)),
+                      ),
                     ),
-                    onPressed: () {
-                      setState(() {
-                        _obscurePassword = !_obscurePassword;
-                      });
-                    },
-                  ),
-                ),
-                obscureText: _obscurePassword,
-              ),
-              const SizedBox(height: 30),
-              Consumer<AuthService>(
-                builder: (context, authService, _) {
-                  return SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: authService.isLoading ? null : _login,
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        backgroundColor: Colors.blue.shade600,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
+                    const SizedBox(height: 20),
+
+                    // Password
+                    const Text(
+                      'PASSWORD',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF6B7280),
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _passwordController,
+                      obscureText: _obscurePassword,
+                      decoration: InputDecoration(
+                        hintText: '••••••••',
+                        prefixIcon: const Icon(Icons.lock_outline, size: 20, color: Color(0xFF9CA3AF)),
+                        hintStyle: const TextStyle(color: Color(0xFFD1D5DB)),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                            size: 20,
+                            color: const Color(0xFF9CA3AF),
+                          ),
+                          onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                         ),
                       ),
-                      child: authService.isLoading
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                              ),
-                            )
-                          : Text(
-                              'Login',
-                              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                              ),
-                            ),
                     ),
-                  );
-                },
-              ),
-              if (context.watch<AuthService>().error != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 16),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.red.shade50,
-                      border: Border.all(color: Colors.red.shade200),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      context.watch<AuthService>().error!,
-                      style: TextStyle(color: Colors.red.shade700),
-                    ),
-                  ),
-                ),
-              const SizedBox(height: 20),
-              Center(
-                child: GestureDetector(
-                  onTap: () {
-                    Navigator.of(context).pushNamed('/signup');
-                  },
-                  child: RichText(
-                    text: TextSpan(
-                      text: "Don't have an account? ",
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Colors.grey.shade600,
+                    const SizedBox(height: 32),
+
+                    // Error
+                    Consumer<AuthService>(
+                      builder: (context, auth, _) {
+                        if (auth.error == null) return const SizedBox.shrink();
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 16),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEF2F2),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFFFCA5A5)),
                           ),
-                      children: [
-                        TextSpan(
-                          text: 'Sign Up',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: Colors.blue.shade600,
-                                fontWeight: FontWeight.bold,
+                          child: Row(
+                            children: [
+                              const Icon(Icons.error_outline, color: Color(0xFFEF4444), size: 18),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(auth.error!,
+                                    style: const TextStyle(color: Color(0xFFEF4444), fontSize: 13)),
                               ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+
+                    // Login button
+                    Consumer<AuthService>(
+                      builder: (context, auth, _) => SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: auth.isLoading ? null : _login,
+                          child: auth.isLoading
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2, color: Colors.white),
+                                )
+                              : const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text('Sign In'),
+                                    SizedBox(width: 8),
+                                    Icon(Icons.arrow_forward, size: 18),
+                                  ],
+                                ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // SSL badge
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: const [
+                        Icon(Icons.shield_outlined, size: 14, color: kGreen),
+                        SizedBox(width: 6),
+                        Text(
+                          '256-bit SSL encrypted & secure',
+                          style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
                         ),
                       ],
                     ),
-                  ),
+                    const SizedBox(height: 24),
+
+                    // Sign up link
+                    Center(
+                      child: GestureDetector(
+                        onTap: () => Navigator.of(context).pushNamed('/signup'),
+                        child: RichText(
+                          text: const TextSpan(
+                            text: "Don't have an account? ",
+                            style: TextStyle(color: Color(0xFF6B7280), fontSize: 14),
+                            children: [
+                              TextSpan(
+                                text: 'Create Account',
+                                style: TextStyle(
+                                  color: kNavy,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

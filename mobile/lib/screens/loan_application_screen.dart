@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/api_service.dart';
+import '../main.dart';
 
 class LoanApplicationScreen extends StatefulWidget {
   const LoanApplicationScreen({Key? key}) : super(key: key);
@@ -11,22 +12,15 @@ class LoanApplicationScreen extends StatefulWidget {
 }
 
 class _LoanApplicationScreenState extends State<LoanApplicationScreen> {
-  late TextEditingController _loanAmountController;
-  late TextEditingController _tenureController;
+  final _loanAmountController = TextEditingController();
+  final _tenureController = TextEditingController();
   String _selectedPurpose = 'Personal';
   String _selectedLoanType = 'Personal Loan';
   bool _isLoading = false;
   double _monthlyEMI = 0;
 
-  final purposes = ['Personal', 'Business', 'Education', 'Medical', 'Other'];
-  final loanTypes = ['Personal Loan', 'Micro Loan', 'Business Loan'];
-
-  @override
-  void initState() {
-    super.initState();
-    _loanAmountController = TextEditingController();
-    _tenureController = TextEditingController();
-  }
+  final _purposes = ['Personal', 'Business', 'Education', 'Medical', 'Other'];
+  final _loanTypes = ['Personal Loan', 'Micro Loan', 'Business Loan'];
 
   @override
   void dispose() {
@@ -37,236 +31,85 @@ class _LoanApplicationScreenState extends State<LoanApplicationScreen> {
 
   void _calculateEMI() {
     final amount = int.tryParse(_loanAmountController.text) ?? 0;
-    final tenure = int.tryParse(_tenureController.text) ?? 1;
-
+    final tenure = int.tryParse(_tenureController.text) ?? 0;
     if (amount > 0 && tenure > 0) {
-      const double interestRate = 15;
-      final monthlyRate = interestRate / 12 / 100;
-      final emi = (amount *
-              monthlyRate *
-              pow(1 + monthlyRate, tenure)) /
+      const double rate = 15;
+      final monthlyRate = rate / 12 / 100;
+      final emi = (amount * monthlyRate * pow(1 + monthlyRate, tenure)) /
           (pow(1 + monthlyRate, tenure) - 1);
-
-      setState(() {
-        _monthlyEMI = emi;
-      });
+      setState(() => _monthlyEMI = emi);
+    } else {
+      setState(() => _monthlyEMI = 0);
     }
   }
 
   Future<void> _applyLoan() async {
-    if (_loanAmountController.text.isEmpty || _tenureController.text.isEmpty) {
+    final amount = int.tryParse(_loanAmountController.text) ?? 0;
+    final tenure = int.tryParse(_tenureController.text) ?? 0;
+    if (amount <= 0 || tenure <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill all fields')),
+        const SnackBar(content: Text('Please fill in loan amount and tenure')),
       );
       return;
     }
-
-    setState(() {
-      _isLoading = true;
-    });
-
+    setState(() => _isLoading = true);
     try {
       final apiService = context.read<ApiService>();
       final response = await apiService.applyLoan(
-        loanAmount: int.parse(_loanAmountController.text),
-        tenure: int.parse(_tenureController.text),
+        loanAmount: amount,
+        tenure: tenure,
         purpose: _selectedPurpose,
         loanType: _selectedLoanType,
       );
-
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(response['message'])),
-        );
-
-        Future.delayed(const Duration(seconds: 1), () {
-          if (mounted) {
-            Navigator.pop(context);
-          }
-        });
+        _showSuccess(response['message'] ?? 'Loan applied successfully!');
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}')),
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Apply for Loan'),
-        elevation: 0,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+  void _showSuccess(String message) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            _buildSection(
-              title: 'Loan Amount',
-              child: TextField(
-                controller: _loanAmountController,
-                onChanged: (_) => _calculateEMI(),
-                decoration: InputDecoration(
-                  hintText: 'Enter amount (₹1000 - ₹500000)',
-                  prefixText: '₹ ',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
-                  ),
-                ),
-                keyboardType: TextInputType.number,
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: kGreen.withOpacity(0.1),
+                shape: BoxShape.circle,
               ),
+              child: const Icon(Icons.check_circle_rounded, color: kGreen, size: 48),
             ),
-            const SizedBox(height: 20),
-            _buildSection(
-              title: 'Loan Tenure (Months)',
-              child: TextField(
-                controller: _tenureController,
-                onChanged: (_) => _calculateEMI(),
-                decoration: InputDecoration(
-                  hintText: 'Enter tenure (6 - 60 months)',
-                  suffixText: 'months',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
-                  ),
-                ),
-                keyboardType: TextInputType.number,
-              ),
-            ),
-            const SizedBox(height: 20),
-            _buildSection(
-              title: 'Purpose of Loan',
-              child: DropdownButtonFormField<String>(
-                value: _selectedPurpose,
-                items: purposes.map((purpose) {
-                  return DropdownMenuItem(
-                    value: purpose,
-                    child: Text(purpose),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _selectedPurpose = value ?? _selectedPurpose;
-                  });
-                },
-                decoration: InputDecoration(
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            _buildSection(
-              title: 'Loan Type',
-              child: DropdownButtonFormField<String>(
-                value: _selectedLoanType,
-                items: loanTypes.map((type) {
-                  return DropdownMenuItem(
-                    value: type,
-                    child: Text(type),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _selectedLoanType = value ?? _selectedLoanType;
-                  });
-                },
-                decoration: InputDecoration(
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 30),
-            if (_monthlyEMI > 0)
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.blue.shade200),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Loan Summary',
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                    ),
-                    const SizedBox(height: 12),
-                    _buildSummaryRow('Loan Amount:', '₹${_loanAmountController.text}'),
-                    const SizedBox(height: 8),
-                    _buildSummaryRow('Tenure:', '${_tenureController.text} months'),
-                    const SizedBox(height: 8),
-                    _buildSummaryRow(
-                      'Monthly EMI:',
-                      '₹${_monthlyEMI.toStringAsFixed(0)}',
-                      isBold: true,
-                    ),
-                    const SizedBox(height: 8),
-                    _buildSummaryRow(
-                      'Total Amount:',
-                      '₹${(_monthlyEMI * (int.tryParse(_tenureController.text) ?? 1)).toStringAsFixed(0)}',
-                    ),
-                  ],
-                ),
-              ),
-            const SizedBox(height: 30),
+            const SizedBox(height: 16),
+            const Text('Application Submitted!',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
+            const SizedBox(height: 8),
+            Text(message,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Color(0xFF6B7280), fontSize: 14)),
+            const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: _isLoading ? null : _applyLoan,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  backgroundColor: Colors.blue.shade600,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                child: _isLoading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                        ),
-                      )
-                    : Text(
-                        'Apply Now',
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                      ),
+                onPressed: () {
+                  Navigator.pop(context);
+                  Navigator.pop(context);
+                },
+                child: const Text('Back to Home'),
               ),
             ),
           ],
@@ -275,43 +118,337 @@ class _LoanApplicationScreenState extends State<LoanApplicationScreen> {
     );
   }
 
-  Widget _buildSection({
-    required String title,
-    required Widget child,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w500,
-              ),
+  Widget _label(String text) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Text(
+          text,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF6B7280),
+            letterSpacing: 0.8,
+          ),
         ),
-        const SizedBox(height: 10),
-        child,
-      ],
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final tenure = int.tryParse(_tenureController.text) ?? 1;
+    final amount = int.tryParse(_loanAmountController.text) ?? 0;
+
+    return Scaffold(
+      backgroundColor: kNavy,
+      body: Column(
+        children: [
+          // ── Navy header ──────────────────────────────────────────
+          SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+              child: Row(
+                children: [
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.arrow_back_ios_new_rounded,
+                          color: Colors.white, size: 18),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Apply for Loan',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w700)),
+                      Text('Quick & Easy Approval',
+                          style: TextStyle(color: Colors.white60, fontSize: 13)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // ── White card ───────────────────────────────────────────
+          Expanded(
+            child: Container(
+              decoration: const BoxDecoration(
+                color: kBg,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ── Loan Amount ──
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.04),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _label('LOAN AMOUNT'),
+                          TextField(
+                            controller: _loanAmountController,
+                            onChanged: (_) => _calculateEMI(),
+                            keyboardType: TextInputType.number,
+                            style: const TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.w700, color: kNavy),
+                            decoration: InputDecoration(
+                              hintText: '1,00,000',
+                              prefixText: '₹ ',
+                              prefixStyle: const TextStyle(
+                                  fontSize: 18, fontWeight: FontWeight.w700, color: kNavy),
+                              hintStyle: const TextStyle(
+                                  color: Color(0xFFD1D5DB), fontWeight: FontWeight.w400),
+                              fillColor: const Color(0xFFF9FAFB),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('Min: ₹1,000',
+                                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                              Text('Max: ₹5,00,000',
+                                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // ── Tenure ──
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.04),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _label('LOAN TENURE'),
+                          TextField(
+                            controller: _tenureController,
+                            onChanged: (_) => _calculateEMI(),
+                            keyboardType: TextInputType.number,
+                            style: const TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.w700, color: kNavy),
+                            decoration: const InputDecoration(
+                              hintText: '12',
+                              suffixText: 'months',
+                              suffixStyle: TextStyle(
+                                  color: Color(0xFF6B7280), fontWeight: FontWeight.w500),
+                              hintStyle: TextStyle(
+                                  color: Color(0xFFD1D5DB), fontWeight: FontWeight.w400),
+                              fillColor: Color(0xFFF9FAFB),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('Min: 6 months',
+                                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                              Text('Max: 60 months',
+                                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // ── Purpose & Type ──
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.04),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _label('PURPOSE OF LOAN'),
+                          DropdownButtonFormField<String>(
+                            value: _selectedPurpose,
+                            decoration: const InputDecoration(
+                                fillColor: Color(0xFFF9FAFB)),
+                            items: _purposes
+                                .map((p) => DropdownMenuItem(value: p, child: Text(p)))
+                                .toList(),
+                            onChanged: (v) => setState(() => _selectedPurpose = v ?? _selectedPurpose),
+                          ),
+                          const SizedBox(height: 16),
+                          _label('LOAN TYPE'),
+                          DropdownButtonFormField<String>(
+                            value: _selectedLoanType,
+                            decoration: const InputDecoration(
+                                fillColor: Color(0xFFF9FAFB)),
+                            items: _loanTypes
+                                .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                                .toList(),
+                            onChanged: (v) => setState(() => _selectedLoanType = v ?? _selectedLoanType),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // ── EMI Summary ──
+                    if (_monthlyEMI > 0) ...[
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [kNavy, Color(0xFF312E81)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(
+                              children: [
+                                Icon(Icons.calculate_rounded, color: kGreen, size: 18),
+                                SizedBox(width: 8),
+                                Text('Loan Summary',
+                                    style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 15)),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            _summaryRow('Loan Amount', '₹${_loanAmountController.text}'),
+                            _summaryRow('Tenure', '${_tenureController.text} months'),
+                            _summaryRow('Interest Rate', '15% p.a.'),
+                            const Divider(color: Colors.white24, height: 20),
+                            _summaryRow(
+                              'Monthly EMI',
+                              '₹${_monthlyEMI.toStringAsFixed(0)}',
+                              highlight: true,
+                            ),
+                            _summaryRow(
+                              'Total Payable',
+                              '₹${(_monthlyEMI * tenure).toStringAsFixed(0)}',
+                            ),
+                            _summaryRow(
+                              'Total Interest',
+                              '₹${(_monthlyEMI * tenure - amount).toStringAsFixed(0)}',
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+
+                    const SizedBox(height: 24),
+
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _isLoading ? null : _applyLoan,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: kGreen,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14)),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
+                        child: _isLoading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2, color: Colors.white),
+                              )
+                            : const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text('Apply Now',
+                                      style: TextStyle(
+                                          fontSize: 16, fontWeight: FontWeight.w700)),
+                                  SizedBox(width: 8),
+                                  Icon(Icons.arrow_forward_rounded, size: 20),
+                                ],
+                              ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: const [
+                        Icon(Icons.shield_outlined, size: 14, color: kGreen),
+                        SizedBox(width: 6),
+                        Text('256-bit SSL encrypted & secure',
+                            style: TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildSummaryRow(String label, String value, {bool isBold = false}) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-              ),
-        ),
-        Text(
-          value,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-                color: isBold ? Colors.blue.shade600 : null,
-              ),
-        ),
-      ],
+  Widget _summaryRow(String label, String value, {bool highlight = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label,
+              style: TextStyle(
+                  color: highlight ? kGreen : Colors.white60,
+                  fontSize: highlight ? 14 : 13,
+                  fontWeight: highlight ? FontWeight.w600 : FontWeight.normal)),
+          Text(value,
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: highlight ? 18 : 13,
+                  fontWeight: highlight ? FontWeight.w800 : FontWeight.w500)),
+        ],
+      ),
     );
   }
 }
