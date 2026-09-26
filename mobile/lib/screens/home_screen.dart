@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import '../main.dart';
-import 'loan_application_screen.dart';
+import 'pan_verify_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -12,8 +12,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _selectedIndex = 0;
-
   @override
   void initState() {
     super.initState();
@@ -212,7 +210,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           color: kNavy,
                           onTap: () => Navigator.of(context).push(
                             MaterialPageRoute(
-                                builder: (_) => const LoanApplicationScreen()),
+                                builder: (_) => const PanVerifyScreen()),
                           ),
                         ),
                         _actionCard(
@@ -252,6 +250,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       subtitle: 'Up to ₹5,00,000 • 15% p.a.',
                       icon: Icons.person_pin_rounded,
                       color: kNavy,
+                      onApply: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const PanVerifyScreen()),
+                      ),
                     ),
                     const SizedBox(height: 10),
                     _offerCard(
@@ -259,6 +260,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       subtitle: 'Up to ₹25,00,000 • 14% p.a.',
                       icon: Icons.business_center_rounded,
                       color: const Color(0xFF7C3AED),
+                      onApply: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const PanVerifyScreen()),
+                      ),
                     ),
                     const SizedBox(height: 10),
                     _offerCard(
@@ -266,6 +270,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       subtitle: 'Up to ₹10,00,000 • 12% p.a.',
                       icon: Icons.school_rounded,
                       color: const Color(0xFF0891B2),
+                      onApply: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const PanVerifyScreen()),
+                      ),
                     ),
                   ],
                 ),
@@ -330,60 +337,64 @@ class _HomeScreenState extends State<HomeScreen> {
     required String subtitle,
     required IconData icon,
     required Color color,
+    VoidCallback? onApply,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(10),
+    return GestureDetector(
+      onTap: onApply,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
             ),
-            child: Icon(icon, color: color, size: 22),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                        color: Color(0xFF111827))),
-                const SizedBox(height: 2),
-                Text(subtitle,
-                    style: const TextStyle(
-                        fontSize: 12, color: Color(0xFF6B7280))),
-              ],
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: color, size: 22),
             ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: kNavy,
-              borderRadius: BorderRadius.circular(20),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          color: Color(0xFF111827))),
+                  const SizedBox(height: 2),
+                  Text(subtitle,
+                      style: const TextStyle(
+                          fontSize: 12, color: Color(0xFF6B7280))),
+                ],
+              ),
             ),
-            child: const Text('Apply',
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600)),
-          ),
-        ],
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: kNavy,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Text('Apply',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600)),
+            ),
+          ],
+        ),
       ),
     );
   }
