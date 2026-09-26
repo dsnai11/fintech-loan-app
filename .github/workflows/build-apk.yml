@@ -1,4 +1,4 @@
-name: Build APK & Web
+name: Build APK & IPA & Web
 
 on:
   push:
@@ -6,7 +6,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-android:
+    name: Build Android APK
     runs-on: ubuntu-latest
 
     steps:
@@ -31,36 +32,19 @@ jobs:
         echo "flutter.versionCode=1" >> mobile/android/local.properties
         echo "flutter.versionName=1.0" >> mobile/android/local.properties
         echo "sdk.dir=$ANDROID_HOME" >> mobile/android/local.properties
-        echo "--- local.properties contents ---"
-        cat mobile/android/local.properties
 
-    - name: Fix gradlew line endings and make executable
+    - name: Fix gradlew permissions
       run: |
         sed -i 's/\r$//' mobile/android/gradlew
         chmod +x mobile/android/gradlew
-        head -1 mobile/android/gradlew
 
     - name: Get dependencies
-      run: |
-        cd mobile
-        flutter pub get
+      run: cd mobile && flutter pub get
 
     - name: Build APK
-      run: |
-        cd mobile
-        flutter build apk --release --verbose 2>&1 | tail -50
+      run: cd mobile && flutter build apk --release
 
-    - name: Find APK location
-      if: always()
-      run: |
-        echo "=== Searching everywhere for APK ==="
-        find /home/runner/work -name "*.apk" 2>/dev/null || echo "No APK found anywhere"
-        echo "=== mobile/build structure ==="
-        find mobile/build -type f 2>/dev/null | head -30 || echo "No mobile/build dir"
-        echo "=== mobile/android/app/build structure ==="
-        find mobile/android/app/build -type f -name "*.apk" 2>/dev/null | head -10 || echo "No android app build dir"
-
-    - name: Upload APK Artifact
+    - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: fintech-loan-apk
@@ -69,15 +53,63 @@ jobs:
           mobile/build/app/outputs/apk/release/app-release.apk
         if-no-files-found: error
 
-    - name: Build Web
+  build-ios:
+    name: Build iOS IPA (unsigned)
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.24.5'
+        channel: 'stable'
+        cache: true
+
+    - name: Get dependencies
+      run: cd mobile && flutter pub get
+
+    - name: Build iOS (no codesign)
       run: |
         cd mobile
-        flutter build web --release
-      continue-on-error: true
+        flutter build ios --release --no-codesign
 
-    - name: Upload Web Artifact
+    - name: Package IPA
+      run: |
+        mkdir -p Payload
+        cp -r mobile/build/ios/iphoneos/Runner.app Payload/
+        zip -r FintechLoan.ipa Payload/
+        echo "IPA created: $(du -sh FintechLoan.ipa | cut -f1)"
+
+    - name: Upload IPA
+      uses: actions/upload-artifact@v4
+      with:
+        name: fintech-loan-ipa
+        path: FintechLoan.ipa
+
+  build-web:
+    name: Build Web
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.24.5'
+        channel: 'stable'
+        cache: true
+
+    - name: Get dependencies
+      run: cd mobile && flutter pub get
+
+    - name: Build Web
+      run: cd mobile && flutter build web --release
+
+    - name: Upload Web
       uses: actions/upload-artifact@v4
       with:
         name: fintech-loan-web
         path: mobile/build/web/
-      continue-on-error: true
