@@ -23,36 +23,41 @@ jobs:
     - name: Set up Flutter
       uses: subosito/flutter-action@v2
       with:
-        flutter-version: '3.19.6'
+        flutter-version: '3.24.5'
         channel: 'stable'
         cache: true
-
-    - name: Get dependencies
-      run: |
-        cd mobile
-        flutter pub get
 
     - name: Create local.properties
       run: |
         echo "flutter.sdk=$FLUTTER_ROOT" > mobile/android/local.properties
         echo "flutter.versionCode=1" >> mobile/android/local.properties
         echo "flutter.versionName=1.0" >> mobile/android/local.properties
-        echo "sdk.dir=$ANDROID_SDK_ROOT" >> mobile/android/local.properties
+        echo "sdk.dir=$ANDROID_HOME" >> mobile/android/local.properties
+
+    - name: Create Gradle wrapper
+      run: |
+        cd mobile/android
+        gradle wrapper --gradle-version=8.3 --distribution-type=all
+        chmod +x gradlew
+
+    - name: Get dependencies
+      run: |
+        cd mobile
+        flutter pub get
 
     - name: Build APK
       run: |
         cd mobile
-        flutter build apk --release --verbose
-      env:
-        ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+        flutter build apk --release
 
-    - name: Find APK
+    - name: Find APK location
+      if: always()
       run: find mobile/build -name "*.apk" 2>/dev/null || echo "No APK found"
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: fintech-loan-app
+        name: fintech-loan-apk
         path: |
           mobile/build/app/outputs/flutter-apk/release/app-release.apk
           mobile/build/app/outputs/apk/release/app-release.apk
@@ -66,5 +71,5 @@ jobs:
     - name: Upload Web Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: web-release
+        name: fintech-loan-web
         path: mobile/build/web/
