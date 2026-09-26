@@ -3,8 +3,6 @@ name: Build APK & Web
 on:
   push:
     branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
@@ -33,6 +31,8 @@ jobs:
         echo "flutter.versionCode=1" >> mobile/android/local.properties
         echo "flutter.versionName=1.0" >> mobile/android/local.properties
         echo "sdk.dir=$ANDROID_HOME" >> mobile/android/local.properties
+        echo "--- local.properties contents ---"
+        cat mobile/android/local.properties
 
     - name: Fix gradlew line endings and make executable
       run: |
@@ -48,24 +48,26 @@ jobs:
     - name: Build APK
       run: |
         cd mobile
-        flutter build apk --release
+        flutter build apk --release --verbose 2>&1 | tail -50
 
     - name: Find APK location
       if: always()
       run: |
-        echo "=== Searching for APK ==="
-        find mobile/build -name "*.apk" 2>/dev/null || echo "No APK found"
-        echo "=== Build output structure ==="
-        find mobile/build/app/outputs -type f 2>/dev/null | head -20 || echo "No outputs dir"
+        echo "=== Searching everywhere for APK ==="
+        find /home/runner/work -name "*.apk" 2>/dev/null || echo "No APK found anywhere"
+        echo "=== mobile/build structure ==="
+        find mobile/build -type f 2>/dev/null | head -30 || echo "No mobile/build dir"
+        echo "=== mobile/android/app/build structure ==="
+        find mobile/android/app/build -type f -name "*.apk" 2>/dev/null | head -10 || echo "No android app build dir"
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
         name: fintech-loan-apk
         path: |
-          mobile/build/app/outputs/flutter-apk/release/app-release.apk
+          mobile/build/app/outputs/flutter-apk/app-release.apk
           mobile/build/app/outputs/apk/release/app-release.apk
-        if-no-files-found: warn
+        if-no-files-found: error
 
     - name: Build Web
       run: |
