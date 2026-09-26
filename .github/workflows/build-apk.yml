@@ -70,6 +70,12 @@ jobs:
     - name: Get dependencies
       run: cd mobile && flutter pub get
 
+    - name: Create iOS platform files
+      run: |
+        cd mobile
+        flutter create --platforms ios . --project-name fintech_loan
+        echo "iOS directory created"
+
     - name: Build iOS (no codesign)
       run: |
         cd mobile
