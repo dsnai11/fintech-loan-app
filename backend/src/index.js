@@ -2,17 +2,26 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
+import { createRequire } from 'module';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import authRoutes from './routes/auth.js';
 import loanRoutes from './routes/loans.js';
 import userRoutes from './routes/users.js';
 
 dotenv.config();
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
+
+// Serve Flutter web app
+const webDir = join(__dirname, '../../web-deploy');
+app.use(express.static(webDir));
 
 const PORT = process.env.PORT || 5000;
 
@@ -26,6 +35,11 @@ app.use('/api/users', userRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date() });
+});
+
+// SPA fallback - serve index.html for non-API routes
+app.get('*', (req, res) => {
+  res.sendFile(join(__dirname, '../../web-deploy/index.html'));
 });
 
 app.use((err, req, res, next) => {
