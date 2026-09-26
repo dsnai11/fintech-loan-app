@@ -21,7 +21,9 @@ app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 const PORT = process.env.PORT || 5000;
 
-mongoose.connect(process.env.MONGO_URI || process.env.MONGODB_URI || 'mongodb://localhost:27017/fintech-loan')
+const mongoUrl = process.env.MONGO_URI || process.env.MONGODB_URI || process.env.MONGO_URL || process.env.DATABASE_URL || 'mongodb://localhost:27017/fintech-loan';
+console.log('Connecting to MongoDB:', mongoUrl.replace(/:\/\/.*@/, '://***@'));
+mongoose.connect(mongoUrl)
   .then(() => console.log('MongoDB connected'))
   .catch(err => console.log('MongoDB connection error:', err));
 
