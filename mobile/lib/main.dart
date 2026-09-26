@@ -21,7 +21,6 @@ class MyApp extends StatelessWidget {
       providers: [
         Provider<ApiService>(create: (_) => ApiService()),
         ProxyProvider<ApiService, AuthService>(
-          create: (_, apiService) => AuthService(apiService),
           update: (_, apiService, authService) => authService ?? AuthService(apiService),
         ),
       ],

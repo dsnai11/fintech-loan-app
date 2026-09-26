@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/api_service.dart';
@@ -43,8 +44,8 @@ class _LoanApplicationScreenState extends State<LoanApplicationScreen> {
       final monthlyRate = interestRate / 12 / 100;
       final emi = (amount *
               monthlyRate *
-              (1 + monthlyRate).toDouble().pow(tenure)) /
-          ((1 + monthlyRate).toDouble().pow(tenure) - 1);
+              pow(1 + monthlyRate, tenure)) /
+          (pow(1 + monthlyRate, tenure) - 1);
 
       setState(() {
         _monthlyEMI = emi;
