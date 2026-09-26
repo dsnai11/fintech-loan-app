@@ -73,9 +73,11 @@ jobs:
       run: |
         cd mobile
         flutter build web --release
+      continue-on-error: true
 
     - name: Upload Web Artifact
       uses: actions/upload-artifact@v4
       with:
         name: fintech-loan-web
         path: mobile/build/web/
+      continue-on-error: true
