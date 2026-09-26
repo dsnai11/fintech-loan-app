@@ -234,7 +234,7 @@ class _LoanApplicationScreenState extends State<LoanApplicationScreen> {
                     const SizedBox(height: 8),
                     _buildSummaryRow(
                       'Total Amount:',
-                      '₹${(_monthlyEMI * int.parse(_tenureController.text)).toStringAsFixed(0)}',
+                      '₹${(_monthlyEMI * (int.tryParse(_tenureController.text) ?? 1)).toStringAsFixed(0)}',
                     ),
                   ],
                 ),
