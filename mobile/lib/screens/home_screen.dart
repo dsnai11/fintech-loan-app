@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import '../main.dart';
 import 'pan_verify_screen.dart';
+import 'loan_history_screen.dart';
+import 'profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -217,7 +219,9 @@ class _HomeScreenState extends State<HomeScreen> {
                           icon: Icons.history_rounded,
                           label: 'Loan\nHistory',
                           color: const Color(0xFF7C3AED),
-                          onTap: () => _showComingSoon('Loan History'),
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => const LoanHistoryScreen()),
+                          ),
                         ),
                         _actionCard(
                           icon: Icons.calculate_rounded,
@@ -229,7 +233,9 @@ class _HomeScreenState extends State<HomeScreen> {
                           icon: Icons.person_rounded,
                           label: 'My\nProfile',
                           color: const Color(0xFFD97706),
-                          onTap: () => _showComingSoon('Profile'),
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => const ProfileScreen()),
+                          ),
                         ),
                       ],
                     ),

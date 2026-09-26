@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import '../main.dart';
+import '../models/loan_application_state.dart';
 import 'loan_flow_scaffold.dart';
 import 'bank_details_screen.dart';
 
 class LoanApprovedScreen extends StatelessWidget {
   final int planIndex;
+  final LoanApplicationState appState;
 
-  const LoanApprovedScreen({Key? key, required this.planIndex}) : super(key: key);
+  const LoanApprovedScreen({Key? key, required this.planIndex, required this.appState}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +25,7 @@ class LoanApprovedScreen extends StatelessWidget {
       buttonLabel: 'Proceed to Bank Details →',
       onContinue: () => Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => const BankDetailsScreen()),
+        MaterialPageRoute(builder: (_) => BankDetailsScreen(appState: appState)),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),

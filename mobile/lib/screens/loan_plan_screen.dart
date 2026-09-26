@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../main.dart';
+import '../models/loan_application_state.dart';
 import 'loan_flow_scaffold.dart';
 import 'loan_approved_screen.dart';
 
@@ -49,12 +50,21 @@ class _LoanPlanScreenState extends State<LoanPlanScreen> {
       step: 4,
       title: 'Choose Your Plan',
       buttonLabel: 'Continue →',
-      onContinue: () => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => LoanApprovedScreen(planIndex: _selected),
-        ),
-      ),
+      onContinue: () {
+        final planKeys = ['one_time', '3_emi', '6_emi'];
+        final tenures = [1, 3, 6];
+        final state = LoanApplicationState(
+          loanAmount: 30000,
+          tenure: tenures[_selected],
+          planType: planKeys[_selected],
+        );
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => LoanApprovedScreen(planIndex: _selected, appState: state),
+          ),
+        );
+      },
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(

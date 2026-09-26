@@ -157,6 +157,35 @@ class ApiService {
     }
   }
 
+  // Full loan application (7-step flow)
+  Future<Map<String, dynamic>> applyLoanFull({
+    required int loanAmount,
+    required int tenure,
+    required String purpose,
+    required String planType,
+    String loanType = 'Personal Loan',
+    Map<String, dynamic>? bankDetails,
+    Map<String, dynamic>? personalDetails,
+  }) async {
+    try {
+      final response = await _dio.post(
+        '/loans/apply-full',
+        data: {
+          'loanAmount': loanAmount,
+          'tenure': tenure,
+          'purpose': purpose,
+          'loanType': loanType,
+          'planType': planType,
+          if (bankDetails != null) 'bankDetails': bankDetails,
+          if (personalDetails != null) 'personalDetails': personalDetails,
+        },
+      );
+      return response.data;
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   String _handleError(DioException error) {
     if (error.response?.data is Map) {
       return error.response?.data['error'] ?? 'An error occurred';
