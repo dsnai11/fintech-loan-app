@@ -19,13 +19,9 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
-// Serve Flutter web app
-const webDir = join(__dirname, '../../web-deploy');
-app.use(express.static(webDir));
-
 const PORT = process.env.PORT || 5000;
 
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/fintech-loan')
+mongoose.connect(process.env.MONGO_URI || process.env.MONGODB_URI || 'mongodb://localhost:27017/fintech-loan')
   .then(() => console.log('MongoDB connected'))
   .catch(err => console.log('MongoDB connection error:', err));
 
@@ -37,9 +33,8 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date() });
 });
 
-// SPA fallback - serve index.html for non-API routes
-app.get('*', (req, res) => {
-  res.sendFile(join(__dirname, '../../web-deploy/index.html'));
+app.get('/', (req, res) => {
+  res.json({ status: 'FintechLoan API is running', version: '1.0.0' });
 });
 
 app.use((err, req, res, next) => {
