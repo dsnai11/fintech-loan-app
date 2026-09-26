@@ -3,7 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
   late Dio _dio;
-  static const String baseUrl = 'http://10.10.1.117:5000/api';
+  static const String baseUrl = 'https://fintech-loan-app-production.up.railway.app/api';
   String? _token;
 
   ApiService() {
