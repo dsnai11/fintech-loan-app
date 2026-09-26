@@ -1,0 +1,70 @@
+name: Build APK & Web
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.19.6'
+        channel: 'stable'
+
+    - name: Get dependencies
+      run: |
+        cd mobile
+        flutter pub get
+
+    - name: Build APK
+      run: |
+        cd mobile
+        flutter build apk --release
+
+    - name: Build Web
+      run: |
+        cd mobile
+        flutter build web --release
+
+    - name: Upload APK Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: app-release.apk
+        path: mobile/build/app/outputs/flutter-app/release/app-release.apk
+
+    - name: Upload Web Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: web-release
+        path: mobile/build/web/
+
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref }}
+        draft: false
+        prerelease: false
+
+    - name: Upload APK to Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./mobile/build/app/outputs/flutter-app/release/app-release.apk
+        asset_name: fintech-loan-app.apk
+        asset_content_type: application/vnd.android.package-archive
