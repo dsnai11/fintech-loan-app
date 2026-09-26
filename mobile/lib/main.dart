@@ -29,7 +29,6 @@ class MyApp extends StatelessWidget {
         theme: ThemeData(
           primarySwatch: Colors.blue,
           useMaterial3: true,
-          fontFamily: 'Poppins',
         ),
         home: const SplashScreen(),
         routes: {
