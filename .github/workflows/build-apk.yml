@@ -34,8 +34,11 @@ jobs:
         echo "flutter.versionName=1.0" >> mobile/android/local.properties
         echo "sdk.dir=$ANDROID_HOME" >> mobile/android/local.properties
 
-    - name: Make gradlew executable
-      run: chmod +x mobile/android/gradlew
+    - name: Fix gradlew line endings and make executable
+      run: |
+        sed -i 's/\r$//' mobile/android/gradlew
+        chmod +x mobile/android/gradlew
+        head -1 mobile/android/gradlew
 
     - name: Get dependencies
       run: |
@@ -49,7 +52,11 @@ jobs:
 
     - name: Find APK location
       if: always()
-      run: find mobile/build -name "*.apk" 2>/dev/null || echo "No APK found"
+      run: |
+        echo "=== Searching for APK ==="
+        find mobile/build -name "*.apk" 2>/dev/null || echo "No APK found"
+        echo "=== Build output structure ==="
+        find mobile/build/app/outputs -type f 2>/dev/null | head -20 || echo "No outputs dir"
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
