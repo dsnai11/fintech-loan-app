@@ -8,9 +8,9 @@ import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
 import 'screens/home_screen.dart';
 
-const kNavy = Color(0xFF1E1B4B);
-const kGreen = Color(0xFF22C55E);
-const kBg = Color(0xFFF5F7FA);
+const kNavy = Color(0xFF7B0000);
+const kGreen = Color(0xFFC41E3A);
+const kBg = Color(0xFFFFF8F8);
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,7 +35,7 @@ class MyApp extends StatelessWidget {
         ),
       ],
       child: MaterialApp(
-        title: 'FinTech Loan',
+        title: 'LIFC - Laxmi India Finance',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           useMaterial3: true,

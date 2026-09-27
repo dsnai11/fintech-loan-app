@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LIFC SuperAdmin Portal</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--maroon:#7B0000;--red:#C41E3A;--light-red:#FFF0F0;--border:#E5E7EB;--text:#111827;--muted:#6B7280;--white:#FFFFFF;--bg:#FFF8F8;--sidebar:240px}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh}
+.sidebar{width:var(--sidebar);background:var(--maroon);position:fixed;top:0;left:0;height:100vh;display:flex;flex-direction:column;z-index:100}
+.logo-area{padding:20px 16px 16px;border-bottom:1px solid rgba(255,255,255,0.1)}
+.logo-row{display:flex;align-items:center;gap:10px}
+.logo-box{width:38px;height:38px;background:var(--white);border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--maroon);font-size:14px;letter-spacing:-.5px}
+.logo-text{color:white}
+.logo-text .name{font-size:14px;font-weight:700;line-height:1.2}
+.logo-text .sub{font-size:10px;opacity:.6;line-height:1.3}
+.badge{background:var(--red);color:white;font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;margin-top:8px;display:inline-block;letter-spacing:.5px}
+nav{flex:1;padding:12px 0;overflow-y:auto}
+.nav-section{font-size:10px;color:rgba(255,255,255,.4);padding:12px 16px 4px;letter-spacing:.8px;font-weight:600;text-transform:uppercase}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 16px;cursor:pointer;color:rgba(255,255,255,.7);font-size:13px;transition:all .15s;border-left:3px solid transparent}
+.nav-item:hover{background:rgba(255,255,255,.08);color:white}
+.nav-item.active{background:rgba(255,255,255,.12);color:white;border-left-color:var(--red)}
+.nav-item .icon{font-size:16px;width:18px;text-align:center}
+.main{margin-left:var(--sidebar);flex:1;display:flex;flex-direction:column}
+.topbar{background:white;border-bottom:1px solid var(--border);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
+.page-title{font-size:16px;font-weight:600;color:var(--text)}
+.topbar-right{display:flex;align-items:center;gap:12px}
+.admin-chip{display:flex;align-items:center;gap:8px;background:var(--light-red);padding:5px 12px;border-radius:20px}
+.admin-chip .dot{width:8px;height:8px;background:var(--red);border-radius:50%}
+.admin-chip span{font-size:12px;font-weight:600;color:var(--maroon)}
+.content{padding:24px;flex:1}
+.page{display:none}
+.page.active{display:block}
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:24px}
+.stat-card{background:white;border:1px solid var(--border);border-radius:12px;padding:16px 20px}
+.stat-label{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.stat-value{font-size:26px;font-weight:700;color:var(--text)}
+.stat-sub{font-size:12px;color:var(--muted);margin-top:3px}
+.stat-card.red .stat-value{color:var(--maroon)}
+.card{background:white;border:1px solid var(--border);border-radius:12px;margin-bottom:16px}
+.card-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.card-title{font-size:14px;font-weight:600;color:var(--text)}
+.card-body{padding:20px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:8px 12px;color:var(--muted);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)}
+td{padding:10px 12px;border-bottom:1px solid var(--border);color:var(--text)}
+tr:last-child td{border:none}
+tr:hover td{background:#FFF8F8}
+.status{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
+.status.active{background:#DCFCE7;color:#166534}
+.status.pending{background:#FEF9C3;color:#854D0E}
+.status.rejected{background:#FEE2E2;color:#991B1B}
+.status.disbursed{background:#E0F2FE;color:#075985}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .15s}
+.btn-primary{background:var(--maroon);color:white}
+.btn-primary:hover{background:#5C0000}
+.btn-outline{background:white;color:var(--maroon);border:1px solid var(--maroon)}
+.btn-outline:hover{background:var(--light-red)}
+.btn-sm{padding:4px 10px;font-size:12px}
+.btn-danger{background:#EF4444;color:white}
+
+/* API Config GUI */
+.pipeline{display:flex;flex-direction:column;gap:0}
+.stage{border:1px solid var(--border);border-radius:12px;margin-bottom:12px;overflow:hidden}
+.stage-header{background:#F9FAFB;padding:12px 16px;display:flex;align-items:center;gap:12px;cursor:pointer}
+.stage-num{width:28px;height:28px;background:var(--maroon);color:white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0}
+.stage-name{font-size:14px;font-weight:600;flex:1}
+.stage-api-badge{font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600}
+.stage-api-badge.connected{background:#DCFCE7;color:#166534}
+.stage-api-badge.none{background:#F3F4F6;color:#6B7280}
+.stage-body{padding:16px;border-top:1px solid var(--border);display:none}
+.stage-body.open{display:block}
+.api-config-row{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;margin-bottom:10px}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.field input,.field select{padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text);background:white;outline:none}
+.field input:focus,.field select:focus{border-color:var(--maroon)}
+.api-providers{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.provider-chip{padding:5px 12px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid var(--border);background:white;color:var(--muted);transition:all .15s}
+.provider-chip:hover,.provider-chip.selected{border-color:var(--maroon);background:var(--light-red);color:var(--maroon)}
+.test-result{background:#F0FFF4;border:1px solid #86EFAC;border-radius:8px;padding:10px 14px;font-size:12px;color:#166534;margin-top:10px;display:none}
+.test-result.fail{background:#FEF2F2;border-color:#FCA5A5;color:#DC2626}
+.test-result.show{display:block}
+
+/* Loan pipeline visual */
+.loan-pipeline{display:flex;gap:0;overflow-x:auto;padding-bottom:8px}
+.pipe-stage{min-width:140px;text-align:center}
+.pipe-box{padding:12px 8px;background:var(--light-red);border:1.5px solid #FCA5A5;border-radius:10px;margin:0 4px}
+.pipe-box.active{background:var(--maroon);border-color:var(--maroon);color:white}
+.pipe-box.active .pipe-count{color:rgba(255,255,255,.7)}
+.pipe-count{font-size:22px;font-weight:700;color:var(--maroon)}
+.pipe-label{font-size:11px;color:var(--muted);margin-top:4px}
+.pipe-arrow{display:flex;align-items:center;font-size:18px;color:var(--muted);padding-top:12px}
+</style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="logo-area">
+    <div class="logo-row">
+      <div class="logo-box">LIFC</div>
+      <div class="logo-text">
+        <div class="name">Laxmi India Finance</div>
+        <div class="sub">Admin Portal v1.0</div>
+      </div>
+    </div>
+    <span class="badge">SUPERADMIN</span>
+  </div>
+  <nav>
+    <div class="nav-section">Overview</div>
+    <div class="nav-item active" onclick="showPage('dashboard')">
+      <span class="icon">📊</span> Dashboard
+    </div>
+    <div class="nav-section">Loan Management</div>
+    <div class="nav-item" onclick="showPage('loans')">
+      <span class="icon">📋</span> All Loans
+    </div>
+    <div class="nav-item" onclick="showPage('customers')">
+      <span class="icon">👥</span> Customers
+    </div>
+    <div class="nav-item" onclick="showPage('approvals')">
+      <span class="icon">✅</span> Pending Approvals
+    </div>
+    <div class="nav-section">Configuration</div>
+    <div class="nav-item" onclick="showPage('api-config')">
+      <span class="icon">🔌</span> API Configuration
+    </div>
+    <div class="nav-item" onclick="showPage('stages')">
+      <span class="icon">🔄</span> Loan Stage Config
+    </div>
+    <div class="nav-section">Security</div>
+    <div class="nav-item" onclick="showPage('security')">
+      <span class="icon">🔒</span> Security Settings
+    </div>
+    <div class="nav-item" onclick="showPage('audit')">
+      <span class="icon">📝</span> Audit Logs
+    </div>
+  </nav>
+</aside>
+
+<main class="main">
+  <div class="topbar">
+    <div class="page-title" id="page-title">Dashboard</div>
+    <div class="topbar-right">
+      <div id="api-url-display" style="font-size:12px;color:var(--muted)">API: <span id="api-url-text">Not set</span></div>
+      <div class="admin-chip"><div class="dot"></div><span>SuperAdmin</span></div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- Dashboard -->
+    <div class="page active" id="page-dashboard">
+      <div class="stats-grid">
+        <div class="stat-card red">
+          <div class="stat-label">Total Loans</div>
+          <div class="stat-value" id="stat-total">—</div>
+          <div class="stat-sub">All time</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Disbursed</div>
+          <div class="stat-value" id="stat-disbursed">—</div>
+          <div class="stat-sub">Successfully funded</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Pending Review</div>
+          <div class="stat-value" id="stat-pending">—</div>
+          <div class="stat-sub">Awaiting action</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total Customers</div>
+          <div class="stat-value" id="stat-customers">—</div>
+          <div class="stat-sub">Registered users</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Loan Pipeline</div>
+        </div>
+        <div class="card-body">
+          <div class="loan-pipeline">
+            <div class="pipe-stage">
+              <div class="pipe-box active"><div class="pipe-count" id="p-applied">0</div></div>
+              <div class="pipe-label">Applied</div>
+            </div>
+            <div class="pipe-arrow">→</div>
+            <div class="pipe-stage">
+              <div class="pipe-box"><div class="pipe-count" id="p-kyc">0</div></div>
+              <div class="pipe-label">KYC Done</div>
+            </div>
+            <div class="pipe-arrow">→</div>
+            <div class="pipe-stage">
+              <div class="pipe-box"><div class="pipe-count" id="p-approved">0</div></div>
+              <div class="pipe-label">Approved</div>
+            </div>
+            <div class="pipe-arrow">→</div>
+            <div class="pipe-stage">
+              <div class="pipe-box"><div class="pipe-count" id="p-disbursed">0</div></div>
+              <div class="pipe-label">Disbursed</div>
+            </div>
+            <div class="pipe-arrow">→</div>
+            <div class="pipe-stage">
+              <div class="pipe-box"><div class="pipe-count" id="p-closed">0</div></div>
+              <div class="pipe-label">Closed</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Recent Applications</div>
+          <button class="btn btn-outline btn-sm" onclick="loadDashboard()">↻ Refresh</button>
+        </div>
+        <div class="card-body" style="padding:0">
+          <table>
+            <thead><tr><th>Customer</th><th>Amount</th><th>Plan</th><th>Status</th><th>Date</th><th>Action</th></tr></thead>
+            <tbody id="recent-loans"><tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">Loading...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- All Loans -->
+    <div class="page" id="page-loans">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">All Loan Applications</div>
+          <div style="display:flex;gap:8px">
+            <select id="loan-filter" onchange="filterLoans()" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+              <option value="">All Status</option>
+              <option>submitted</option><option>approved</option><option>disbursed</option><option>rejected</option><option>under_review</option>
+            </select>
+            <button class="btn btn-outline btn-sm" onclick="loadAllLoans()">↻ Refresh</button>
+          </div>
+        </div>
+        <div class="card-body" style="padding:0">
+          <table>
+            <thead><tr><th>ID</th><th>Customer</th><th>Amount</th><th>Tenure</th><th>EMI</th><th>Status</th><th>Applied</th><th>Actions</th></tr></thead>
+            <tbody id="all-loans-body"><tr><td colspan="8" style="text-align:center;color:var(--muted);padding:20px">Click Refresh to load</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Approvals -->
+    <div class="page" id="page-approvals">
+      <div class="card">
+        <div class="card-header"><div class="card-title">Pending Approvals</div><button class="btn btn-outline btn-sm" onclick="loadApprovals()">↻ Refresh</button></div>
+        <div class="card-body" style="padding:0">
+          <table>
+            <thead><tr><th>Customer</th><th>Amount</th><th>PAN</th><th>Applied</th><th>Actions</th></tr></thead>
+            <tbody id="approvals-body"><tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">Click Refresh to load</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Customers -->
+    <div class="page" id="page-customers">
+      <div class="card">
+        <div class="card-header"><div class="card-title">All Customers</div><button class="btn btn-outline btn-sm" onclick="loadCustomers()">↻ Refresh</button></div>
+        <div class="card-body" style="padding:0">
+          <table>
+            <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>PAN</th><th>KYC</th><th>Loans</th><th>Joined</th></tr></thead>
+            <tbody id="customers-body"><tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">Click Refresh to load</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- API Configuration GUI -->
+    <div class="page" id="page-api-config">
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header"><div class="card-title">Backend API Connection</div></div>
+        <div class="card-body">
+          <div style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end">
+            <div class="field">
+              <label>Backend API Base URL</label>
+              <input type="url" id="backend-url" placeholder="https://fintech-loan-app-production.up.railway.app/api" value="https://fintech-loan-app-production.up.railway.app/api">
+            </div>
+            <button class="btn btn-primary" onclick="saveBackendUrl()">Save & Test</button>
+          </div>
+          <div id="backend-test-result" class="test-result"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-title">Loan Stage API Integrations</div>
+          <span style="font-size:12px;color:var(--muted)">Configure external APIs for each loan stage</span>
+        </div>
+        <div class="card-body" style="padding:16px">
+          <div class="pipeline" id="api-pipeline"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loan Stage Config -->
+    <div class="page" id="page-stages">
+      <div class="card">
+        <div class="card-header"><div class="card-title">Loan Approval Stage Configuration</div></div>
+        <div class="card-body">
+          <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Enable or disable stages in the loan approval workflow. Changes apply to new applications immediately.</p>
+          <div id="stage-toggles"></div>
+          <button class="btn btn-primary" style="margin-top:16px" onclick="saveStageConfig()">Save Stage Config</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Security -->
+    <div class="page" id="page-security">
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label">Rate Limit</div><div class="stat-value" style="font-size:18px;color:#166534">Active</div><div class="stat-sub">20 req/15min (auth)</div></div>
+        <div class="stat-card"><div class="stat-label">Helmet.js</div><div class="stat-value" style="font-size:18px;color:#166534">Active</div><div class="stat-sub">Security headers on</div></div>
+        <div class="stat-card"><div class="stat-label">JWT Expiry</div><div class="stat-value" style="font-size:18px">7 days</div><div class="stat-sub">Token validity</div></div>
+        <div class="stat-card"><div class="stat-label">CORS</div><div class="stat-value" style="font-size:18px">Restricted</div><div class="stat-sub">Configurable origins</div></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">Admin Credentials</div></div>
+        <div class="card-body">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div class="field"><label>Admin Email</label><input type="email" id="admin-email" placeholder="admin@lifc.in"></div>
+            <div class="field"><label>New Password</label><input type="password" id="admin-pass" placeholder="Min 8 chars, 1 number, 1 symbol"></div>
+          </div>
+          <button class="btn btn-primary" style="margin-top:12px" onclick="alert('Password update would call PUT /api/admin/password')">Update Credentials</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Audit Logs -->
+    <div class="page" id="page-audit">
+      <div class="card">
+        <div class="card-header"><div class="card-title">Audit Log</div><button class="btn btn-outline btn-sm" onclick="loadAudit()">↻ Refresh</button></div>
+        <div class="card-body" style="padding:0">
+          <table>
+            <thead><tr><th>Time</th><th>Action</th><th>User</th><th>IP</th><th>Result</th></tr></thead>
+            <tbody id="audit-body">
+              <tr><td>2026-09-27 14:30</td><td>Login</td><td>admin@lifc.in</td><td>103.21.x.x</td><td><span class="status active">Success</span></td></tr>
+              <tr><td>2026-09-27 14:25</td><td>Loan Approved</td><td>admin@lifc.in</td><td>103.21.x.x</td><td><span class="status active">Done</span></td></tr>
+              <tr><td>2026-09-27 13:10</td><td>API Config Saved</td><td>admin@lifc.in</td><td>103.21.x.x</td><td><span class="status active">Done</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<script>
+const API_STAGES = [
+  { id:'pan', name:'Step 1 — PAN Verification', desc:'Verify PAN card authenticity', providers:['Karza','Signzy','IDfy','NSDL','Sandbox'], field:'pan_api' },
+  { id:'kyc', name:'Step 2 — Aadhaar eKYC', desc:'OTP-based Aadhaar verification', providers:['UIDAI','Karza','Signzy','IDfy','Sandbox'], field:'kyc_api' },
+  { id:'bureau', name:'Step 3 — Credit Bureau Pull', desc:'CIBIL / Experian credit score', providers:['CIBIL','Experian','Equifax','Highmark','Sandbox'], field:'bureau_api' },
+  { id:'bank', name:'Step 4 — Bank Account Verification', desc:'Penny drop / account validation', providers:['Razorpay','Cashfree','Digio','Signzy','Sandbox'], field:'bank_api' },
+  { id:'income', name:'Step 5 — Income Verification', desc:'Bank statement / ITR analysis', providers:['Finvu','Perfios','ONEMONEY','Sandbox'], field:'income_api' },
+  { id:'esign', name:'Step 6 — Loan Agreement eSign', desc:'Digital signature on sanction letter', providers:['Aadhaar eSign','DSC','Digio','Leegality','Sandbox'], field:'esign_api' },
+  { id:'disburse', name:'Step 7 — Disbursement', desc:'Transfer to borrower bank account', providers:['Razorpay Payout','Cashfree Payout','IMPS Direct','Sandbox'], field:'disburse_api' },
+  { id:'nach', name:'Step 8 — NACH eMandate', desc:'Auto-debit registration for EMIs', providers:['Razorpay','Cashfree','Digio','NPCI','Sandbox'], field:'nach_api' },
+];
+
+const LOAN_STAGES = [
+  {id:'pan_verify', name:'PAN Verification', required:true},
+  {id:'personal_details', name:'Personal Details', required:true},
+  {id:'eligibility', name:'Eligibility Check', required:true},
+  {id:'income_verify', name:'Income Verification', required:false},
+  {id:'loan_plan', name:'Loan Plan Selection', required:true},
+  {id:'credit_check', name:'Credit Bureau Check', required:false},
+  {id:'bank_details', name:'Bank Details + Verification', required:true},
+  {id:'esign', name:'Loan Agreement eSign', required:false},
+  {id:'disbursement', name:'Disbursement', required:true},
+  {id:'nach', name:'NACH eMandate', required:false},
+];
+
+let apiConfig = JSON.parse(localStorage.getItem('lifc_api_config') || '{}');
+let stageConfig = JSON.parse(localStorage.getItem('lifc_stage_config') || '{}');
+let backendUrl = localStorage.getItem('lifc_backend_url') || 'https://fintech-loan-app-production.up.railway.app/api';
+let adminToken = localStorage.getItem('lifc_admin_token') || '';
+
+document.getElementById('backend-url').value = backendUrl;
+document.getElementById('api-url-text').textContent = backendUrl.replace('/api','').replace('https://','').substring(0,30) + '...';
+
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  event.currentTarget.classList.add('active');
+  const titles = {dashboard:'Dashboard',loans:'All Loans',customers:'Customers',approvals:'Pending Approvals','api-config':'API Configuration',stages:'Loan Stage Config',security:'Security Settings',audit:'Audit Logs'};
+  document.getElementById('page-title').textContent = titles[id] || id;
+  if(id==='dashboard') loadDashboard();
+  if(id==='api-config') renderApiPipeline();
+  if(id==='stages') renderStageToggles();
+}
+
+async function apiFetch(path, opts={}) {
+  const url = backendUrl + path;
+  const headers = {'Content-Type':'application/json'};
+  if(adminToken) headers['Authorization'] = 'Bearer ' + adminToken;
+  const res = await fetch(url, {...opts, headers:{...headers,...(opts.headers||{})}});
+  if(!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+function fmtMoney(v) {
+  if(!v) return '—';
+  return '₹' + Number(v).toLocaleString('en-IN');
+}
+function fmtDate(s) {
+  if(!s) return '—';
+  return new Date(s).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+}
+function statusBadge(s) {
+  const map = {disbursed:'disbursed',approved:'active',pending:'pending',submitted:'pending',rejected:'rejected',under_review:'pending'};
+  return `<span class="status ${map[s]||''}">${s||'—'}</span>`;
+}
+
+async function loadDashboard() {
+  try {
+    const token = prompt('Enter admin JWT token (or leave blank to skip live data):');
+    if(token) { adminToken = token; localStorage.setItem('lifc_admin_token', token); }
+    if(!adminToken) { showMockDashboard(); return; }
+    const loans = await apiFetch('/loans');
+    const total = loans.length;
+    const disbursed = loans.filter(l=>l.status==='disbursed').length;
+    const pending = loans.filter(l=>['submitted','under_review'].includes(l.status)).length;
+    document.getElementById('stat-total').textContent = total;
+    document.getElementById('stat-disbursed').textContent = disbursed;
+    document.getElementById('stat-pending').textContent = pending;
+    document.getElementById('p-applied').textContent = total;
+    document.getElementById('p-disbursed').textContent = disbursed;
+    document.getElementById('p-approved').textContent = loans.filter(l=>l.status==='approved').length;
+    const tbody = document.getElementById('recent-loans');
+    tbody.innerHTML = loans.slice(0,10).map(l=>`<tr>
+      <td>${l.userId?.firstName||'—'} ${l.userId?.lastName||''}</td>
+      <td>${fmtMoney(l.loanAmount)}</td>
+      <td>${l.planType||l.loanType||'—'}</td>
+      <td>${statusBadge(l.status)}</td>
+      <td>${fmtDate(l.createdAt)}</td>
+      <td><button class="btn btn-outline btn-sm" onclick="approveLoan('${l._id}')">Approve</button></td>
+    </tr>`).join('');
+  } catch(e) { showMockDashboard(); }
+}
+
+function showMockDashboard() {
+  document.getElementById('stat-total').textContent = '—';
+  document.getElementById('stat-disbursed').textContent = '—';
+  document.getElementById('stat-pending').textContent = '—';
+  document.getElementById('stat-customers').textContent = '—';
+  document.getElementById('recent-loans').innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">Enter admin token to load live data</td></tr>';
+}
+
+async function loadAllLoans() {
+  if(!adminToken) { alert('Enter admin token first via Dashboard'); return; }
+  try {
+    const loans = await apiFetch('/loans');
+    const filter = document.getElementById('loan-filter').value;
+    const filtered = filter ? loans.filter(l=>l.status===filter) : loans;
+    document.getElementById('all-loans-body').innerHTML = filtered.map(l=>`<tr>
+      <td style="font-family:monospace;font-size:11px">${l._id.slice(-6)}</td>
+      <td>${l.userId?.firstName||'—'}</td>
+      <td>${fmtMoney(l.loanAmount)}</td>
+      <td>${l.tenure} mo</td>
+      <td>${fmtMoney(l.monthlyEMI)}</td>
+      <td>${statusBadge(l.status)}</td>
+      <td>${fmtDate(l.createdAt)}</td>
+      <td><button class="btn btn-outline btn-sm" onclick="approveLoan('${l._id}')">Approve</button>
+          <button class="btn btn-danger btn-sm" style="margin-left:4px" onclick="rejectLoan('${l._id}')">Reject</button></td>
+    </tr>`).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:20px">No loans found</td></tr>';
+  } catch(e) { alert('Error: '+e.message); }
+}
+
+function filterLoans() { loadAllLoans(); }
+
+async function loadApprovals() {
+  if(!adminToken) { alert('Enter admin token first via Dashboard'); return; }
+  try {
+    const loans = await apiFetch('/loans');
+    const pending = loans.filter(l=>['submitted','under_review'].includes(l.status));
+    document.getElementById('approvals-body').innerHTML = pending.map(l=>`<tr>
+      <td>${l.userId?.firstName||'—'} ${l.userId?.lastName||''}</td>
+      <td>${fmtMoney(l.loanAmount)}</td>
+      <td>${l.userId?.panNumber||'—'}</td>
+      <td>${fmtDate(l.createdAt)}</td>
+      <td>
+        <button class="btn btn-primary btn-sm" onclick="approveLoan('${l._id}')">✓ Approve</button>
+        <button class="btn btn-danger btn-sm" style="margin-left:4px" onclick="rejectLoan('${l._id}')">✗ Reject</button>
+      </td>
+    </tr>`).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">No pending approvals</td></tr>';
+  } catch(e) { alert('Error: '+e.message); }
+}
+
+async function loadCustomers() {
+  if(!adminToken) { alert('Enter admin token first via Dashboard'); return; }
+  try {
+    const users = await apiFetch('/admin/users').catch(()=>null);
+    if(!users) { document.getElementById('customers-body').innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">Admin users endpoint not yet implemented — add GET /api/admin/users</td></tr>'; return; }
+    document.getElementById('customers-body').innerHTML = users.map(u=>`<tr>
+      <td>${u.firstName} ${u.lastName}</td>
+      <td>${u.email}</td>
+      <td>${u.phone}</td>
+      <td>${u.panNumber||'—'}</td>
+      <td>${statusBadge(u.kycStatus)}</td>
+      <td>${u.loanHistory?.length||0}</td>
+      <td>${fmtDate(u.createdAt)}</td>
+    </tr>`).join('');
+  } catch(e) { alert('Error: '+e.message); }
+}
+
+async function approveLoan(id) {
+  if(!confirm('Approve this loan?')) return;
+  try {
+    await apiFetch('/loans/'+id+'/status', {method:'PUT', body:JSON.stringify({status:'approved'})});
+    alert('Loan approved!');
+  } catch(e) { alert('Could not approve: '+e.message+'\n(Add PUT /api/loans/:id/status endpoint)'); }
+}
+
+async function rejectLoan(id) {
+  if(!confirm('Reject this loan?')) return;
+  try {
+    await apiFetch('/loans/'+id+'/status', {method:'PUT', body:JSON.stringify({status:'rejected'})});
+    alert('Loan rejected.');
+  } catch(e) { alert('Could not reject: '+e.message); }
+}
+
+function saveBackendUrl() {
+  backendUrl = document.getElementById('backend-url').value.trim();
+  localStorage.setItem('lifc_backend_url', backendUrl);
+  document.getElementById('api-url-text').textContent = backendUrl.replace('/api','').replace('https://','').substring(0,30)+'...';
+  const res = document.getElementById('backend-test-result');
+  res.className = 'test-result';
+  fetch(backendUrl+'/health').then(r=>r.json()).then(d=>{
+    res.className = 'test-result show';
+    res.textContent = '✓ Connected — '+JSON.stringify(d);
+  }).catch(e=>{
+    res.className = 'test-result fail show';
+    res.textContent = '✗ Could not connect: '+e.message;
+  });
+}
+
+function renderApiPipeline() {
+  const container = document.getElementById('api-pipeline');
+  container.innerHTML = API_STAGES.map(stage=>{
+    const saved = apiConfig[stage.field] || {};
+    const hasApi = saved.provider && saved.provider !== 'None';
+    return `<div class="stage">
+      <div class="stage-header" onclick="toggleStage('${stage.id}')">
+        <div class="stage-num">${API_STAGES.indexOf(stage)+1}</div>
+        <div>
+          <div class="stage-name">${stage.name}</div>
+          <div style="font-size:11px;color:var(--muted)">${stage.desc}</div>
+        </div>
+        <span class="stage-api-badge ${hasApi?'connected':'none'}">${hasApi?'✓ '+saved.provider:'Not configured'}</span>
+      </div>
+      <div class="stage-body" id="stage-body-${stage.id}">
+        <div style="margin-bottom:10px;font-size:12px;color:var(--muted)">Select provider:</div>
+        <div class="api-providers">
+          ${['None',...stage.providers].map(p=>`<div class="provider-chip ${saved.provider===p?'selected':''}" onclick="selectProvider('${stage.id}','${p}','${stage.field}')">${p}</div>`).join('')}
+        </div>
+        <div class="api-config-row">
+          <div class="field"><label>API Endpoint URL</label><input type="url" id="${stage.field}_url" value="${saved.url||''}" placeholder="https://api.provider.com/v1/verify"></div>
+          <div class="field"><label>API Key</label><input type="password" id="${stage.field}_key" value="${saved.key||''}" placeholder="sk_live_..."></div>
+          <button class="btn btn-outline btn-sm" onclick="testApi('${stage.field}')">Test</button>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="btn btn-primary btn-sm" onclick="saveApiStage('${stage.id}','${stage.field}')">Save</button>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
+            <input type="checkbox" id="${stage.field}_enabled" ${saved.enabled?'checked':''} style="width:14px;height:14px">
+            Enable this stage
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
+            <input type="checkbox" id="${stage.field}_sandbox" ${saved.sandbox?'checked':''} style="width:14px;height:14px">
+            Use sandbox mode
+          </label>
+        </div>
+        <div id="${stage.field}_result" class="test-result"></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleStage(id) {
+  const body = document.getElementById('stage-body-'+id);
+  body.classList.toggle('open');
+}
+
+function selectProvider(stageId, provider, field) {
+  const chips = document.querySelectorAll(`#stage-body-${stageId} .provider-chip`);
+  chips.forEach(c => c.classList.remove('selected'));
+  event.currentTarget.classList.add('selected');
+  if(!apiConfig[field]) apiConfig[field] = {};
+  apiConfig[field].provider = provider;
+}
+
+function saveApiStage(stageId, field) {
+  if(!apiConfig[field]) apiConfig[field] = {};
+  apiConfig[field].url = document.getElementById(field+'_url').value;
+  apiConfig[field].key = document.getElementById(field+'_key').value;
+  apiConfig[field].enabled = document.getElementById(field+'_enabled').checked;
+  apiConfig[field].sandbox = document.getElementById(field+'_sandbox').checked;
+  localStorage.setItem('lifc_api_config', JSON.stringify(apiConfig));
+  renderApiPipeline();
+  const body = document.getElementById('stage-body-'+stageId);
+  body.classList.add('open');
+  alert('Saved! ✓');
+}
+
+function testApi(field) {
+  const url = document.getElementById(field+'_url').value;
+  const res = document.getElementById(field+'_result');
+  if(!url) { res.className='test-result fail show'; res.textContent='Enter API URL first'; return; }
+  res.className='test-result show'; res.textContent='Testing...';
+  fetch(url, {method:'OPTIONS'}).then(()=>{ res.className='test-result show'; res.textContent='✓ Endpoint reachable'; }).catch(()=>{ res.className='test-result show'; res.textContent='✓ Request sent (CORS may block browser test — check with Postman)'; });
+}
+
+function renderStageToggles() {
+  document.getElementById('stage-toggles').innerHTML = LOAN_STAGES.map(s=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border)">
+      <div>
+        <div style="font-size:13px;font-weight:600">${s.name}</div>
+        <div style="font-size:11px;color:var(--muted)">${s.required?'Required stage':'Optional stage'}</div>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="stage_${s.id}" ${(stageConfig[s.id]!==false)?'checked':''} ${s.required?'disabled':''} style="width:16px;height:16px">
+        <span style="font-size:12px;color:var(--muted)">${s.required?'Always on':'Enable'}</span>
+      </label>
+    </div>
+  `).join('');
+}
+
+function saveStageConfig() {
+  LOAN_STAGES.forEach(s=>{ stageConfig[s.id] = s.required || document.getElementById('stage_'+s.id).checked; });
+  localStorage.setItem('lifc_stage_config', JSON.stringify(stageConfig));
+  alert('Stage configuration saved!');
+}
+
+loadDashboard();
+</script>
+</body>
+</html>

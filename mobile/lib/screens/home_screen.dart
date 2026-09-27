@@ -41,27 +41,35 @@ class _HomeScreenState extends State<HomeScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          RichText(
-                            text: const TextSpan(
-                              children: [
-                                TextSpan(
-                                  text: 'Fintech',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w700,
-                                  ),
+                          Row(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.asset(
+                                  'assets/images/lifc_logo.jpg',
+                                  height: 36,
+                                  width: 36,
+                                  fit: BoxFit.contain,
                                 ),
-                                TextSpan(
-                                  text: 'LOAN',
-                                  style: TextStyle(
-                                    color: kGreen,
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              ],
-                            ),
+                              ),
+                              const SizedBox(width: 10),
+                              const Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('LIFC',
+                                      style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: 1.2)),
+                                  Text('Laxmi India Finance Ltd.',
+                                      style: TextStyle(
+                                          color: Colors.white60,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w500)),
+                                ],
+                              ),
+                            ],
                           ),
                           GestureDetector(
                             onTap: () {
