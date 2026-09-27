@@ -20,21 +20,14 @@ router.get('/profile', authMiddleware, async (req, res) => {
 
 router.put('/profile', authMiddleware, async (req, res) => {
   try {
-    const { firstName, lastName, phone, dateOfBirth, gender, nationality, address, employment, bankAccount } = req.body;
+    const { firstName, lastName, phone, dateOfBirth, gender, nationality, address, employment, bankAccount, panNumber, kycStatus } = req.body;
+
+    const update = { firstName, lastName, phone, dateOfBirth, gender, nationality, address, employment, bankAccount };
+    if (panNumber) { update.panNumber = panNumber.toUpperCase(); update.kycStatus = 'approved'; }
 
     const user = await User.findByIdAndUpdate(
       req.user.userId,
-      {
-        firstName,
-        lastName,
-        phone,
-        dateOfBirth,
-        gender,
-        nationality,
-        address,
-        employment,
-        bankAccount,
-      },
+      update,
       { new: true, runValidators: true }
     ).select('-password');
 

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import '../main.dart';
+import '../models/loan_application_state.dart';
 import 'loan_plan_screen.dart';
 
 class EligibilityCheckScreen extends StatefulWidget {
-  const EligibilityCheckScreen({Key? key}) : super(key: key);
+  final LoanApplicationState? appState;
+  const EligibilityCheckScreen({Key? key, this.appState}) : super(key: key);
 
   @override
   State<EligibilityCheckScreen> createState() => _EligibilityCheckScreenState();
@@ -48,7 +50,7 @@ class _EligibilityCheckScreenState extends State<EligibilityCheckScreen>
     if (!mounted) return;
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (_) => const LoanPlanScreen()),
+      MaterialPageRoute(builder: (_) => LoanPlanScreen(appState: widget.appState)),
     );
   }
 

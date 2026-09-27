@@ -5,7 +5,8 @@ import 'loan_flow_scaffold.dart';
 import 'loan_approved_screen.dart';
 
 class LoanPlanScreen extends StatefulWidget {
-  const LoanPlanScreen({Key? key}) : super(key: key);
+  final LoanApplicationState? appState;
+  const LoanPlanScreen({Key? key, this.appState}) : super(key: key);
 
   @override
   State<LoanPlanScreen> createState() => _LoanPlanScreenState();
@@ -53,10 +54,15 @@ class _LoanPlanScreenState extends State<LoanPlanScreen> {
       onContinue: () {
         final planKeys = ['one_time', '3_emi', '6_emi'];
         final tenures = [1, 3, 6];
+        final base = widget.appState;
         final state = LoanApplicationState(
           loanAmount: 30000,
           tenure: tenures[_selected],
           planType: planKeys[_selected],
+          gender: base?.gender ?? '',
+          pincode: base?.pincode ?? '',
+          address: base?.address ?? '',
+          email: base?.email ?? '',
         );
         Navigator.push(
           context,
