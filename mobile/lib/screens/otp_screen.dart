@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../main.dart';
 import '../services/api_service.dart';
+import '../utils/error_utils.dart';
 
 class OtpScreen extends StatefulWidget {
   final String maskedPhone;
@@ -86,7 +87,7 @@ class _OtpScreenState extends State<OtpScreen> {
         }
       }
     } catch (e) {
-      setState(() { _error = e.toString(); _isLoading = false; });
+      setState(() { _error = friendlyError(e); _isLoading = false; });
     }
   }
 
@@ -97,7 +98,7 @@ class _OtpScreenState extends State<OtpScreen> {
       await api.sendOtp();
       _startResendTimer();
     } catch (e) {
-      setState(() => _error = e.toString());
+      setState(() => _error = friendlyError(e));
     } finally {
       setState(() => _isResending = false);
     }

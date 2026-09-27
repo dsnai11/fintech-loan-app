@@ -5,6 +5,7 @@ import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import 'loan_flow_scaffold.dart';
 import 'personal_details_screen.dart';
+import '../utils/error_utils.dart';
 
 class PanVerifyScreen extends StatefulWidget {
   const PanVerifyScreen({Key? key}) : super(key: key);
@@ -80,7 +81,7 @@ class _PanVerifyScreenState extends State<PanVerifyScreen> {
             MaterialPageRoute(builder: (_) => const PersonalDetailsScreen()));
       }
     } catch (e) {
-      setState(() { _error = e.toString(); _isSaving = false; });
+      setState(() { _error = friendlyError(e); _isSaving = false; });
     }
   }
 

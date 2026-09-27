@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../main.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import '../utils/error_utils.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -63,7 +64,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _stateCtrl.text = addr['state'] ?? '';
       });
     } catch (e) {
-      setState(() { _error = e.toString(); _loading = false; });
+      setState(() { _error = friendlyError(e); _loading = false; });
     }
   }
 
@@ -95,7 +96,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
       }
     } catch (e) {
-      setState(() { _error = e.toString(); _saving = false; });
+      setState(() { _error = friendlyError(e); _saving = false; });
     }
   }
 
@@ -544,7 +545,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           const Icon(Icons.wifi_off_rounded, color: Color(0xFF9CA3AF), size: 48),
           const SizedBox(height: 12),
-          Text('Could not load profile\n$_error',
+          Text('Could not load profile\n${_error ?? ''}',
               textAlign: TextAlign.center,
               style: const TextStyle(color: Color(0xFF6B7280), fontSize: 13)),
           const SizedBox(height: 16),

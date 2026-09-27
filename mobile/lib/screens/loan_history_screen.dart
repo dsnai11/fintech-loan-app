@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../main.dart';
 import '../services/api_service.dart';
+import '../utils/error_utils.dart';
 
 class LoanHistoryScreen extends StatefulWidget {
   const LoanHistoryScreen({Key? key}) : super(key: key);
@@ -28,7 +29,7 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
       final loans = await api.getAllLoans();
       setState(() { _loans = loans; _loading = false; });
     } catch (e) {
-      setState(() { _error = e.toString(); _loading = false; });
+      setState(() { _error = friendlyError(e); _loading = false; });
     }
   }
 
@@ -261,7 +262,7 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
         children: [
           const Icon(Icons.wifi_off_rounded, color: Color(0xFF9CA3AF), size: 48),
           const SizedBox(height: 12),
-          Text('Could not load loans\n$_error',
+          Text('Could not load loans\n${_error ?? ''}',
               textAlign: TextAlign.center,
               style: const TextStyle(color: Color(0xFF6B7280), fontSize: 13)),
           const SizedBox(height: 16),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/api_service.dart';
 import '../main.dart';
+import '../utils/error_utils.dart';
 
 class LoanApplicationScreen extends StatefulWidget {
   const LoanApplicationScreen({Key? key}) : super(key: key);
@@ -68,7 +69,7 @@ class _LoanApplicationScreenState extends State<LoanApplicationScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: ${e.toString()}'),
+            content: Text(friendlyError(e)),
             backgroundColor: Colors.red,
           ),
         );

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'api_service.dart';
+import '../utils/error_utils.dart';
 
 class AuthService extends ChangeNotifier {
   final ApiService _apiService;
@@ -48,7 +49,7 @@ class AuthService extends ChangeNotifier {
 
       return true;
     } catch (e) {
-      _error = e.toString();
+      _error = friendlyError(e);
       notifyListeners();
       return false;
     } finally {
@@ -79,7 +80,7 @@ class AuthService extends ChangeNotifier {
 
       return true;
     } catch (e) {
-      _error = e.toString();
+      _error = friendlyError(e);
       notifyListeners();
       return false;
     } finally {
@@ -100,7 +101,7 @@ class AuthService extends ChangeNotifier {
       _user = await _apiService.getUserProfile();
       notifyListeners();
     } catch (e) {
-      _error = e.toString();
+      _error = friendlyError(e);
       notifyListeners();
     }
   }

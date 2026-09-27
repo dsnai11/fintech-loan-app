@@ -5,6 +5,7 @@ import '../models/loan_application_state.dart';
 import '../services/api_service.dart';
 import 'loan_flow_scaffold.dart';
 import 'eligibility_check_screen.dart';
+import '../utils/error_utils.dart';
 
 class PersonalDetailsScreen extends StatefulWidget {
   const PersonalDetailsScreen({Key? key}) : super(key: key);
@@ -88,7 +89,7 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
             MaterialPageRoute(builder: (_) => EligibilityCheckScreen(appState: appState)));
       }
     } catch (e) {
-      setState(() { _error = e.toString(); _isSaving = false; });
+      setState(() { _error = friendlyError(e); _isSaving = false; });
     }
   }
 

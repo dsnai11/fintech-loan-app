@@ -6,20 +6,7 @@ import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import 'loan_flow_scaffold.dart';
 import 'loan_disbursed_screen.dart';
-
-String _friendlyError(dynamic e) {
-  final s = e.toString();
-  // Extract backend error message from Dio exception
-  final match = RegExp(r'"error"\s*:\s*"([^"]+)"').firstMatch(s);
-  if (match != null) return match.group(1)!;
-  if (s.contains('404')) return 'Server endpoint not found. Please update the app.';
-  if (s.contains('400')) return 'Invalid details. Please check your inputs.';
-  if (s.contains('401') || s.contains('403')) return 'Session expired. Please log in again.';
-  if (s.contains('SocketException') || s.contains('connection')) return 'No internet connection.';
-  if (s.contains('TimeoutException') || s.contains('timeout')) return 'Request timed out. Try again.';
-  if (s.length > 120) return 'Something went wrong. Please try again.';
-  return s;
-}
+import '../utils/error_utils.dart';
 
 class BankDetailsScreen extends StatefulWidget {
   final LoanApplicationState appState;
@@ -93,7 +80,7 @@ class _BankDetailsScreenState extends State<BankDetailsScreen> {
         _bankVerified = result['verified'] == true;
       });
     } catch (e) {
-      setState(() { _bankName = null; _error = _friendlyError(e); });
+      setState(() { _bankName = null; _error = friendlyError(e); });
     } finally {
       setState(() => _isVerifyingIfsc = false);
     }
@@ -149,7 +136,7 @@ class _BankDetailsScreenState extends State<BankDetailsScreen> {
         );
       }
     } catch (e) {
-      setState(() { _error = _friendlyError(e); _isLoading = false; });
+      setState(() { _error = friendlyError(e); _isLoading = false; });
     }
   }
 
