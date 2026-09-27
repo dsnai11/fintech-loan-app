@@ -7,6 +7,20 @@ import '../services/auth_service.dart';
 import 'loan_flow_scaffold.dart';
 import 'loan_disbursed_screen.dart';
 
+String _friendlyError(dynamic e) {
+  final s = e.toString();
+  // Extract backend error message from Dio exception
+  final match = RegExp(r'"error"\s*:\s*"([^"]+)"').firstMatch(s);
+  if (match != null) return match.group(1)!;
+  if (s.contains('404')) return 'Server endpoint not found. Please update the app.';
+  if (s.contains('400')) return 'Invalid details. Please check your inputs.';
+  if (s.contains('401') || s.contains('403')) return 'Session expired. Please log in again.';
+  if (s.contains('SocketException') || s.contains('connection')) return 'No internet connection.';
+  if (s.contains('TimeoutException') || s.contains('timeout')) return 'Request timed out. Try again.';
+  if (s.length > 120) return 'Something went wrong. Please try again.';
+  return s;
+}
+
 class BankDetailsScreen extends StatefulWidget {
   final LoanApplicationState appState;
 
@@ -55,17 +69,22 @@ class _BankDetailsScreenState extends State<BankDetailsScreen> {
     } catch (_) {}
   }
 
+  static final _ifscRegex = RegExp(r'^[A-Z]{4}0[A-Z0-9]{6}$');
+
   Future<void> _lookupIfsc() async {
     final ifsc = _ifscController.text.trim().toUpperCase();
     if (ifsc.length != 11) return;
-
-    setState(() { _isVerifyingIfsc = true; _bankName = null; _branchInfo = null; });
+    if (!_ifscRegex.hasMatch(ifsc)) {
+      setState(() { _bankName = null; _branchInfo = null; _error = 'Invalid IFSC format. Must be like SBIN0001234 (5th character is always 0).'; });
+      return;
+    }
+    setState(() { _isVerifyingIfsc = true; _bankName = null; _branchInfo = null; _error = null; });
     try {
       final api = context.read<ApiService>();
       final result = await api.verifyBank(
         accountNumber: _accountController.text.trim().isEmpty ? '000000000000' : _accountController.text.trim(),
         ifscCode: ifsc,
-        accountHolder: _holderController.text.trim(),
+        accountHolder: _holderController.text.trim().isEmpty ? 'Account Holder' : _holderController.text.trim(),
       );
       setState(() {
         _bankName = result['bank']?['bankName'];
@@ -73,8 +92,8 @@ class _BankDetailsScreenState extends State<BankDetailsScreen> {
         if (b != null) _branchInfo = '${b['branch'] ?? ''}, ${b['city'] ?? ''}';
         _bankVerified = result['verified'] == true;
       });
-    } catch (_) {
-      setState(() => _bankName = null);
+    } catch (e) {
+      setState(() { _bankName = null; _error = _friendlyError(e); });
     } finally {
       setState(() => _isVerifyingIfsc = false);
     }
@@ -95,6 +114,10 @@ class _BankDetailsScreenState extends State<BankDetailsScreen> {
     }
     if (ifsc.length != 11) {
       setState(() => _error = 'IFSC code must be 11 characters');
+      return;
+    }
+    if (!_ifscRegex.hasMatch(ifsc)) {
+      setState(() => _error = 'Invalid IFSC format. Must be like SBIN0001234 (5th character is always 0).');
       return;
     }
 
@@ -126,7 +149,7 @@ class _BankDetailsScreenState extends State<BankDetailsScreen> {
         );
       }
     } catch (e) {
-      setState(() { _error = e.toString(); _isLoading = false; });
+      setState(() { _error = _friendlyError(e); _isLoading = false; });
     }
   }
 
