@@ -421,7 +421,18 @@ async function loadDashboard() {
     const token = prompt('Enter admin JWT token (or leave blank to skip live data):');
     if(token) { adminToken = token; localStorage.setItem('lifc_admin_token', token); }
     if(!adminToken) { showMockDashboard(); return; }
-    const loans = await apiFetch('/loans');
+    const stats = await apiFetch('/admin/stats').catch(()=>null);
+    if(stats) {
+      document.getElementById('stat-total').textContent = stats.totalLoans;
+      document.getElementById('stat-disbursed').textContent = stats.disbursed;
+      document.getElementById('stat-pending').textContent = stats.pending;
+      document.getElementById('stat-customers').textContent = stats.totalUsers;
+      document.getElementById('p-applied').textContent = stats.totalLoans;
+      document.getElementById('p-disbursed').textContent = stats.disbursed;
+      document.getElementById('p-approved').textContent = stats.byStatus?.approved||0;
+      document.getElementById('p-closed').textContent = stats.byStatus?.closed||0;
+    }
+    const {loans} = await apiFetch('/admin/loans');
     const total = loans.length;
     const disbursed = loans.filter(l=>l.status==='disbursed').length;
     const pending = loans.filter(l=>['submitted','under_review'].includes(l.status)).length;
@@ -454,9 +465,10 @@ function showMockDashboard() {
 async function loadAllLoans() {
   if(!adminToken) { alert('Enter admin token first via Dashboard'); return; }
   try {
-    const loans = await apiFetch('/loans');
     const filter = document.getElementById('loan-filter').value;
-    const filtered = filter ? loans.filter(l=>l.status===filter) : loans;
+    const qs = filter ? `?status=${filter}` : '';
+    const {loans} = await apiFetch('/admin/loans'+qs);
+    const filtered = loans;
     document.getElementById('all-loans-body').innerHTML = filtered.map(l=>`<tr>
       <td style="font-family:monospace;font-size:11px">${l._id.slice(-6)}</td>
       <td>${l.userId?.firstName||'—'}</td>
@@ -476,8 +488,8 @@ function filterLoans() { loadAllLoans(); }
 async function loadApprovals() {
   if(!adminToken) { alert('Enter admin token first via Dashboard'); return; }
   try {
-    const loans = await apiFetch('/loans');
-    const pending = loans.filter(l=>['submitted','under_review'].includes(l.status));
+    const {loans} = await apiFetch('/admin/loans?status=submitted');
+    const pending = loans;
     document.getElementById('approvals-body').innerHTML = pending.map(l=>`<tr>
       <td>${l.userId?.firstName||'—'} ${l.userId?.lastName||''}</td>
       <td>${fmtMoney(l.loanAmount)}</td>
@@ -494,8 +506,9 @@ async function loadApprovals() {
 async function loadCustomers() {
   if(!adminToken) { alert('Enter admin token first via Dashboard'); return; }
   try {
-    const users = await apiFetch('/admin/users').catch(()=>null);
-    if(!users) { document.getElementById('customers-body').innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">Admin users endpoint not yet implemented — add GET /api/admin/users</td></tr>'; return; }
+    const data = await apiFetch('/admin/users').catch(()=>null);
+    if(!data) { document.getElementById('customers-body').innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">Could not load users</td></tr>'; return; }
+    const users = data.users || data;
     document.getElementById('customers-body').innerHTML = users.map(u=>`<tr>
       <td>${u.firstName} ${u.lastName}</td>
       <td>${u.email}</td>
@@ -511,15 +524,15 @@ async function loadCustomers() {
 async function approveLoan(id) {
   if(!confirm('Approve this loan?')) return;
   try {
-    await apiFetch('/loans/'+id+'/status', {method:'PUT', body:JSON.stringify({status:'approved'})});
+    await apiFetch('/admin/loans/'+id+'/status', {method:'PUT', body:JSON.stringify({status:'approved'})});
     alert('Loan approved!');
-  } catch(e) { alert('Could not approve: '+e.message+'\n(Add PUT /api/loans/:id/status endpoint)'); }
+  } catch(e) { alert('Could not approve: '+e.message); }
 }
 
 async function rejectLoan(id) {
   if(!confirm('Reject this loan?')) return;
   try {
-    await apiFetch('/loans/'+id+'/status', {method:'PUT', body:JSON.stringify({status:'rejected'})});
+    await apiFetch('/admin/loans/'+id+'/status', {method:'PUT', body:JSON.stringify({status:'rejected'})});
     alert('Loan rejected.');
   } catch(e) { alert('Could not reject: '+e.message); }
 }

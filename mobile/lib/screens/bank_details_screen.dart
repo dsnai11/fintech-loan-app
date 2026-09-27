@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../main.dart';
 import '../models/loan_application_state.dart';
 import '../services/api_service.dart';
+import '../services/auth_service.dart';
 import 'loan_flow_scaffold.dart';
 import 'loan_disbursed_screen.dart';
 
@@ -16,27 +17,75 @@ class BankDetailsScreen extends StatefulWidget {
 }
 
 class _BankDetailsScreenState extends State<BankDetailsScreen> {
-  final _holderController = TextEditingController(text: 'Suraj Ludhani');
+  final _holderController = TextEditingController();
   final _accountController = TextEditingController();
   final _confirmController = TextEditingController();
   final _ifscController = TextEditingController();
+
   bool _isLoading = false;
+  bool _isVerifyingIfsc = false;
   String? _error;
+  String? _bankName;
+  String? _branchInfo;
+  bool _bankVerified = false;
 
   @override
-  void dispose() {
-    _holderController.dispose();
-    _accountController.dispose();
-    _confirmController.dispose();
-    _ifscController.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    try {
+      final auth = context.read<AuthService>();
+      final user = auth.user;
+      if (user != null) {
+        final name = '${user['firstName'] ?? ''} ${user['lastName'] ?? ''}'.trim();
+        if (name.isNotEmpty) _holderController.text = name;
+        if (user['bankAccount'] != null) {
+          final bank = user['bankAccount'] as Map;
+          if (bank['accountNumber'] != null) _accountController.text = bank['accountNumber'];
+          if (bank['ifscCode'] != null) {
+            _ifscController.text = bank['ifscCode'];
+            _bankName = bank['bankName'];
+          }
+        }
+        setState(() {});
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _lookupIfsc() async {
+    final ifsc = _ifscController.text.trim().toUpperCase();
+    if (ifsc.length != 11) return;
+
+    setState(() { _isVerifyingIfsc = true; _bankName = null; _branchInfo = null; });
+    try {
+      final api = context.read<ApiService>();
+      final result = await api.verifyBank(
+        accountNumber: _accountController.text.trim().isEmpty ? '000000000000' : _accountController.text.trim(),
+        ifscCode: ifsc,
+        accountHolder: _holderController.text.trim(),
+      );
+      setState(() {
+        _bankName = result['bank']?['bankName'];
+        final b = result['branch'];
+        if (b != null) _branchInfo = '${b['branch'] ?? ''}, ${b['city'] ?? ''}';
+        _bankVerified = result['verified'] == true;
+      });
+    } catch (_) {
+      setState(() => _bankName = null);
+    } finally {
+      setState(() => _isVerifyingIfsc = false);
+    }
   }
 
   Future<void> _submit() async {
     final acc = _accountController.text.trim();
     final ifsc = _ifscController.text.trim().toUpperCase();
+    final holder = _holderController.text.trim();
 
-    if (acc.isEmpty || ifsc.isEmpty) {
+    if (holder.isEmpty || acc.isEmpty || ifsc.isEmpty) {
       setState(() => _error = 'Please fill in all fields');
       return;
     }
@@ -54,17 +103,15 @@ class _BankDetailsScreenState extends State<BankDetailsScreen> {
     try {
       final api = context.read<ApiService>();
 
-      // Submit the full loan application
+      // Verify bank and submit loan together
+      await api.verifyBank(accountNumber: acc, ifscCode: ifsc, accountHolder: holder);
+
       final result = await api.applyLoanFull(
         loanAmount: widget.appState.loanAmount,
         tenure: widget.appState.tenure,
         purpose: 'Personal',
         planType: widget.appState.planType,
-        bankDetails: {
-          'accountHolder': _holderController.text.trim(),
-          'accountNumber': acc,
-          'ifscCode': ifsc,
-        },
+        bankDetails: { 'accountHolder': holder, 'accountNumber': acc, 'ifscCode': ifsc },
         personalDetails: {
           'gender': widget.appState.gender,
           'pincode': widget.appState.pincode,
@@ -75,9 +122,7 @@ class _BankDetailsScreenState extends State<BankDetailsScreen> {
       if (mounted) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(
-            builder: (_) => LoanDisbursedScreen(loanData: result['loan']),
-          ),
+          MaterialPageRoute(builder: (_) => LoanDisbursedScreen(loanData: result['loan'])),
         );
       }
     } catch (e) {
@@ -86,11 +131,20 @@ class _BankDetailsScreenState extends State<BankDetailsScreen> {
   }
 
   @override
+  void dispose() {
+    _holderController.dispose();
+    _accountController.dispose();
+    _confirmController.dispose();
+    _ifscController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return LoanFlowScaffold(
       step: 6,
       title: 'Bank Details',
-      buttonLabel: 'Save & Verify',
+      buttonLabel: 'Submit Application',
       onContinue: _submit,
       isLoading: _isLoading,
       body: SingleChildScrollView(
@@ -102,10 +156,7 @@ class _BankDetailsScreenState extends State<BankDetailsScreen> {
               children: [
                 Container(
                   padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: kNavy.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  decoration: BoxDecoration(color: kNavy.withOpacity(0.08), borderRadius: BorderRadius.circular(12)),
                   child: const Icon(Icons.account_balance_rounded, color: kNavy, size: 22),
                 ),
                 const SizedBox(width: 14),
@@ -126,6 +177,7 @@ class _BankDetailsScreenState extends State<BankDetailsScreen> {
             loanFieldLabel('ACCOUNT HOLDER NAME'),
             TextField(
               controller: _holderController,
+              textCapitalization: TextCapitalization.words,
               decoration: const InputDecoration(hintText: 'Full name as per bank'),
             ),
 
@@ -148,11 +200,51 @@ class _BankDetailsScreenState extends State<BankDetailsScreen> {
             TextField(
               controller: _ifscController,
               textCapitalization: TextCapitalization.characters,
-              decoration: const InputDecoration(
+              onChanged: (v) {
+                if (v.length == 11) _lookupIfsc();
+                setState(() { _bankName = null; _bankVerified = false; });
+              },
+              decoration: InputDecoration(
                 hintText: 'e.g. SBIN0001234',
-                prefixIcon: Icon(Icons.code_rounded, size: 18, color: Color(0xFF9CA3AF)),
+                prefixIcon: const Icon(Icons.code_rounded, size: 18, color: Color(0xFF9CA3AF)),
+                suffixIcon: _isVerifyingIfsc
+                    ? const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                      )
+                    : _bankVerified
+                        ? const Icon(Icons.check_circle_rounded, color: Color(0xFF16A34A), size: 20)
+                        : null,
               ),
             ),
+
+            if (_bankName != null) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0FFF4),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF86EFAC)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.account_balance_rounded, color: Color(0xFF16A34A), size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(_bankName!, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF166534))),
+                          if (_branchInfo != null && _branchInfo!.trim() != ',')
+                            Text(_branchInfo!, style: const TextStyle(fontSize: 11, color: Color(0xFF16A34A))),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
 
             if (_error != null) ...[
               const SizedBox(height: 14),
@@ -167,10 +259,7 @@ class _BankDetailsScreenState extends State<BankDetailsScreen> {
                   children: [
                     const Icon(Icons.error_outline, color: Color(0xFFEF4444), size: 16),
                     const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(_error!,
-                          style: const TextStyle(color: Color(0xFFEF4444), fontSize: 13)),
-                    ),
+                    Expanded(child: Text(_error!, style: const TextStyle(color: Color(0xFFEF4444), fontSize: 13))),
                   ],
                 ),
               ),

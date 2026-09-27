@@ -43,6 +43,7 @@ const userSchema = new mongoose.Schema(
     },
     loanHistory: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Loan' }],
     creditScore: { type: Number, min: 0, max: 900 },
+    phoneVerified: { type: Boolean, default: false },
     status: { type: String, enum: ['active', 'inactive', 'blocked'], default: 'active' },
   },
   { timestamps: true }

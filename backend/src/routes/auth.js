@@ -30,7 +30,7 @@ router.post('/signup', async (req, res) => {
     });
 
     await user.save();
-    const token = generateToken(user._id);
+    const token = generateToken(user._id, user.email);
 
     res.status(201).json({
       message: 'User registered successfully',
@@ -66,7 +66,9 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Invalid email or password' });
     }
 
-    const token = generateToken(user._id);
+    const adminEmail = process.env.ADMIN_EMAIL || 'admin@lifc.in';
+    const isAdmin = user.email === adminEmail;
+    const token = generateToken(user._id, user.email, isAdmin);
 
     res.json({
       message: 'Login successful',

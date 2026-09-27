@@ -9,6 +9,8 @@ import { dirname } from 'path';
 import authRoutes from './routes/auth.js';
 import loanRoutes from './routes/loans.js';
 import userRoutes from './routes/users.js';
+import kycRoutes from './routes/kyc.js';
+import adminRoutes from './routes/admin.js';
 
 dotenv.config();
 
@@ -43,6 +45,8 @@ mongoose.connect(mongoUrl)
 app.use('/api/auth', authRoutes);
 app.use('/api/loans', loanRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/kyc', kycRoutes);
+app.use('/api/admin', adminRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date() });

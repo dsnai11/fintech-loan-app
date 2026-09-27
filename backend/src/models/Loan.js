@@ -4,7 +4,7 @@ const loanSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     loanAmount: { type: Number, required: true, min: 1000, max: 500000 },
-    tenure: { type: Number, required: true, min: 6, max: 60 },
+    tenure: { type: Number, required: true, min: 1, max: 60 },
     purpose: { type: String, enum: ['Personal', 'Business', 'Education', 'Medical', 'Other'] },
     loanType: { type: String, enum: ['Personal Loan', 'Micro Loan', 'Business Loan'], default: 'Personal Loan' },
     status: {

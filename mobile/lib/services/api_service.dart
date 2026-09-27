@@ -186,6 +186,54 @@ class ApiService {
     }
   }
 
+  // KYC endpoints
+  Future<Map<String, dynamic>> sendOtp() async {
+    try {
+      final response = await _dio.post('/kyc/otp/send');
+      return response.data;
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> verifyOtp(String otp) async {
+    try {
+      final response = await _dio.post('/kyc/otp/verify', data: {'otp': otp});
+      return response.data;
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> verifyPan(String panNumber, {String? dob}) async {
+    try {
+      final response = await _dio.post('/kyc/pan', data: {
+        'panNumber': panNumber,
+        if (dob != null) 'dob': dob,
+      });
+      return response.data;
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> verifyBank({
+    required String accountNumber,
+    required String ifscCode,
+    required String accountHolder,
+  }) async {
+    try {
+      final response = await _dio.post('/kyc/bank', data: {
+        'accountNumber': accountNumber,
+        'ifscCode': ifscCode,
+        'accountHolder': accountHolder,
+      });
+      return response.data;
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   String _handleError(DioException error) {
     if (error.response?.data is Map) {
       return error.response?.data['error'] ?? 'An error occurred';

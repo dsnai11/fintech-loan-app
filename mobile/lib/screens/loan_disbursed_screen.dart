@@ -96,11 +96,11 @@ class _LoanDisbursedScreenState extends State<LoanDisbursedScreen>
                         ),
                       ),
                       const SizedBox(height: 16),
-                      const Text('Loan Disbursed! 🎉',
+                      const Text('Application Submitted! 🎉',
                           style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Color(0xFF111827))),
                       const SizedBox(height: 6),
                       const Text(
-                        'Amount will be credited to your bank\naccount within 24 working hours.',
+                        'Your loan application is under review.\nWe will notify you within 24 working hours.',
                         textAlign: TextAlign.center,
                         style: TextStyle(fontSize: 14, color: Color(0xFF6B7280), height: 1.5),
                       ),
@@ -122,7 +122,7 @@ class _LoanDisbursedScreenState extends State<LoanDisbursedScreen>
                               padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
                               child: Column(
                                 children: [
-                                  const Text('FINAL PAYMENT AMOUNT',
+                                  const Text('APPLIED LOAN AMOUNT',
                                       style: TextStyle(
                                           color: Colors.white60, fontSize: 11,
                                           fontWeight: FontWeight.w600, letterSpacing: 0.8)),
@@ -147,7 +147,7 @@ class _LoanDisbursedScreenState extends State<LoanDisbursedScreen>
                                   const SizedBox(height: 6),
                                   _row('Txn ID', _fmt(txnId),
                                       valueColor: const Color(0xFF86EFAC)),
-                                  _row('Payment Status', 'Pending',
+                                  _row('Application Status', 'Under Review',
                                       valueColor: const Color(0xFFFBBF24)),
                                 ],
                               ),

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
+import '../services/api_service.dart';
 import '../main.dart';
+import 'otp_screen.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({Key? key}) : super(key: key);
@@ -49,7 +51,23 @@ class _SignupScreenState extends State<SignupScreen> {
       confirmPassword: _confirmPasswordController.text,
     );
     if (success && mounted) {
-      Navigator.of(context).pushReplacementNamed('/home');
+      // Send OTP after signup and go to OTP screen
+      try {
+        final api = context.read<ApiService>();
+        final result = await api.sendOtp();
+        if (mounted) {
+          Navigator.of(context).pushReplacement(MaterialPageRoute(
+            builder: (_) => OtpScreen(
+              maskedPhone: result['phone'] ?? '**XXXXXX**',
+              sandboxOtp: result['sandboxOtp'],
+              onVerified: () => Navigator.of(context).pushReplacementNamed('/home'),
+            ),
+          ));
+        }
+      } catch (_) {
+        // If OTP send fails, go home anyway (non-blocking)
+        if (mounted) Navigator.of(context).pushReplacementNamed('/home');
+      }
     }
   }
 

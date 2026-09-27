@@ -90,15 +90,11 @@ router.post('/apply-full', authMiddleware, async (req, res) => {
       interestRate: planType === 'one_time' ? 0 : planType === '3_emi' ? 5 : planType === '6_emi' ? 9 : 15,
       monthlyEMI,
       totalAmount: monthlyEMI * actualTenure,
-      status: 'disbursed',
-      approvalDate: new Date(),
-      disbursementDate: new Date(),
+      status: 'submitted',
       disbursalDetails: {
         accountNumber: bankDetails?.accountNumber || '',
         bankName: _inferBankName(bankDetails?.ifscCode),
-        transactionId: `TXN${Date.now()}`,
         disbursedAmount,
-        disbursalDate: new Date(),
       },
       repaymentHistory,
     });
@@ -108,7 +104,7 @@ router.post('/apply-full', authMiddleware, async (req, res) => {
     await user.save();
 
     res.status(201).json({
-      message: 'Loan disbursed successfully',
+      message: 'Loan application submitted successfully',
       loan: {
         id: loan._id,
         loanAmount: loan.loanAmount,
@@ -120,7 +116,6 @@ router.post('/apply-full', authMiddleware, async (req, res) => {
         disbursedAmount,
         processingFee,
         gst,
-        transactionId: loan.disbursalDetails.transactionId,
         repaymentSchedule: repaymentHistory.map((r) => ({
           month: r.month,
           dueDate: r.dueDate,
