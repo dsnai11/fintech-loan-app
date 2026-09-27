@@ -6,1080 +6,976 @@
 <title>LIFC SuperAdmin Portal</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-:root{
-  --maroon:#7B0000;--red:#C41E3A;--light-red:#FFF0F0;--border:#E5E7EB;
-  --text:#111827;--muted:#6B7280;--white:#FFFFFF;--bg:#FFF8F8;--sidebar:250px;
-  --green:#16A34A;--yellow:#D97706;--blue:#0891B2;
-}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh;font-size:14px}
-
-/* Sidebar */
-.sidebar{width:var(--sidebar);background:var(--maroon);position:fixed;top:0;left:0;height:100vh;display:flex;flex-direction:column;z-index:100;overflow-y:auto}
-.logo-area{padding:18px 16px 14px;border-bottom:1px solid rgba(255,255,255,0.1)}
-.logo-row{display:flex;align-items:center;gap:10px}
-.logo-box{width:40px;height:40px;background:white;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:900;color:var(--maroon);font-size:13px;letter-spacing:-.5px;flex-shrink:0}
-.logo-text .name{font-size:14px;font-weight:700;color:white;line-height:1.2}
-.logo-text .sub{font-size:10px;color:rgba(255,255,255,.5);margin-top:1px}
-.badge{background:var(--red);color:white;font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;margin-top:8px;display:inline-block;letter-spacing:.6px;text-transform:uppercase}
+:root{--m:#7B0000;--r:#C41E3A;--lr:#FFF0F0;--bd:#E5E7EB;--tx:#111827;--mu:#6B7280;--bg:#FFF8F8;--gn:#16A34A;--yw:#D97706;--bl:#0891B2;--sw:250px}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--tx);display:flex;min-height:100vh;font-size:14px}
+.sb{width:var(--sw);background:var(--m);position:fixed;top:0;left:0;height:100vh;display:flex;flex-direction:column;z-index:100;overflow-y:auto}
+.logo{padding:18px 16px 14px;border-bottom:1px solid rgba(255,255,255,.1)}
+.lb{width:40px;height:40px;background:#fff;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:900;color:var(--m);font-size:13px;flex-shrink:0}
+.lt .n{font-size:14px;font-weight:700;color:#fff;line-height:1.2}
+.lt .s{font-size:10px;color:rgba(255,255,255,.5);margin-top:1px}
+.sbadge{background:var(--r);color:#fff;font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;margin-top:8px;display:inline-block;letter-spacing:.6px;text-transform:uppercase}
 nav{flex:1;padding:10px 0}
-.nav-section{font-size:10px;color:rgba(255,255,255,.35);padding:14px 16px 4px;letter-spacing:.8px;font-weight:700;text-transform:uppercase}
-.nav-item{display:flex;align-items:center;gap:10px;padding:9px 16px;cursor:pointer;color:rgba(255,255,255,.65);font-size:13px;transition:all .15s;border-left:3px solid transparent;user-select:none}
-.nav-item:hover{background:rgba(255,255,255,.08);color:white}
-.nav-item.active{background:rgba(255,255,255,.13);color:white;border-left-color:var(--red)}
-.nav-item .icon{font-size:15px;width:18px;text-align:center;flex-shrink:0}
-.nav-badge{background:var(--red);color:white;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:auto}
-
-/* Main */
-.main{margin-left:var(--sidebar);flex:1;display:flex;flex-direction:column;min-width:0}
-.topbar{background:white;border-bottom:1px solid var(--border);padding:0 24px;height:54px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;gap:12px}
-.page-title{font-size:15px;font-weight:700;color:var(--text);white-space:nowrap}
-.topbar-right{display:flex;align-items:center;gap:10px}
-.env-toggle{display:flex;background:#F3F4F6;border-radius:8px;padding:2px;gap:2px}
-.env-btn{padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;border:none;background:transparent;color:var(--muted);transition:all .15s}
-.env-btn.active{background:white;color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.1)}
-.env-btn.active.prod{background:var(--red);color:white}
-.admin-chip{display:flex;align-items:center;gap:6px;background:var(--light-red);padding:4px 12px;border-radius:20px}
-.admin-chip .dot{width:7px;height:7px;background:var(--green);border-radius:50%}
-.admin-chip span{font-size:12px;font-weight:600;color:var(--maroon)}
-
-/* Content */
+.ns{font-size:10px;color:rgba(255,255,255,.35);padding:14px 16px 4px;letter-spacing:.8px;font-weight:700;text-transform:uppercase}
+.ni{display:flex;align-items:center;gap:10px;padding:9px 16px;cursor:pointer;color:rgba(255,255,255,.65);font-size:13px;transition:all .15s;border-left:3px solid transparent;user-select:none}
+.ni:hover{background:rgba(255,255,255,.08);color:#fff}
+.ni.active{background:rgba(255,255,255,.13);color:#fff;border-left-color:var(--r)}
+.ni .ic{font-size:15px;width:18px;text-align:center;flex-shrink:0}
+.nb{background:var(--r);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:auto}
+.main{margin-left:var(--sw);flex:1;display:flex;flex-direction:column;min-width:0}
+.tb{background:#fff;border-bottom:1px solid var(--bd);padding:0 20px;height:54px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;gap:10px}
+.pt{font-size:15px;font-weight:700;white-space:nowrap}
+.tr{display:flex;align-items:center;gap:8px}
+.ct{display:flex;gap:4px;background:#F3F4F6;border-radius:8px;padding:2px}
+.cb{padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;border:none;background:transparent;color:var(--mu);transition:all .15s}
+.cb.on{background:#fff;color:var(--tx);box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.cb.on.prod{background:var(--r);color:#fff}
+.ac{display:flex;align-items:center;gap:6px;background:var(--lr);padding:4px 12px;border-radius:20px}
+.ac .dot{width:7px;height:7px;background:var(--gn);border-radius:50%}
+.ac span{font-size:12px;font-weight:600;color:var(--m)}
+.eb{padding:10px 18px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:8px;font-size:12px}
+.eb.sb-mode{background:#FFFBEB}
+.eb.pr-mode{background:#FFF0F0}
 .content{padding:20px 24px;flex:1}
-.page{display:none}
-.page.active{display:block}
-
-/* Stats */
-.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:20px}
-.stat-card{background:white;border:1px solid var(--border);border-radius:12px;padding:16px 18px}
-.stat-label{font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px}
-.stat-value{font-size:26px;font-weight:800;color:var(--text);line-height:1}
-.stat-sub{font-size:11px;color:var(--muted);margin-top:4px}
-.stat-card.accent .stat-value{color:var(--maroon)}
-
-/* Cards */
-.card{background:white;border:1px solid var(--border);border-radius:12px;margin-bottom:16px}
-.card-header{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px}
-.card-title{font-size:14px;font-weight:700;color:var(--text)}
-.card-sub{font-size:12px;color:var(--muted);margin-top:1px}
-.card-body{padding:18px}
-
-/* Table */
+.page{display:none}.page.active{display:block}
+.sg{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:14px;margin-bottom:20px}
+.sc{background:#fff;border:1px solid var(--bd);border-radius:12px;padding:16px 18px}
+.sl{font-size:10px;color:var(--mu);font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px}
+.sv{font-size:26px;font-weight:800;color:var(--tx);line-height:1}
+.ss{font-size:11px;color:var(--mu);margin-top:4px}
+.sc.acc .sv{color:var(--m)}
+.card{background:#fff;border:1px solid var(--bd);border-radius:12px;margin-bottom:16px}
+.ch{padding:14px 18px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;gap:12px}
+.ct2{font-size:14px;font-weight:700}
+.cs{font-size:12px;color:var(--mu);margin-top:1px}
+.cb2{padding:18px}
 table{width:100%;border-collapse:collapse}
-th{text-align:left;padding:8px 12px;color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);white-space:nowrap}
-td{padding:10px 12px;border-bottom:1px solid var(--border);color:var(--text);font-size:13px;vertical-align:middle}
+th{text-align:left;padding:8px 12px;color:var(--mu);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--bd);white-space:nowrap}
+td{padding:10px 12px;border-bottom:1px solid var(--bd);font-size:13px;vertical-align:middle}
 tr:last-child td{border:none}
 tbody tr:hover td{background:#FAFAFA}
-.status{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap}
-.s-active,.s-disbursed,.s-approved{background:#DCFCE7;color:#166534}
-.s-pending,.s-submitted,.s-under_review{background:#FEF3C7;color:#92400E}
-.s-rejected,.s-blocked{background:#FEE2E2;color:#991B1B}
-.s-inactive{background:#F3F4F6;color:#6B7280}
-
-/* Buttons */
+.st{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap}
+.s-ok,.s-active,.s-disbursed,.s-approved{background:#DCFCE7;color:#166534}
+.s-warn,.s-pending,.s-submitted,.s-under_review{background:#FEF3C7;color:#92400E}
+.s-err,.s-rejected,.s-blocked{background:#FEE2E2;color:#991B1B}
+.s-gray,.s-inactive{background:#F3F4F6;color:#6B7280}
 .btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .15s;white-space:nowrap}
-.btn-primary{background:var(--maroon);color:white}
-.btn-primary:hover{background:#5C0000}
-.btn-outline{background:white;color:var(--maroon);border:1.5px solid var(--maroon)}
-.btn-outline:hover{background:var(--light-red)}
-.btn-sm{padding:5px 10px;font-size:12px}
-.btn-danger{background:#EF4444;color:white}
-.btn-danger:hover{background:#DC2626}
-.btn-green{background:var(--green);color:white}
-.btn-green:hover{background:#15803D}
-.btn-gray{background:#F3F4F6;color:var(--text);border:1px solid var(--border)}
-.btn-gray:hover{background:#E5E7EB}
+.bp{background:var(--m);color:#fff}.bp:hover{background:#5C0000}
+.bo{background:#fff;color:var(--m);border:1.5px solid var(--m)}.bo:hover{background:var(--lr)}
+.bs{padding:5px 10px;font-size:12px}
+.bd2{background:#EF4444;color:#fff}.bd2:hover{background:#DC2626}
+.bg{background:var(--gn);color:#fff}.bg:hover{background:#15803D}
+.bgr{background:#F3F4F6;color:var(--tx);border:1px solid var(--bd)}.bgr:hover{background:#E5E7EB}
 .btn:disabled{opacity:.5;cursor:not-allowed}
-
-/* Form */
-.field{display:flex;flex-direction:column;gap:5px;margin-bottom:14px}
-.field label,.field-label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
-.field input,.field select,.field textarea{padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;color:var(--text);background:white;outline:none;transition:border .15s;font-family:inherit}
-.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--maroon)}
-.field input[type="password"]{letter-spacing:2px}
-.field-row{display:grid;gap:12px}
-.field-row-2{grid-template-columns:1fr 1fr}
-.field-row-3{grid-template-columns:1fr 1fr 1fr}
-
-/* API Integration GUI */
-.api-section{margin-bottom:24px}
-.api-section-title{font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:8px}
-.api-section-title .step-num{width:22px;height:22px;background:var(--maroon);color:white;border-radius:50%;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-
-.api-card{border:1.5px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:10px;transition:border-color .15s}
-.api-card.configured{border-color:#86EFAC}
-.api-card.configured .api-card-head{background:#F0FFF4}
-.api-card-head{background:#F9FAFB;padding:12px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;user-select:none}
-.api-card-head:hover{background:#F3F4F6}
-.provider-icon{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;flex-shrink:0;color:white}
-.api-card-info{flex:1;min-width:0}
-.api-card-name{font-size:13px;font-weight:700;color:var(--text)}
-.api-card-desc{font-size:11px;color:var(--muted);margin-top:1px}
-.api-status-badge{font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;white-space:nowrap}
-.badge-configured{background:#DCFCE7;color:#166534}
-.badge-sandbox{background:#FEF3C7;color:#92400E}
-.badge-none{background:#F3F4F6;color:#9CA3AF}
-.expand-icon{font-size:12px;color:var(--muted);flex-shrink:0;transition:transform .2s}
-.expand-icon.open{transform:rotate(180deg)}
-
-.api-card-body{display:none;padding:16px;border-top:1px solid var(--border);background:white}
-.api-card-body.open{display:block}
-
-/* Provider selector tabs */
-.provider-tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
-.provider-tab{padding:5px 12px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid var(--border);background:white;color:var(--muted);transition:all .15s}
-.provider-tab:hover{border-color:var(--maroon);color:var(--maroon)}
-.provider-tab.selected{border-color:var(--maroon);background:var(--light-red);color:var(--maroon)}
-.provider-tab.sandbox{border-color:#FDE68A;background:#FFFBEB;color:#92400E}
-.provider-tab.sandbox.selected{background:#FEF3C7}
-
-/* Test result */
-.test-result{border-radius:8px;padding:10px 14px;font-size:12px;margin-top:10px;display:none}
-.test-result.show{display:flex;align-items:flex-start;gap:8px}
-.test-result.ok{background:#F0FFF4;border:1px solid #86EFAC;color:#166534}
-.test-result.fail{background:#FEF2F2;border:1px solid #FCA5A5;color:#DC2626}
-.test-result.info{background:#EFF6FF;border:1px solid #93C5FD;color:#1D4ED8}
-
-/* Toggle switch */
-.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0}
-.toggle-row label{font-size:12px;font-weight:600;color:var(--text)}
-.toggle-row .sub{font-size:11px;color:var(--muted);margin-top:1px}
-.switch{position:relative;width:36px;height:20px;flex-shrink:0}
-.switch input{opacity:0;width:0;height:0}
-.slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:#D1D5DB;transition:.3s;border-radius:20px}
-.slider:before{position:absolute;content:"";height:14px;width:14px;left:3px;bottom:3px;background:white;transition:.3s;border-radius:50%}
-input:checked+.slider{background:var(--maroon)}
-input:checked+.slider:before{transform:translateX(16px)}
-
-/* Loan pipeline */
-.pipeline-viz{display:flex;align-items:center;gap:0;overflow-x:auto;padding-bottom:4px}
-.pipe-stage{text-align:center;flex-shrink:0}
-.pipe-box{padding:10px 14px;background:var(--light-red);border:1.5px solid #FCA5A5;border-radius:10px;margin:0 2px;min-width:80px}
-.pipe-box.done{background:var(--maroon);border-color:var(--maroon)}
-.pipe-count{font-size:20px;font-weight:800;color:var(--maroon)}
-.pipe-box.done .pipe-count{color:white}
-.pipe-label{font-size:10px;color:var(--muted);margin-top:3px}
-.pipe-arrow{font-size:16px;color:#D1D5DB;padding:0 2px;flex-shrink:0}
-
-/* Utility */
-.chip{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
-.chip-green{background:#DCFCE7;color:#166534}
-.chip-yellow{background:#FEF3C7;color:#92400E}
-.chip-red{background:#FEE2E2;color:#991B1B}
-.chip-blue{background:#DBEAFE;color:#1D4ED8}
-.chip-gray{background:#F3F4F6;color:#6B7280}
-.divider{height:1px;background:var(--border);margin:14px 0}
-.empty{padding:32px;text-align:center;color:var(--muted);font-size:13px}
-.copy-btn{background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px;padding:2px 4px;border-radius:4px}
-.copy-btn:hover{background:#F3F4F6;color:var(--text)}
-.masked-key{font-family:monospace;font-size:12px;color:var(--muted)}
-input.key-input{font-family:monospace;font-size:12px;letter-spacing:.5px}
-.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
-.global-env-banner{padding:10px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;font-size:12px}
-.global-env-banner.sandbox{background:#FFFBEB}
-.global-env-banner.prod{background:#FFF0F0}
+.f{display:flex;flex-direction:column;gap:5px;margin-bottom:14px}
+.f label{font-size:11px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.5px}
+.f input,.f select,.f textarea{padding:9px 12px;border:1.5px solid var(--bd);border-radius:8px;font-size:13px;color:var(--tx);background:#fff;outline:none;transition:border .15s;font-family:inherit;width:100%}
+.f input:focus,.f select:focus{border-color:var(--m)}
+.fr{display:grid;gap:12px}
+.fr2{grid-template-columns:1fr 1fr}
+.fr3{grid-template-columns:1fr 1fr 1fr}
+/* connection banner */
+.conn-banner{background:#FFF0F0;border:1.5px solid #FCA5A5;border-radius:10px;padding:16px 18px;margin-bottom:16px;display:flex;align-items:center;gap:12px}
+.conn-banner.ok{background:#F0FFF4;border-color:#86EFAC}
+/* API integration cards */
+.api-group{background:#fff;border:1.5px solid var(--bd);border-radius:12px;overflow:hidden;margin-bottom:16px}
+.api-group-head{background:#F9FAFB;padding:14px 18px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:12px}
+.api-group-icon{font-size:22px}
+.ag-title{font-size:14px;font-weight:700}
+.ag-sub{font-size:12px;color:var(--mu)}
+.ag-status{font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;margin-left:auto;white-space:nowrap}
+.ag-body{padding:18px}
+/* provider tabs */
+.ptabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px}
+.ptab{padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid var(--bd);background:#fff;color:var(--mu);transition:all .15s}
+.ptab:hover{border-color:var(--m);color:var(--m)}
+.ptab.on{border-color:var(--m);background:var(--lr);color:var(--m)}
+.ptab.sandbox{border-color:#FDE68A;background:#FFFBEB;color:#92400E}
+.ptab.sandbox.on{background:#FEF3C7}
+/* provider config panel */
+.pconf{background:#F9FAFB;border:1px solid var(--bd);border-radius:10px;padding:16px;display:none}
+.pconf.show{display:block}
+.env-chip{display:inline-block;background:#F3F4F6;font-family:monospace;font-size:11px;padding:2px 7px;border-radius:4px;color:var(--mu)}
+/* result box */
+.res{border-radius:8px;padding:10px 14px;font-size:12px;margin-top:10px;display:none;align-items:flex-start;gap:8px}
+.res.show{display:flex}
+.res.ok{background:#F0FFF4;border:1px solid #86EFAC;color:#166534}
+.res.err{background:#FEF2F2;border:1px solid #FCA5A5;color:#DC2626}
+.res.info{background:#EFF6FF;border:1px solid #93C5FD;color:#1D4ED8}
+.res.warn{background:#FFFBEB;border:1px solid #FDE68A;color:#92400E}
+/* stage toggle */
+.stg{display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid var(--bd)}
+.stg:last-child{border:none}
+.sw2{position:relative;width:36px;height:20px;flex-shrink:0}
+.sw2 input{opacity:0;width:0;height:0}
+.sl2{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:#D1D5DB;transition:.3s;border-radius:20px}
+.sl2:before{position:absolute;content:"";height:14px;width:14px;left:3px;bottom:3px;background:#fff;transition:.3s;border-radius:50%}
+input:checked+.sl2{background:var(--m)}
+input:checked+.sl2:before{transform:translateX(16px)}
+.pv-line{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.pv-key{font-size:11px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.4px}
+.pv-val{font-size:12px;color:var(--tx);font-family:monospace}
+.empty{padding:28px;text-align:center;color:var(--mu);font-size:13px}
 </style>
 </head>
 <body>
 
-<!-- Sidebar -->
-<aside class="sidebar">
-  <div class="logo-area">
-    <div class="logo-row">
-      <div class="logo-box">LIFC</div>
-      <div class="logo-text">
-        <div class="name">Laxmi India Finance</div>
-        <div class="sub">SuperAdmin Portal</div>
-      </div>
+<aside class="sb">
+  <div class="logo">
+    <div style="display:flex;align-items:center;gap:10px">
+      <div class="lb">LIFC</div>
+      <div class="lt"><div class="n">Laxmi India Finance</div><div class="s">SuperAdmin Portal</div></div>
     </div>
-    <span class="badge">SuperAdmin</span>
+    <span class="sbadge">SuperAdmin</span>
   </div>
   <nav>
-    <div class="nav-section">Overview</div>
-    <div class="nav-item active" data-page="dashboard"><span class="icon">📊</span>Dashboard</div>
-    <div class="nav-section">Loan Management</div>
-    <div class="nav-item" data-page="approvals"><span class="icon">✅</span>Pending Approvals<span class="nav-badge" id="pending-count">0</span></div>
-    <div class="nav-item" data-page="loans"><span class="icon">📋</span>All Loans</div>
-    <div class="nav-item" data-page="customers"><span class="icon">👥</span>Customers</div>
-    <div class="nav-section">API Integrations</div>
-    <div class="nav-item" data-page="api-kyc"><span class="icon">🪪</span>KYC &amp; Identity</div>
-    <div class="nav-item" data-page="api-credit"><span class="icon">📈</span>Credit &amp; Income</div>
-    <div class="nav-item" data-page="api-payments"><span class="icon">💳</span>Payments &amp; NACH</div>
-    <div class="nav-item" data-page="api-comm"><span class="icon">💬</span>SMS &amp; Notifications</div>
-    <div class="nav-section">Settings</div>
-    <div class="nav-item" data-page="loan-stages"><span class="icon">🔄</span>Loan Stage Config</div>
-    <div class="nav-item" data-page="backend"><span class="icon">🔌</span>Backend &amp; Security</div>
-    <div class="nav-item" data-page="audit"><span class="icon">📝</span>Audit Log</div>
+    <div class="ns">Overview</div>
+    <div class="ni active" data-page="dashboard"><span class="ic">📊</span>Dashboard</div>
+    <div class="ns">Loan Management</div>
+    <div class="ni" data-page="approvals"><span class="ic">✅</span>Pending Approvals<span class="nb" id="pc">0</span></div>
+    <div class="ni" data-page="loans"><span class="ic">📋</span>All Loans</div>
+    <div class="ni" data-page="customers"><span class="ic">👥</span>Customers</div>
+    <div class="ns">API Integrations</div>
+    <div class="ni" data-page="api-kyc"><span class="ic">🪪</span>KYC &amp; Identity</div>
+    <div class="ni" data-page="api-credit"><span class="ic">📈</span>Credit &amp; Income</div>
+    <div class="ni" data-page="api-pay"><span class="ic">💳</span>Payments &amp; NACH</div>
+    <div class="ni" data-page="api-comm"><span class="ic">💬</span>SMS &amp; Alerts</div>
+    <div class="ns">Distribution</div>
+    <div class="ni" data-page="builds"><span class="ic">📱</span>Builds &amp; APK/IPA</div>
+    <div class="ns">Settings</div>
+    <div class="ni" data-page="stages"><span class="ic">🔄</span>Loan Stages</div>
+    <div class="ni" data-page="backend"><span class="ic">🔌</span>Backend Setup</div>
+    <div class="ni" data-page="audit"><span class="ic">📝</span>Audit Log</div>
   </nav>
 </aside>
 
-<!-- Main -->
 <main class="main">
-  <div class="topbar">
-    <div class="page-title" id="page-title">Dashboard</div>
-    <div class="topbar-right">
-      <div class="env-toggle">
-        <button class="env-btn active" id="env-sandbox" onclick="setEnv('sandbox')">⚡ Sandbox</button>
-        <button class="env-btn" id="env-prod" onclick="setEnv('production')">🚀 Production</button>
+  <div class="tb">
+    <div class="pt" id="pt">Dashboard</div>
+    <div class="tr">
+      <div class="ct">
+        <button class="cb on" id="esb" onclick="setEnv('sandbox')">⚡ Sandbox</button>
+        <button class="cb" id="epb" onclick="setEnv('production')">🚀 Production</button>
       </div>
-      <button class="btn btn-gray btn-sm" onclick="exportConfig()">⬇ Export Config</button>
-      <label class="btn btn-gray btn-sm" style="cursor:pointer">⬆ Import<input type="file" accept=".json" onchange="importConfig(event)" style="display:none"></label>
-      <div class="admin-chip"><div class="dot"></div><span id="admin-label">SuperAdmin</span></div>
+      <button class="btn bgr bs" onclick="exportCfg()">⬇ Export</button>
+      <label class="btn bgr bs" style="cursor:pointer">⬆ Import<input type="file" accept=".json" onchange="importCfg(event)" style="display:none"></label>
+      <div class="ac"><div class="dot"></div><span id="al">Not connected</span></div>
     </div>
   </div>
-
-  <!-- Global env banner -->
-  <div class="global-env-banner sandbox" id="env-banner">
-    <span>⚡</span>
-    <strong>Sandbox Mode</strong> — All integrations use test/mock endpoints. Switch to Production when going live.
-  </div>
+  <div class="eb sb-mode" id="eb">⚡ <strong>Sandbox Mode</strong> — Test mode. No real API calls. Switch to Production when going live.</div>
 
   <div class="content">
 
-    <!-- ══ DASHBOARD ══ -->
+    <!-- DASHBOARD -->
     <div class="page active" id="page-dashboard">
-      <div class="stats-grid">
-        <div class="stat-card accent"><div class="stat-label">Total Applications</div><div class="stat-value" id="s-total">—</div><div class="stat-sub">All time</div></div>
-        <div class="stat-card"><div class="stat-label">Pending Review</div><div class="stat-value" id="s-pending">—</div><div class="stat-sub">Need action</div></div>
-        <div class="stat-card"><div class="stat-label">Approved</div><div class="stat-value" id="s-approved">—</div><div class="stat-sub">Ready to disburse</div></div>
-        <div class="stat-card"><div class="stat-label">Disbursed</div><div class="stat-value" id="s-disbursed">—</div><div class="stat-sub">Successfully funded</div></div>
-        <div class="stat-card"><div class="stat-label">Total Customers</div><div class="stat-value" id="s-customers">—</div><div class="stat-sub">Registered users</div></div>
-        <div class="stat-card"><div class="stat-label">APIs Configured</div><div class="stat-value" id="s-apis">0</div><div class="stat-sub" id="s-apis-sub">of 9 integrations</div></div>
+      <div id="conn-box"></div>
+      <div class="sg">
+        <div class="sc acc"><div class="sl">Total Applications</div><div class="sv" id="st">—</div><div class="ss">All time</div></div>
+        <div class="sc"><div class="sl">Pending Review</div><div class="sv" id="sp">—</div><div class="ss">Need action</div></div>
+        <div class="sc"><div class="sl">Approved</div><div class="sv" id="sa">—</div><div class="ss">Ready to disburse</div></div>
+        <div class="sc"><div class="sl">Disbursed</div><div class="sv" id="sd">—</div><div class="ss">Funded</div></div>
+        <div class="sc"><div class="sl">Customers</div><div class="sv" id="sc2">—</div><div class="ss">Registered</div></div>
+        <div class="sc"><div class="sl">APIs Live</div><div class="sv" id="sapi">—</div><div class="ss" id="sapis">of 9 integrations</div></div>
       </div>
       <div class="card">
-        <div class="card-header"><div><div class="card-title">Loan Pipeline</div></div><button class="btn btn-outline btn-sm" onclick="loadDashboard()">↻ Refresh</button></div>
-        <div class="card-body">
-          <div class="pipeline-viz">
-            <div class="pipe-stage"><div class="pipe-box done"><div class="pipe-count" id="p-submitted">0</div></div><div class="pipe-label">Submitted</div></div>
-            <div class="pipe-arrow">→</div>
-            <div class="pipe-stage"><div class="pipe-box"><div class="pipe-count" id="p-review">0</div></div><div class="pipe-label">In Review</div></div>
-            <div class="pipe-arrow">→</div>
-            <div class="pipe-stage"><div class="pipe-box"><div class="pipe-count" id="p-approved">0</div></div><div class="pipe-label">Approved</div></div>
-            <div class="pipe-arrow">→</div>
-            <div class="pipe-stage"><div class="pipe-box"><div class="pipe-count" id="p-disbursed">0</div></div><div class="pipe-label">Disbursed</div></div>
-            <div class="pipe-arrow">→</div>
-            <div class="pipe-stage"><div class="pipe-box"><div class="pipe-count" id="p-closed">0</div></div><div class="pipe-label">Closed</div></div>
-            <div class="pipe-arrow">→</div>
-            <div class="pipe-stage"><div class="pipe-box" style="border-color:#FCA5A5"><div class="pipe-count" style="color:#DC2626" id="p-rejected">0</div></div><div class="pipe-label">Rejected</div></div>
-          </div>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-header"><div class="card-title">Recent Applications</div></div>
-        <div class="card-body" style="padding:0">
-          <table><thead><tr><th>Customer</th><th>Amount</th><th>Plan</th><th>Status</th><th>Applied</th><th>Action</th></tr></thead>
-          <tbody id="recent-loans"><tr><td colspan="6" class="empty">Connect backend to load live data</td></tr></tbody></table>
-        </div>
+        <div class="ch"><div class="ct2">Recent Applications</div><button class="btn bo bs" onclick="loadDash()">↻ Refresh</button></div>
+        <div style="padding:0"><table><thead><tr><th>Customer</th><th>Amount</th><th>Plan</th><th>Status</th><th>Applied</th><th>Action</th></tr></thead>
+        <tbody id="rl"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody></table></div>
       </div>
     </div>
 
-    <!-- ══ APPROVALS ══ -->
+    <!-- APPROVALS -->
     <div class="page" id="page-approvals">
       <div class="card">
-        <div class="card-header"><div class="card-title">Pending Loan Approvals</div><button class="btn btn-outline btn-sm" onclick="loadApprovals()">↻ Refresh</button></div>
-        <div class="card-body" style="padding:0">
-          <table><thead><tr><th>Customer</th><th>Amount</th><th>Tenure</th><th>PAN</th><th>KYC</th><th>Applied</th><th>Actions</th></tr></thead>
-          <tbody id="approvals-body"><tr><td colspan="7" class="empty">Click Refresh to load</td></tr></tbody></table>
-        </div>
+        <div class="ch"><div class="ct2">Pending Approvals</div><button class="btn bo bs" onclick="loadApprovals()">↻ Refresh</button></div>
+        <div style="padding:0"><table><thead><tr><th>Customer</th><th>Amount</th><th>Tenure</th><th>PAN</th><th>KYC</th><th>Date</th><th>Actions</th></tr></thead>
+        <tbody id="ab"><tr><td colspan="7" class="empty">Click Refresh</td></tr></tbody></table></div>
       </div>
     </div>
 
-    <!-- ══ ALL LOANS ══ -->
+    <!-- ALL LOANS -->
     <div class="page" id="page-loans">
       <div class="card">
-        <div class="card-header">
-          <div class="card-title">All Loan Applications</div>
-          <div style="display:flex;gap:8px;align-items:center">
-            <select id="loan-filter" onchange="loadLoans()" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px">
-              <option value="">All Status</option>
-              <option>submitted</option><option>under_review</option><option>approved</option><option>disbursed</option><option>rejected</option><option>closed</option>
+        <div class="ch">
+          <div class="ct2">All Loans</div>
+          <div style="display:flex;gap:8px">
+            <select id="lf" onchange="loadLoans()" style="padding:6px 10px;border:1px solid var(--bd);border-radius:8px;font-size:12px">
+              <option value="">All Status</option><option>submitted</option><option>under_review</option><option>approved</option><option>disbursed</option><option>rejected</option><option>closed</option>
             </select>
-            <button class="btn btn-outline btn-sm" onclick="loadLoans()">↻ Refresh</button>
+            <button class="btn bo bs" onclick="loadLoans()">↻ Refresh</button>
           </div>
         </div>
-        <div class="card-body" style="padding:0">
-          <table><thead><tr><th>ID</th><th>Customer</th><th>Amount</th><th>Tenure</th><th>EMI</th><th>Status</th><th>Applied</th><th>Actions</th></tr></thead>
-          <tbody id="loans-body"><tr><td colspan="8" class="empty">Click Refresh to load</td></tr></tbody></table>
-        </div>
+        <div style="padding:0"><table><thead><tr><th>ID</th><th>Customer</th><th>Amount</th><th>Tenure</th><th>EMI</th><th>Status</th><th>Applied</th><th>Actions</th></tr></thead>
+        <tbody id="lb2"><tr><td colspan="8" class="empty">Click Refresh</td></tr></tbody></table></div>
       </div>
     </div>
 
-    <!-- ══ CUSTOMERS ══ -->
+    <!-- CUSTOMERS -->
     <div class="page" id="page-customers">
       <div class="card">
-        <div class="card-header"><div class="card-title">All Customers</div><button class="btn btn-outline btn-sm" onclick="loadCustomers()">↻ Refresh</button></div>
-        <div class="card-body" style="padding:0">
-          <table><thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>PAN</th><th>KYC</th><th>Phone Verified</th><th>Loans</th><th>Joined</th></tr></thead>
-          <tbody id="customers-body"><tr><td colspan="8" class="empty">Click Refresh to load</td></tr></tbody></table>
-        </div>
+        <div class="ch"><div class="ct2">All Customers</div><button class="btn bo bs" onclick="loadCustomers()">↻ Refresh</button></div>
+        <div style="padding:0"><table><thead><tr><th>Name</th><th>Phone</th><th>PAN</th><th>KYC</th><th>Phone ✓</th><th>Loans</th><th>Joined</th></tr></thead>
+        <tbody id="cub"><tr><td colspan="7" class="empty">Click Refresh</td></tr></tbody></table></div>
       </div>
     </div>
 
-    <!-- ══ KYC & IDENTITY APIs ══ -->
-    <div class="page" id="page-api-kyc">
-      <div id="kyc-api-container"></div>
-    </div>
-
-    <!-- ══ CREDIT & INCOME APIs ══ -->
-    <div class="page" id="page-api-credit">
-      <div id="credit-api-container"></div>
-    </div>
-
-    <!-- ══ PAYMENTS & NACH APIs ══ -->
-    <div class="page" id="page-api-payments">
-      <div id="payments-api-container"></div>
-    </div>
-
-    <!-- ══ SMS & NOTIFICATIONS ══ -->
-    <div class="page" id="page-api-comm">
-      <div id="comm-api-container"></div>
-    </div>
-
-    <!-- ══ LOAN STAGE CONFIG ══ -->
-    <div class="page" id="page-loan-stages">
+    <!-- BUILDS -->
+    <div class="page" id="page-builds">
+      <div class="card" style="margin-bottom:16px">
+        <div class="ch">
+          <div><div class="ct2">📱 Builds &amp; App Distribution</div><div class="cs">Live GitHub Actions status — APK, IPA and Web builds</div></div>
+          <div style="display:flex;gap:8px">
+            <button class="btn bp bs" onclick="loadBuilds()">↻ Refresh</button>
+            <button class="btn bgr bs" id="gh-link" style="display:none" onclick="">⬡ GitHub Actions</button>
+          </div>
+        </div>
+        <div id="builds-body" style="padding:18px">
+          <div class="empty">Configure GitHub repo below then click Refresh</div>
+        </div>
+      </div>
       <div class="card">
-        <div class="card-header"><div><div class="card-title">Loan Approval Workflow</div><div class="card-sub">Enable or disable stages in the customer journey</div></div></div>
-        <div class="card-body">
-          <div id="stage-list"></div>
-          <div class="divider"></div>
-          <button class="btn btn-primary" onclick="saveStages()">Save Workflow Config</button>
+        <div class="ch"><div><div class="ct2">GitHub Configuration</div><div class="cs">Needed to fetch build status and artifact download links</div></div></div>
+        <div class="cb2">
+          <div class="fr fr2">
+            <div class="f">
+              <label>GitHub Repository <span class="env-chip">GITHUB_REPO</span></label>
+              <input id="gh-repo" type="text" placeholder="dsnai11/fintech-loan-app" oninput="previewGhLink()">
+              <div style="font-size:11px;color:var(--mu);margin-top:4px">Format: owner/repo-name (from github.com/owner/repo-name)</div>
+            </div>
+            <div class="f">
+              <label>GitHub Personal Access Token <span class="env-chip">GITHUB_TOKEN</span></label>
+              <input id="gh-token" type="password" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" style="font-family:monospace;font-size:12px">
+              <div style="font-size:11px;color:var(--mu);margin-top:4px">Needs <code>repo</code> scope. Create at github.com → Settings → Developer settings → PAT</div>
+            </div>
+          </div>
+          <button class="btn bp bs" onclick="saveGhConfig()">💾 Save GitHub Config</button>
+          <div id="gh-res" class="res"></div>
         </div>
       </div>
     </div>
 
-    <!-- ══ BACKEND & SECURITY ══ -->
+    <!-- KYC APIs -->
+    <div class="page" id="page-api-kyc"><div id="kyc-container"></div></div>
+    <!-- CREDIT APIs -->
+    <div class="page" id="page-api-credit"><div id="credit-container"></div></div>
+    <!-- PAYMENT APIs -->
+    <div class="page" id="page-api-pay"><div id="pay-container"></div></div>
+    <!-- COMM APIs -->
+    <div class="page" id="page-api-comm"><div id="comm-container"></div></div>
+
+    <!-- LOAN STAGES -->
+    <div class="page" id="page-stages">
+      <div class="card">
+        <div class="ch"><div><div class="ct2">Loan Approval Workflow</div><div class="cs">Toggle stages in the customer journey</div></div>
+          <button class="btn bp bs" onclick="saveStages()">Save to Backend</button>
+        </div>
+        <div class="cb2"><div id="stage-list"></div></div>
+      </div>
+    </div>
+
+    <!-- BACKEND SETUP -->
     <div class="page" id="page-backend">
       <div class="card" style="margin-bottom:16px">
-        <div class="card-header"><div class="card-title">Backend API Connection</div></div>
-        <div class="card-body">
-          <div class="field-row field-row-2">
-            <div class="field"><label>Backend Base URL</label><input type="url" id="backend-url" placeholder="https://fintech-loan-app-production.up.railway.app/api"></div>
-            <div class="field"><label>Admin JWT Token</label><input type="password" id="admin-token" placeholder="Paste JWT from login response" class="key-input"></div>
+        <div class="ch"><div class="ct2">Backend Connection</div></div>
+        <div class="cb2">
+          <div class="fr fr2">
+            <div class="f"><label>Backend API URL</label><input id="burl" type="url" placeholder="https://fintech-loan-app-production.up.railway.app/api"></div>
+            <div class="f"><label>Admin JWT Token</label><input id="btoken" type="password" placeholder="Paste from POST /api/auth/login response" style="font-family:monospace;font-size:12px"></div>
           </div>
           <div style="display:flex;gap:8px;margin-top:4px">
-            <button class="btn btn-primary btn-sm" onclick="saveBackend()">Save &amp; Test Connection</button>
-            <button class="btn btn-gray btn-sm" onclick="getToken()">How to get token?</button>
+            <button class="btn bp bs" onclick="saveBackend()">Save &amp; Test</button>
+            <button class="btn bgr bs" onclick="howToken()">❓ How to get token</button>
           </div>
-          <div id="backend-result" class="test-result"></div>
+          <div id="bres" class="res"></div>
         </div>
-      </div>
-      <div class="stats-grid">
-        <div class="stat-card"><div class="stat-label">Rate Limit (Auth)</div><div class="stat-value" style="font-size:18px;color:var(--green)">Active</div><div class="stat-sub">20 req / 15 min</div></div>
-        <div class="stat-card"><div class="stat-label">Helmet.js</div><div class="stat-value" style="font-size:18px;color:var(--green)">Active</div><div class="stat-sub">Security headers</div></div>
-        <div class="stat-card"><div class="stat-label">JWT Expiry</div><div class="stat-value" style="font-size:18px">7 days</div><div class="stat-sub">Token validity</div></div>
-        <div class="stat-card"><div class="stat-label">CORS</div><div class="stat-value" style="font-size:18px">Restricted</div><div class="stat-sub">Via ALLOWED_ORIGINS</div></div>
       </div>
       <div class="card">
-        <div class="card-header"><div class="card-title">Railway Environment Variables</div><div class="card-sub">Set these in your Railway service → Variables tab</div></div>
-        <div class="card-body" style="padding:0">
-          <table>
-            <thead><tr><th>Variable Name</th><th>Value</th><th>Purpose</th><th></th></tr></thead>
-            <tbody id="env-vars-table"></tbody>
-          </table>
-        </div>
+        <div class="ch"><div><div class="ct2">Railway Environment Variables</div><div class="cs">These are the minimum vars needed on Railway. API keys are saved to MongoDB — you don't need to set them here.</div></div></div>
+        <div style="padding:0"><table><thead><tr><th>Variable</th><th>Example / Required Value</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td><code>MONGO_URI</code></td><td><code>${'{'}{'{'}{'}'}MongoDB.MONGO_URL{'}'}{'}'}}</code></td><td>MongoDB connection (Railway auto-fills)</td></tr>
+          <tr><td><code>JWT_SECRET</code> ⭐</td><td><code>any-random-32+-chars</code></td><td>Signs all JWT tokens — must be set</td></tr>
+          <tr><td><code>ADMIN_EMAIL</code></td><td><code>itauditor@lifc.in</code></td><td>Email that gets admin access</td></tr>
+          <tr><td><code>ALLOWED_ORIGINS</code></td><td><code>*</code></td><td>CORS — restrict after launch</td></tr>
+          <tr><td><code>PORT</code></td><td><em>Railway sets this</em></td><td>Auto-set by Railway, don't touch</td></tr>
+        </tbody></table></div>
       </div>
     </div>
 
-    <!-- ══ AUDIT LOG ══ -->
+    <!-- AUDIT LOG -->
     <div class="page" id="page-audit">
       <div class="card">
-        <div class="card-header"><div class="card-title">Audit Log</div></div>
-        <div class="card-body" style="padding:0">
-          <table><thead><tr><th>Time</th><th>Action</th><th>By</th><th>Details</th></tr></thead>
-          <tbody id="audit-body"></tbody></table>
-        </div>
+        <div class="ch"><div class="ct2">Audit Log</div></div>
+        <div style="padding:0"><table><thead><tr><th>Time</th><th>Action</th><th>Detail</th></tr></thead>
+        <tbody id="audb"><tr><td colspan="3" class="empty">No events yet</td></tr></tbody></table></div>
       </div>
     </div>
 
-  </div><!-- /content -->
+  </div>
 </main>
 
 <script>
-// ═══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════
 // STATE
-// ═══════════════════════════════════════════════════════════════
-let cfg = JSON.parse(localStorage.getItem('lifc_cfg') || '{}');
-let env = localStorage.getItem('lifc_env') || 'sandbox';
-let backendUrl = cfg.backendUrl || 'https://fintech-loan-app-production.up.railway.app/api';
-let adminToken = cfg.adminToken || '';
+// ══════════════════════════════════════════
+let S = JSON.parse(localStorage.getItem('lifc_s') || '{}');
+let apiUrl   = S.apiUrl  || 'https://fintech-loan-app-production.up.railway.app/api';
+let token    = S.token   || '';
+let envMode  = S.env     || 'sandbox';
 let auditLog = JSON.parse(localStorage.getItem('lifc_audit') || '[]');
 
-function save() { localStorage.setItem('lifc_cfg', JSON.stringify(cfg)); updateApiCount(); }
-function logAudit(action, detail='') {
-  auditLog.unshift({ time: new Date().toLocaleString('en-IN'), action, detail });
-  auditLog = auditLog.slice(0, 100);
-  localStorage.setItem('lifc_audit', JSON.stringify(auditLog));
-}
+function persist() { localStorage.setItem('lifc_s', JSON.stringify(S)); }
+function audit(a, d='') { auditLog.unshift({t: new Date().toLocaleString('en-IN'), a, d}); auditLog=auditLog.slice(0,200); localStorage.setItem('lifc_audit',JSON.stringify(auditLog)); }
 
-// ═══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════
 // NAVIGATION
-// ═══════════════════════════════════════════════════════════════
-const PAGE_TITLES = {
-  dashboard:'Dashboard', approvals:'Pending Approvals', loans:'All Loans', customers:'Customers',
-  'api-kyc':'KYC & Identity APIs', 'api-credit':'Credit & Income APIs',
-  'api-payments':'Payments & NACH APIs', 'api-comm':'SMS & Notifications',
-  'loan-stages':'Loan Stage Config', backend:'Backend & Security', audit:'Audit Log'
-};
-
-document.querySelectorAll('.nav-item[data-page]').forEach(el => {
+// ══════════════════════════════════════════
+const TITLES = {dashboard:'Dashboard',approvals:'Pending Approvals',loans:'All Loans',customers:'Customers','api-kyc':'KYC & Identity APIs','api-credit':'Credit & Income APIs','api-pay':'Payments & NACH','api-comm':'SMS & Alerts',builds:'Builds & Distribution',stages:'Loan Stage Config',backend:'Backend Setup',audit:'Audit Log'};
+document.querySelectorAll('.ni[data-page]').forEach(el => {
   el.addEventListener('click', () => {
     const id = el.dataset.page;
-    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+    document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));
     document.getElementById('page-'+id)?.classList.add('active');
     el.classList.add('active');
-    document.getElementById('page-title').textContent = PAGE_TITLES[id] || id;
-    onPageOpen(id);
+    document.getElementById('pt').textContent = TITLES[id]||id;
+    pageOpen(id);
   });
 });
 
-function onPageOpen(id) {
-  if(id==='dashboard') loadDashboard();
-  if(id==='api-kyc') renderApiGroup('kyc-api-container', KYC_PROVIDERS);
-  if(id==='api-credit') renderApiGroup('credit-api-container', CREDIT_PROVIDERS);
-  if(id==='api-payments') renderApiGroup('payments-api-container', PAYMENT_PROVIDERS);
-  if(id==='api-comm') renderApiGroup('comm-api-container', COMM_PROVIDERS);
-  if(id==='loan-stages') renderStages();
-  if(id==='backend') { document.getElementById('backend-url').value=backendUrl; document.getElementById('admin-token').value=adminToken; renderEnvVars(); }
+function pageOpen(id) {
+  if(id==='dashboard') loadDash();
+  if(id==='api-kyc') renderGroup('kyc-container', KYC_DEFS);
+  if(id==='api-credit') renderGroup('credit-container', CREDIT_DEFS);
+  if(id==='api-pay') renderGroup('pay-container', PAY_DEFS);
+  if(id==='api-comm') renderGroup('comm-container', COMM_DEFS);
+  if(id==='builds') { loadBuilds(); populateGhFields(); }
+  if(id==='stages') renderStages();
+  if(id==='backend') { document.getElementById('burl').value=apiUrl; document.getElementById('btoken').value=token; }
   if(id==='audit') renderAudit();
 }
 
-// ═══════════════════════════════════════════════════════════════
-// ENVIRONMENT
-// ═══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════
+// ENV
+// ══════════════════════════════════════════
 function setEnv(e) {
-  env = e;
-  localStorage.setItem('lifc_env', e);
-  document.getElementById('env-sandbox').classList.toggle('active', e==='sandbox');
-  document.getElementById('env-prod').classList.toggle('active', e==='production');
-  document.getElementById('env-prod').classList.toggle('prod', e==='production');
-  const banner = document.getElementById('env-banner');
-  if(e==='production') {
-    banner.className='global-env-banner prod';
-    banner.innerHTML='<span>🚀</span><strong>Production Mode</strong> — Live API keys will be used. Handle with care.';
-  } else {
-    banner.className='global-env-banner sandbox';
-    banner.innerHTML='<span>⚡</span><strong>Sandbox Mode</strong> — All integrations use test/mock endpoints. Switch to Production when going live.';
-  }
-  logAudit('Environment switched', e);
+  envMode = e; S.env=e; persist();
+  document.getElementById('esb').classList.toggle('on', e==='sandbox');
+  document.getElementById('epb').classList.toggle('on', e==='production');
+  document.getElementById('epb').classList.toggle('prod', e==='production');
+  const eb = document.getElementById('eb');
+  eb.className = e==='production' ? 'eb pr-mode' : 'eb sb-mode';
+  eb.innerHTML = e==='production' ? '🚀 <strong>Production Mode</strong> — Live API keys active. Real money, real users.' : '⚡ <strong>Sandbox Mode</strong> — No real API calls. Safe for testing.';
+  audit('Env switched', e);
 }
+setEnv(envMode);
 
-// ═══════════════════════════════════════════════════════════════
-// API PROVIDER DEFINITIONS
-// ═══════════════════════════════════════════════════════════════
-const KYC_PROVIDERS = [
-  {
-    id:'pan', label:'PAN Verification', icon:'🪪', desc:'Verify PAN card number against NSDL/UTI database',
-    railwayVar:'PAN_PROVIDER + PAN_API_KEY',
-    providers:[
-      { id:'karza', name:'Karza', color:'#1D4ED8', envKey:'PAN_PROVIDER', envVal:'karza',
-        fields:[{key:'PAN_API_KEY', label:'API Key', type:'password', placeholder:'karza_xxxxx'}],
-        docsUrl:'https://karza.in', sandbox:'Use test PAN: ABCDE1234F' },
-      { id:'idfy', name:'IDfy', color:'#7C3AED', envKey:'PAN_PROVIDER', envVal:'idfy',
-        fields:[{key:'PAN_API_KEY', label:'API Key', type:'password', placeholder:'idfy_xxxxx'},{key:'PAN_ACCOUNT_ID', label:'Account ID', type:'text', placeholder:'acc_xxxx'}],
-        docsUrl:'https://idfy.com', sandbox:'Sandbox available in IDfy dashboard' },
-      { id:'signzy', name:'Signzy', color:'#0891B2', envKey:'PAN_PROVIDER', envVal:'signzy',
-        fields:[{key:'PAN_API_KEY', label:'API Key', type:'password', placeholder:'signzy_xxxxx'},{key:'PAN_USERNAME', label:'Username', type:'text', placeholder:''}],
-        docsUrl:'https://signzy.com' },
-      { id:'sandbox', name:'Sandbox', color:'#92400E', envKey:'PAN_PROVIDER', envVal:'',
-        fields:[], sandbox:'No config needed. Format validation only. Use any valid PAN format: ABCDE1234F' },
-    ]
-  },
-  {
-    id:'aadhaar', label:'Aadhaar / eKYC', icon:'🆔', desc:'OTP-based Aadhaar identity verification',
-    railwayVar:'AADHAAR_PROVIDER + AADHAAR_API_KEY',
-    providers:[
-      { id:'karza', name:'Karza', color:'#1D4ED8', envKey:'AADHAAR_PROVIDER', envVal:'karza',
-        fields:[{key:'AADHAAR_API_KEY', label:'API Key', type:'password', placeholder:'karza_xxxxx'}],
-        sandbox:'Use Aadhaar 999941057058 with OTP 123456' },
-      { id:'signzy', name:'Signzy', color:'#0891B2', envKey:'AADHAAR_PROVIDER', envVal:'signzy',
-        fields:[{key:'AADHAAR_API_KEY', label:'API Key', type:'password', placeholder:''},{key:'AADHAAR_USERNAME', label:'Username', type:'text', placeholder:''}] },
-      { id:'sandbox', name:'Sandbox', color:'#92400E', envKey:'AADHAAR_PROVIDER', envVal:'',
-        fields:[], sandbox:'OTP sent to registered mobile. In sandbox, OTP is returned in API response.' },
-    ]
-  },
-  {
-    id:'otp_sms', label:'Mobile OTP (SMS)', icon:'📱', desc:'Send OTP via SMS for phone verification',
-    railwayVar:'SMS_PROVIDER + SMS_API_KEY',
-    providers:[
-      { id:'fast2sms', name:'Fast2SMS', color:'#16A34A', envKey:'SMS_PROVIDER', envVal:'fast2sms',
-        fields:[{key:'SMS_API_KEY', label:'API Key', type:'password', placeholder:'fast2sms_xxxxx'},{key:'SMS_SENDER_ID', label:'Sender ID', type:'text', placeholder:'LIFINC'}],
-        sandbox:'Use demo API key from Fast2SMS dashboard — free tier available', docsUrl:'https://fast2sms.com' },
-      { id:'msg91', name:'MSG91', color:'#7C3AED', envKey:'SMS_PROVIDER', envVal:'msg91',
-        fields:[{key:'SMS_API_KEY', label:'Auth Key', type:'password', placeholder:'xxxxx'},{key:'SMS_SENDER_ID', label:'Sender ID', type:'text', placeholder:'LIFINC'},{key:'MSG91_TEMPLATE_ID', label:'OTP Template ID', type:'text', placeholder:'template_xxxxx'}],
-        docsUrl:'https://msg91.com' },
-      { id:'twilio', name:'Twilio', color:'#F22F46', envKey:'SMS_PROVIDER', envVal:'twilio',
-        fields:[{key:'TWILIO_ACCOUNT_SID', label:'Account SID', type:'text', placeholder:'ACxxxx'},{key:'TWILIO_AUTH_TOKEN', label:'Auth Token', type:'password', placeholder:'xxxxx'},{key:'TWILIO_PHONE', label:'Twilio Phone Number', type:'text', placeholder:'+1xxxxx'}],
-        docsUrl:'https://twilio.com' },
-      { id:'sandbox', name:'Sandbox (No SMS)', color:'#92400E', envKey:'SMS_PROVIDER', envVal:'',
-        fields:[], sandbox:'OTP is returned in API response as sandboxOtp field. No real SMS sent.' },
-    ]
-  },
-];
-
-const CREDIT_PROVIDERS = [
-  {
-    id:'bureau', label:'Credit Bureau (CIBIL / Experian)', icon:'📊', desc:'Pull credit score and credit history of applicant',
-    railwayVar:'BUREAU_PROVIDER + BUREAU_API_KEY',
-    providers:[
-      { id:'cibil', name:'TransUnion CIBIL', color:'#1D4ED8', envKey:'BUREAU_PROVIDER', envVal:'cibil',
-        fields:[{key:'BUREAU_API_KEY', label:'API Key', type:'password', placeholder:'cibil_xxxxx'},{key:'BUREAU_MEMBER_ID', label:'Member ID', type:'text', placeholder:'xxxxxx'},{key:'BUREAU_PASSWORD', label:'Password', type:'password', placeholder:''}],
-        sandbox:'CIBIL sandbox requires registered NBFC membership. Contact cibil.com/api.' },
-      { id:'experian', name:'Experian India', color:'#EF4444', envKey:'BUREAU_PROVIDER', envVal:'experian',
-        fields:[{key:'BUREAU_API_KEY', label:'API Key', type:'password', placeholder:'exp_xxxxx'},{key:'BUREAU_CLIENT_ID', label:'Client ID', type:'text', placeholder:''}],
-        sandbox:'Experian sandbox: clientId=test, returns score 750' },
-      { id:'highmark', name:'Highmark (CRIF)', color:'#7C3AED', envKey:'BUREAU_PROVIDER', envVal:'highmark',
-        fields:[{key:'BUREAU_API_KEY', label:'API Key', type:'password', placeholder:''}],
-        sandbox:'Contact CRIF Highmark for sandbox access' },
-      { id:'sandbox', name:'Sandbox (Mock Score)', color:'#92400E', envKey:'BUREAU_PROVIDER', envVal:'',
-        fields:[], sandbox:'Returns mock credit score 720 for all PANs. No real bureau pull.' },
-    ]
-  },
-  {
-    id:'income', label:'Income / Bank Statement Analysis', icon:'💰', desc:'Verify income via Account Aggregator or bank statement parser',
-    railwayVar:'INCOME_PROVIDER + INCOME_API_KEY',
-    providers:[
-      { id:'finvu', name:'Finvu (Account Aggregator)', color:'#0891B2', envKey:'INCOME_PROVIDER', envVal:'finvu',
-        fields:[{key:'INCOME_API_KEY', label:'API Key', type:'password', placeholder:'finvu_xxxxx'},{key:'FINVU_CLIENT_ID', label:'Client ID', type:'text', placeholder:''}],
-        sandbox:'RBI-regulated AA. Sandbox at finvu.in/developer.' },
-      { id:'perfios', name:'Perfios', color:'#16A34A', envKey:'INCOME_PROVIDER', envVal:'perfios',
-        fields:[{key:'INCOME_API_KEY', label:'API Key', type:'password', placeholder:'perf_xxxxx'},{key:'PERFIOS_INSTITUTION_ID', label:'Institution ID', type:'text', placeholder:''}],
-        sandbox:'Upload test PDF bank statements in Perfios sandbox' },
-      { id:'sandbox', name:'Sandbox (Manual Income)', color:'#92400E', envKey:'INCOME_PROVIDER', envVal:'',
-        fields:[], sandbox:'User self-declares income. No verification. Use only for internal testing.' },
-    ]
-  },
-];
-
-const PAYMENT_PROVIDERS = [
-  {
-    id:'bank_verify', label:'Bank Account Verification (Penny Drop)', icon:'🏦', desc:'Verify beneficiary bank account before disbursement',
-    railwayVar:'BANK_VERIFY_PROVIDER + PAYMENT_KEY_ID + PAYMENT_KEY_SECRET',
-    providers:[
-      { id:'razorpay', name:'Razorpay', color:'#2563EB', envKey:'BANK_VERIFY_PROVIDER', envVal:'razorpay',
-        fields:[{key:'PAYMENT_KEY_ID', label:'Key ID', type:'text', placeholder:'rzp_live_xxxxx'},{key:'PAYMENT_KEY_SECRET', label:'Key Secret', type:'password', placeholder:'xxxxx'}],
-        sandbox:'Use rzp_test_xxxxx keys. Penny drop works in test mode.', docsUrl:'https://razorpay.com/docs/payments/penny-drop' },
-      { id:'cashfree', name:'Cashfree', color:'#0D9488', envKey:'BANK_VERIFY_PROVIDER', envVal:'cashfree',
-        fields:[{key:'CASHFREE_APP_ID', label:'App ID', type:'text', placeholder:'xxxxx'},{key:'CASHFREE_SECRET', label:'Secret Key', type:'password', placeholder:'xxxxx'}],
-        sandbox:'Use TEST mode in Cashfree dashboard', docsUrl:'https://docs.cashfree.com' },
-      { id:'sandbox', name:'Sandbox (IFSC Lookup Only)', color:'#92400E', envKey:'BANK_VERIFY_PROVIDER', envVal:'',
-        fields:[], sandbox:'Uses free Razorpay IFSC public API for bank name. No actual penny drop.' },
-    ]
-  },
-  {
-    id:'disburse', label:'Loan Disbursement (Payout)', icon:'💸', desc:'Transfer loan amount to borrower\'s bank account',
-    railwayVar:'PAYOUT_PROVIDER + PAYMENT_KEY_ID + PAYMENT_KEY_SECRET',
-    providers:[
-      { id:'razorpay', name:'Razorpay Payouts', color:'#2563EB', envKey:'PAYOUT_PROVIDER', envVal:'razorpay',
-        fields:[{key:'PAYOUT_KEY_ID', label:'Key ID', type:'text', placeholder:'rzp_live_xxxxx'},{key:'PAYOUT_KEY_SECRET', label:'Key Secret', type:'password', placeholder:'xxxxx'},{key:'PAYOUT_ACCOUNT_NUMBER', label:'LIFC Account Number', type:'text', placeholder:'Your current account'}],
-        sandbox:'Razorpay payouts test mode. Amount credited within seconds in test.', docsUrl:'https://razorpay.com/docs/payouts' },
-      { id:'cashfree', name:'Cashfree Payouts', color:'#0D9488', envKey:'PAYOUT_PROVIDER', envVal:'cashfree',
-        fields:[{key:'CASHFREE_PAYOUT_APP_ID', label:'App ID', type:'text', placeholder:'xxxxx'},{key:'CASHFREE_PAYOUT_SECRET', label:'Secret', type:'password', placeholder:'xxxxx'}],
-        docsUrl:'https://docs.cashfree.com/reference/payouts' },
-      { id:'sandbox', name:'Sandbox (Mock TXN)', color:'#92400E', envKey:'PAYOUT_PROVIDER', envVal:'',
-        fields:[], sandbox:'Returns mock transaction ID TXN_xxxxxx. No real money moved.' },
-    ]
-  },
-  {
-    id:'nach', label:'NACH eMandate (EMI Auto-debit)', icon:'🔁', desc:'Register auto-debit mandate for monthly EMI collection',
-    railwayVar:'NACH_PROVIDER + NACH_API_KEY',
-    providers:[
-      { id:'razorpay', name:'Razorpay Recurring', color:'#2563EB', envKey:'NACH_PROVIDER', envVal:'razorpay',
-        fields:[{key:'NACH_KEY_ID', label:'Key ID', type:'text', placeholder:'rzp_live_xxxxx'},{key:'NACH_KEY_SECRET', label:'Key Secret', type:'password', placeholder:'xxxxx'}],
-        sandbox:'Test mandate: auth_method=netbanking, bank=HDFC in test mode', docsUrl:'https://razorpay.com/docs/payments/recurring-payments' },
-      { id:'cashfree', name:'Cashfree Subscriptions', color:'#0D9488', envKey:'NACH_PROVIDER', envVal:'cashfree',
-        fields:[{key:'NACH_APP_ID', label:'App ID', type:'text', placeholder:'xxxxx'},{key:'NACH_SECRET', label:'Secret Key', type:'password', placeholder:'xxxxx'}] },
-      { id:'digio', name:'Digio NACH', color:'#7C3AED', envKey:'NACH_PROVIDER', envVal:'digio',
-        fields:[{key:'DIGIO_CLIENT_ID', label:'Client ID', type:'text', placeholder:''},{key:'DIGIO_CLIENT_SECRET', label:'Client Secret', type:'password', placeholder:''}],
-        docsUrl:'https://digio.in' },
-      { id:'sandbox', name:'Sandbox', color:'#92400E', envKey:'NACH_PROVIDER', envVal:'',
-        fields:[], sandbox:'NACH not executed in sandbox. Mock mandate reference returned.' },
-    ]
-  },
-  {
-    id:'esign', label:'Loan Agreement eSign', icon:'✍️', desc:'Digital signature on sanction letter / loan agreement',
-    railwayVar:'ESIGN_PROVIDER + ESIGN_API_KEY',
-    providers:[
-      { id:'digio', name:'Digio', color:'#7C3AED', envKey:'ESIGN_PROVIDER', envVal:'digio',
-        fields:[{key:'DIGIO_CLIENT_ID', label:'Client ID', type:'text', placeholder:''},{key:'DIGIO_CLIENT_SECRET', label:'Client Secret', type:'password', placeholder:''}],
-        sandbox:'Digio sandbox: use test Aadhaar 999941057058', docsUrl:'https://digio.in/developer' },
-      { id:'leegality', name:'Leegality', color:'#0891B2', envKey:'ESIGN_PROVIDER', envVal:'leegality',
-        fields:[{key:'ESIGN_API_KEY', label:'API Key', type:'password', placeholder:'leg_xxxxx'},{key:'LEEGALITY_APP_ID', label:'App ID', type:'text', placeholder:''}],
-        docsUrl:'https://leegality.com' },
-      { id:'sandbox', name:'Sandbox (Skip eSign)', color:'#92400E', envKey:'ESIGN_PROVIDER', envVal:'',
-        fields:[], sandbox:'eSign step is skipped. Loan proceeds without digital signature.' },
-    ]
-  },
-];
-
-const COMM_PROVIDERS = [
-  {
-    id:'whatsapp', label:'WhatsApp Notifications', icon:'💬', desc:'Send loan updates, EMI reminders via WhatsApp',
-    railwayVar:'WHATSAPP_PROVIDER + WHATSAPP_API_KEY',
-    providers:[
-      { id:'interakt', name:'Interakt', color:'#16A34A', envKey:'WHATSAPP_PROVIDER', envVal:'interakt',
-        fields:[{key:'WHATSAPP_API_KEY', label:'API Key', type:'password', placeholder:'interakt_xxxxx'}],
-        sandbox:'Free sandbox at interakt.ai', docsUrl:'https://docs.interakt.ai' },
-      { id:'wati', name:'WATI', color:'#0891B2', envKey:'WHATSAPP_PROVIDER', envVal:'wati',
-        fields:[{key:'WATI_API_ENDPOINT', label:'API Endpoint URL', type:'text', placeholder:'https://live-mt-server.wati.io/xxxxx'},{key:'WHATSAPP_API_KEY', label:'API Token', type:'password', placeholder:''}] },
-      { id:'sandbox', name:'Disabled', color:'#92400E', envKey:'WHATSAPP_PROVIDER', envVal:'',
-        fields:[], sandbox:'WhatsApp messages not sent.' },
-    ]
-  },
-  {
-    id:'email', label:'Email Notifications', icon:'📧', desc:'Send loan statements, approval emails',
-    railwayVar:'EMAIL_PROVIDER + EMAIL_API_KEY',
-    providers:[
-      { id:'sendgrid', name:'SendGrid', color:'#1A82E2', envKey:'EMAIL_PROVIDER', envVal:'sendgrid',
-        fields:[{key:'EMAIL_API_KEY', label:'API Key', type:'password', placeholder:'SG.xxxxx'},{key:'EMAIL_FROM', label:'From Address', type:'email', placeholder:'loans@lifc.in'},{key:'EMAIL_FROM_NAME', label:'From Name', type:'text', placeholder:'LIFC Loans'}],
-        sandbox:'SendGrid free tier — 100 emails/day', docsUrl:'https://sendgrid.com' },
-      { id:'nodemailer', name:'SMTP (Custom)', color:'#6B7280', envKey:'EMAIL_PROVIDER', envVal:'smtp',
-        fields:[{key:'SMTP_HOST', label:'SMTP Host', type:'text', placeholder:'smtp.gmail.com'},{key:'SMTP_PORT', label:'SMTP Port', type:'text', placeholder:'587'},{key:'SMTP_USER', label:'Username', type:'email', placeholder:'you@gmail.com'},{key:'SMTP_PASS', label:'Password / App Password', type:'password', placeholder:''}] },
-      { id:'sandbox', name:'Disabled', color:'#92400E', envKey:'EMAIL_PROVIDER', envVal:'',
-        fields:[], sandbox:'Emails not sent.' },
-    ]
-  },
-];
-
-// ═══════════════════════════════════════════════════════════════
-// RENDER API GROUP
-// ═══════════════════════════════════════════════════════════════
-function renderApiGroup(containerId, groups) {
-  const c = document.getElementById(containerId);
-  c.innerHTML = groups.map(g => renderApiSection(g)).join('');
-}
-
-function renderApiSection(g) {
-  const savedProvider = cfg[g.id + '_provider'] || 'sandbox';
-  const savedFields = cfg[g.id + '_fields'] || {};
-  const isConfigured = savedProvider !== 'sandbox' && savedProvider !== '';
-  const statusText = isConfigured ? `✓ ${savedProvider}` : (savedProvider === 'sandbox' ? '⚡ Sandbox' : 'Not set');
-  const statusClass = isConfigured ? 'badge-configured' : (savedProvider === 'sandbox' ? 'badge-sandbox' : 'badge-none');
-
-  const providerHtml = g.providers.map(p => `
-    <div class="api-card ${savedProvider===p.id?'configured':''}" id="card-${g.id}-${p.id}" style="display:${savedProvider===p.id?'block':'none'}">
-      <div class="api-card-head" onclick="toggleApiCard('${g.id}-${p.id}')">
-        <div class="provider-icon" style="background:${p.color}">${p.name[0]}</div>
-        <div class="api-card-info">
-          <div class="api-card-name">${p.name}</div>
-          <div class="api-card-desc">${p.docsUrl?`<a href="${p.docsUrl}" target="_blank" style="color:var(--blue)">${p.docsUrl.replace('https://','')}</a>`:'No docs'}</div>
-        </div>
-        <div class="expand-icon" id="exp-${g.id}-${p.id}">▼</div>
-      </div>
-      <div class="api-card-body" id="body-${g.id}-${p.id}">
-        ${p.sandbox ? `<div class="test-result info show" style="margin-bottom:12px"><span>ℹ️</span><div>${p.sandbox}</div></div>` : ''}
-        ${p.fields.map(f => `
-          <div class="field">
-            <label>${f.label}
-              <span style="float:right;font-weight:400;color:var(--blue);font-size:10px;text-transform:none;cursor:pointer" onclick="copyToClipboard('${f.key}','${savedFields[f.key]||''}')">Copy</span>
-            </label>
-            <div style="display:flex;gap:6px;align-items:center">
-              <input type="${f.type}" id="field-${g.id}-${f.key}" value="${(savedFields[f.key]||'').replace(/"/g,'')}" placeholder="${f.placeholder}" class="${f.type==='password'?'key-input':''}">
-            </div>
-            <div style="font-size:10px;color:var(--muted);margin-top:2px">Railway env var: <code style="background:#F3F4F6;padding:1px 5px;border-radius:3px">${f.key}</code></div>
-          </div>`).join('')}
-        ${p.fields.length === 0 ? '<div style="padding:8px 0;font-size:13px;color:var(--muted)">No configuration needed for sandbox mode.</div>' : ''}
-        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-          <button class="btn btn-primary btn-sm" onclick="saveApiProvider('${g.id}','${p.id}',${JSON.stringify(p.fields.map(f=>f.key))})">💾 Save Config</button>
-          ${p.fields.length > 0 ? `<button class="btn btn-gray btn-sm" onclick="testApiProvider('${g.id}','${p.id}')">🧪 Test Connection</button>` : ''}
-          <a href="${p.docsUrl||'#'}" target="_blank" class="btn btn-gray btn-sm" style="${p.docsUrl?'':'pointer-events:none;opacity:.5'}">📖 Docs</a>
-        </div>
-        <div id="test-${g.id}-${p.id}" class="test-result"></div>
-      </div>
-    </div>`).join('');
-
-  return `
-  <div class="api-section">
-    <div style="background:white;border:1.5px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:16px">
-      <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;background:#FAFAFA">
-        <div style="display:flex;align-items:center;gap:10px">
-          <span style="font-size:22px">${g.icon}</span>
-          <div>
-            <div style="font-size:14px;font-weight:700;color:var(--text)">${g.label}</div>
-            <div style="font-size:12px;color:var(--muted)">${g.desc}</div>
-          </div>
-        </div>
-        <div style="display:flex;align-items:center;gap:8px">
-          <span class="api-status-badge ${statusClass}">${statusText}</span>
-        </div>
-      </div>
-      <div style="padding:16px">
-        <div style="margin-bottom:12px">
-          <div class="field-label" style="margin-bottom:8px">Select Provider</div>
-          <div class="provider-tabs">
-            ${g.providers.map(p => `
-              <div class="provider-tab ${savedProvider===p.id?'selected':''} ${p.id==='sandbox'?'sandbox':''}"
-                   onclick="selectApiProvider('${g.id}',${JSON.stringify(g.providers.map(pp=>pp.id))},'${p.id}')">
-                ${p.name}
-              </div>`).join('')}
-          </div>
-        </div>
-        <div id="provider-cards-${g.id}">
-          ${providerHtml}
-        </div>
-        <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);font-size:11px;color:var(--muted)">
-          Railway env vars: <code style="background:#F3F4F6;padding:1px 6px;border-radius:3px">${g.railwayVar}</code>
-        </div>
-      </div>
-    </div>
-  </div>`;
-}
-
-function selectApiProvider(groupId, allIds, selectedId) {
-  allIds.forEach(id => {
-    const card = document.getElementById(`card-${groupId}-${id}`);
-    const tab = document.querySelector(`.provider-tab[onclick*="'${groupId}',"][onclick*="'${id}'"]`);
-    if(card) card.style.display = id===selectedId ? 'block' : 'none';
-    if(tab) tab.classList.toggle('selected', id===selectedId);
-  });
-  // Open the body
-  const body = document.getElementById(`body-${groupId}-${selectedId}`);
-  if(body) { body.classList.add('open'); document.getElementById(`exp-${groupId}-${selectedId}`).classList.add('open'); }
-}
-
-function toggleApiCard(id) {
-  const body = document.getElementById('body-'+id);
-  const icon = document.getElementById('exp-'+id);
-  body?.classList.toggle('open');
-  icon?.classList.toggle('open');
-}
-
-function saveApiProvider(groupId, providerId, fieldKeys) {
-  cfg[groupId+'_provider'] = providerId;
-  cfg[groupId+'_fields'] = cfg[groupId+'_fields'] || {};
-  fieldKeys.forEach(k => {
-    const el = document.getElementById(`field-${groupId}-${k}`);
-    if(el) cfg[groupId+'_fields'][k] = el.value;
-  });
-  save();
-  logAudit('API Config saved', `${groupId} → ${providerId}`);
-  showResult(`test-${groupId}-${providerId}`, 'ok', '✓ Configuration saved to browser storage. Copy Railway env vars below to apply on backend.');
-  // Re-render to update status badge
-  const page = document.querySelector('.page.active');
-  if(page) {
-    if(page.id==='page-api-kyc') renderApiGroup('kyc-api-container', KYC_PROVIDERS);
-    if(page.id==='page-api-credit') renderApiGroup('credit-api-container', CREDIT_PROVIDERS);
-    if(page.id==='page-api-payments') renderApiGroup('payments-api-container', PAYMENT_PROVIDERS);
-    if(page.id==='page-api-comm') renderApiGroup('comm-api-container', COMM_PROVIDERS);
-  }
-}
-
-function testApiProvider(groupId, providerId) {
-  const url = cfg[groupId+'_fields']?.['PAN_API_KEY'] || cfg[groupId+'_fields']?.['SMS_API_KEY'] || cfg[groupId+'_fields']?.['PAYMENT_KEY_ID'];
-  if(!url) { showResult(`test-${groupId}-${providerId}`, 'info', 'ℹ️ Save your credentials first, then test.'); return; }
-  showResult(`test-${groupId}-${providerId}`, 'info', '🧪 Connection test: credentials saved. Actual API test requires backend call. Use Postman or the backend /api/kyc endpoint to verify.');
-}
-
-function showResult(id, type, msg) {
-  const el = document.getElementById(id);
-  if(!el) return;
-  el.className = `test-result show ${type}`;
-  el.innerHTML = msg;
-}
-
-// ═══════════════════════════════════════════════════════════════
-// RAILWAY ENV VARS TABLE
-// ═══════════════════════════════════════════════════════════════
-const RAILWAY_VARS = [
-  { name:'MONGO_URI', value:'${{MongoDB.MONGO_URL}}', purpose:'MongoDB connection string' },
-  { name:'JWT_SECRET', value:'', purpose:'Secret for signing JWT tokens (generate random 32+ chars)', required:true },
-  { name:'ADMIN_EMAIL', value:'itauditor@lifc.in', purpose:'Login email that gets admin access' },
-  { name:'ALLOWED_ORIGINS', value:'*', purpose:'CORS allowed origins (comma-separated)' },
-  { name:'PAN_PROVIDER', value:'', purpose:'karza / idfy / signzy (blank = sandbox)' },
-  { name:'PAN_API_KEY', value:'', purpose:'API key for PAN verification provider' },
-  { name:'SMS_PROVIDER', value:'', purpose:'fast2sms / msg91 / twilio (blank = sandbox)' },
-  { name:'SMS_API_KEY', value:'', purpose:'API key for SMS provider' },
-  { name:'SMS_SENDER_ID', value:'LIFINC', purpose:'Sender ID shown on SMS (6 chars)' },
-  { name:'BUREAU_PROVIDER', value:'', purpose:'cibil / experian / highmark (blank = sandbox)' },
-  { name:'BUREAU_API_KEY', value:'', purpose:'API key for credit bureau' },
-  { name:'INCOME_PROVIDER', value:'', purpose:'finvu / perfios (blank = sandbox)' },
-  { name:'INCOME_API_KEY', value:'', purpose:'API key for income verification' },
-  { name:'BANK_VERIFY_PROVIDER', value:'', purpose:'razorpay / cashfree (blank = IFSC lookup only)' },
-  { name:'PAYMENT_KEY_ID', value:'', purpose:'Razorpay Key ID (or Cashfree App ID)' },
-  { name:'PAYMENT_KEY_SECRET', value:'', purpose:'Razorpay Key Secret (or Cashfree Secret)' },
-  { name:'PAYOUT_PROVIDER', value:'', purpose:'razorpay / cashfree (blank = sandbox)' },
-  { name:'NACH_PROVIDER', value:'', purpose:'razorpay / cashfree / digio (blank = sandbox)' },
-  { name:'ESIGN_PROVIDER', value:'', purpose:'digio / leegality (blank = skip eSign)' },
-  { name:'WHATSAPP_PROVIDER', value:'', purpose:'interakt / wati (blank = disabled)' },
-  { name:'EMAIL_PROVIDER', value:'', purpose:'sendgrid / smtp (blank = disabled)' },
-];
-
-function renderEnvVars() {
-  const tbody = document.getElementById('env-vars-table');
-  tbody.innerHTML = RAILWAY_VARS.map(v => {
-    const saved = cfg.envVars?.[v.name] || v.value;
-    return `<tr>
-      <td><code style="font-size:12px;background:#F3F4F6;padding:2px 6px;border-radius:4px">${v.name}</code>${v.required?'<span style="color:var(--red);margin-left:4px">*</span>':''}</td>
-      <td><input type="text" value="${saved}" id="env-${v.name}" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:monospace" placeholder="${v.value||'set value...'}" oninput="saveEnvVar('${v.name}',this.value)"></td>
-      <td style="font-size:12px;color:var(--muted)">${v.purpose}</td>
-      <td><button class="copy-btn" onclick="copyToClipboard('${v.name}',document.getElementById('env-${v.name}').value)" title="Copy value">📋</button></td>
-    </tr>`;
-  }).join('');
-}
-
-function saveEnvVar(name, value) {
-  cfg.envVars = cfg.envVars || {};
-  cfg.envVars[name] = value;
-  save();
-}
-
-// ═══════════════════════════════════════════════════════════════
-// LOAN STAGES
-// ═══════════════════════════════════════════════════════════════
-const STAGES = [
-  {id:'otp_verify', name:'Mobile OTP Verification', desc:'Verify phone number after signup', required:false, default:true},
-  {id:'pan_verify', name:'PAN Verification', desc:'Validate PAN card number', required:true},
-  {id:'personal_details', name:'Personal Details', desc:'Name, DOB, gender, address', required:true},
-  {id:'eligibility', name:'Eligibility Check', desc:'Check pre-approved loan limit', required:true},
-  {id:'income_verify', name:'Income Verification', desc:'Bank statement / AA income check', required:false, default:false},
-  {id:'credit_check', name:'Credit Bureau Check', desc:'Pull CIBIL / Experian score', required:false, default:false},
-  {id:'loan_plan', name:'Loan Plan Selection', desc:'Choose amount, tenure, EMI plan', required:true},
-  {id:'bank_details', name:'Bank Account Details', desc:'Capture + verify bank account', required:true},
-  {id:'esign', name:'Loan Agreement eSign', desc:'Digital signature on sanction letter', required:false, default:false},
-  {id:'disbursement', name:'Disbursement', desc:'Transfer loan amount to bank account', required:true},
-  {id:'nach', name:'NACH eMandate', desc:'Register auto-debit for EMI', required:false, default:false},
-];
-
-function renderStages() {
-  const saved = cfg.stages || {};
-  document.getElementById('stage-list').innerHTML = STAGES.map((s,i) => {
-    const enabled = s.required ? true : (saved[s.id] !== undefined ? saved[s.id] : (s.default||false));
-    return `
-    <div style="display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid var(--border)">
-      <div style="width:24px;height:24px;background:${s.required?'var(--maroon)':'#D1D5DB'};color:white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">${i+1}</div>
-      <div style="flex:1;min-width:0">
-        <div style="font-size:13px;font-weight:600">${s.name} ${s.required?'<span style="font-size:10px;background:#FEE2E2;color:#991B1B;padding:1px 6px;border-radius:10px;font-weight:700">Required</span>':''}</div>
-        <div style="font-size:11px;color:var(--muted)">${s.desc}</div>
-      </div>
-      <label class="switch" title="${s.required?'Cannot disable required stages':'Toggle stage'}">
-        <input type="checkbox" id="stage-${s.id}" ${enabled?'checked':''} ${s.required?'disabled':''} onchange="stageChanged('${s.id}',this.checked)">
-        <span class="slider"></span>
-      </label>
-    </div>`;
-  }).join('');
-}
-
-function stageChanged(id, val) {
-  cfg.stages = cfg.stages || {};
-  cfg.stages[id] = val;
-  save();
-  logAudit('Stage config changed', `${id} → ${val?'enabled':'disabled'}`);
-}
-
-function saveStages() { save(); alert('Stage configuration saved!'); }
-
-// ═══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════
 // BACKEND API CALLS
-// ═══════════════════════════════════════════════════════════════
-async function apiFetch(path, opts={}) {
-  const url = backendUrl + path;
-  const headers = {'Content-Type':'application/json'};
-  if(adminToken) headers['Authorization'] = 'Bearer '+adminToken;
-  const res = await fetch(url, {...opts, headers:{...headers,...(opts.headers||{})}});
-  if(!res.ok) { const t = await res.text(); throw new Error(t); }
-  return res.json();
+// ══════════════════════════════════════════
+async function api(path, opts={}) {
+  const url = apiUrl + path;
+  const h = {'Content-Type':'application/json'};
+  if(token) h['Authorization']='Bearer '+token;
+  const r = await fetch(url, {...opts, headers:{...h,...(opts.headers||{})}});
+  const body = await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(body.error || r.statusText);
+  return body;
 }
 
-function fmtMoney(v) { if(!v) return '—'; return '₹'+Number(v).toLocaleString('en-IN'); }
-function fmtDate(s) { if(!s) return '—'; return new Date(s).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
-function statusChip(s) {
-  const map = {disbursed:'s-disbursed',approved:'s-approved',submitted:'s-submitted',under_review:'s-under_review',rejected:'s-rejected',pending:'s-pending',active:'s-active',inactive:'s-inactive',blocked:'s-rejected'};
-  return `<span class="status ${map[s]||''}">${s||'—'}</span>`;
+function fmtM(v) { if(!v) return '—'; return '₹'+Number(v).toLocaleString('en-IN'); }
+function fmtD(s) { if(!s) return '—'; return new Date(s).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
+function chip(s) {
+  const m={disbursed:'ok',approved:'ok',submitted:'warn',under_review:'warn',rejected:'err',pending:'warn',active:'ok',inactive:'gray',blocked:'err'};
+  return `<span class="st s-${m[s]||'gray'}">${s||'—'}</span>`;
 }
 
-async function loadDashboard() {
-  if(!adminToken) { showConnectPrompt(); return; }
+// ══════════════════════════════════════════
+// DASHBOARD
+// ══════════════════════════════════════════
+async function loadDash() {
+  const box = document.getElementById('conn-box');
+  if(!token) {
+    box.innerHTML = `<div class="conn-banner"><div>
+      <div style="font-weight:700;margin-bottom:4px">⚠ Not connected to backend</div>
+      <div style="font-size:12px;color:var(--mu)">Enter your backend URL and admin token to load live data.</div>
+    </div><button class="btn bp bs" onclick="document.querySelector('[data-page=backend]').click()">Setup Backend →</button></div>`;
+    return;
+  }
+  box.innerHTML='';
   try {
-    const stats = await apiFetch('/admin/stats');
-    document.getElementById('s-total').textContent = stats.totalLoans||0;
-    document.getElementById('s-pending').textContent = stats.pending||0;
-    document.getElementById('s-approved').textContent = stats.byStatus?.approved||0;
-    document.getElementById('s-disbursed').textContent = stats.disbursed||0;
-    document.getElementById('s-customers').textContent = stats.totalUsers||0;
-    document.getElementById('p-submitted').textContent = (stats.byStatus?.submitted||0)+(stats.byStatus?.under_review||0);
-    document.getElementById('p-review').textContent = stats.byStatus?.under_review||0;
-    document.getElementById('p-approved').textContent = stats.byStatus?.approved||0;
-    document.getElementById('p-disbursed').textContent = stats.disbursed||0;
-    document.getElementById('p-closed').textContent = stats.byStatus?.closed||0;
-    document.getElementById('p-rejected').textContent = stats.byStatus?.rejected||0;
-    document.getElementById('pending-count').textContent = stats.pending||0;
-
-    const {loans} = await apiFetch('/admin/loans?limit=10');
-    document.getElementById('recent-loans').innerHTML = (loans||[]).map(l=>`<tr>
-      <td><b>${l.userId?.firstName||'—'} ${l.userId?.lastName||''}</b><br><span style="font-size:11px;color:var(--muted)">${l.userId?.phone||''}</span></td>
-      <td>${fmtMoney(l.loanAmount)}</td>
-      <td>${l.planType||l.loanType||'—'}</td>
-      <td>${statusChip(l.status)}</td>
-      <td>${fmtDate(l.createdAt)}</td>
-      <td><button class="btn btn-primary btn-sm" onclick="approveL('${l._id}')">Approve</button></td>
-    </tr>`).join('') || '<tr><td colspan="6" class="empty">No loans yet</td></tr>';
-  } catch(e) { showConnectPrompt(e.message); }
-}
-
-function showConnectPrompt(err='') {
-  document.getElementById('recent-loans').innerHTML = `<tr><td colspan="6" class="empty">
-    ${err ? '<div style="color:var(--red);margin-bottom:8px">⚠ '+err+'</div>' : ''}
-    <button class="btn btn-primary btn-sm" onclick="promptToken()">Connect Backend →</button>
-  </td></tr>`;
-}
-
-function promptToken() {
-  const token = prompt('Paste your admin JWT token:\n\n(Login with admin@lifc.in in the app, then run:\nPOST /api/auth/login  →  copy the "token" field)');
-  if(token) { adminToken = token; cfg.adminToken = token; save(); loadDashboard(); }
+    const st = await api('/admin/stats');
+    document.getElementById('st').textContent=st.totalLoans||0;
+    document.getElementById('sp').textContent=st.pending||0;
+    document.getElementById('sa').textContent=st.byStatus?.approved||0;
+    document.getElementById('sd').textContent=st.disbursed||0;
+    document.getElementById('sc2').textContent=st.totalUsers||0;
+    document.getElementById('pc').textContent=st.pending||0;
+    // Count configured APIs from backend config
+    const cfg = await api('/admin/config').catch(()=>({config:[]}));
+    const liveApis = (cfg.config||[]).filter(c=>c.key.endsWith('_PROVIDER') && c.value && c.value!=='sandbox' && !c.isEmpty).length;
+    document.getElementById('sapi').textContent = liveApis;
+    const {loans} = await api('/admin/loans?limit=10');
+    document.getElementById('rl').innerHTML = (loans||[]).map(l=>`<tr>
+      <td><b>${l.userId?.firstName||'—'} ${l.userId?.lastName||''}</b></td>
+      <td>${fmtM(l.loanAmount)}</td><td>${l.planType||l.loanType||'—'}</td>
+      <td>${chip(l.status)}</td><td>${fmtD(l.createdAt)}</td>
+      <td><button class="btn bp bs" onclick="approveL('${l._id}')">Approve</button></td></tr>`).join('')
+      || '<tr><td colspan="6" class="empty">No loans yet</td></tr>';
+    audit('Dashboard loaded');
+  } catch(e) {
+    box.innerHTML=`<div class="conn-banner"><div><b>⚠ Backend error</b><br><span style="font-size:12px">${e.message}</span></div><button class="btn bo bs" onclick="document.querySelector('[data-page=backend]').click()">Fix Setup →</button></div>`;
+  }
 }
 
 async function loadApprovals() {
-  if(!adminToken) { alert('Connect backend first via Dashboard'); return; }
   try {
-    const {loans} = await apiFetch('/admin/loans?status=submitted');
-    document.getElementById('approvals-body').innerHTML = (loans||[]).map(l=>`<tr>
-      <td><b>${l.userId?.firstName||'—'} ${l.userId?.lastName||''}</b><br><span style="font-size:11px;color:var(--muted)">${l.userId?.email||''}</span></td>
-      <td>${fmtMoney(l.loanAmount)}</td>
-      <td>${l.tenure} mo</td>
+    const {loans} = await api('/admin/loans?status=submitted');
+    document.getElementById('ab').innerHTML = (loans||[]).map(l=>`<tr>
+      <td><b>${l.userId?.firstName||'—'} ${l.userId?.lastName||''}</b><br><small style="color:var(--mu)">${l.userId?.email||''}</small></td>
+      <td>${fmtM(l.loanAmount)}</td><td>${l.tenure} mo</td>
       <td><code style="font-size:11px">${l.userId?.panNumber||'—'}</code></td>
-      <td>${statusChip(l.userId?.kycStatus||'pending')}</td>
-      <td>${fmtDate(l.createdAt)}</td>
+      <td>${chip(l.userId?.kycStatus||'pending')}</td><td>${fmtD(l.createdAt)}</td>
       <td style="white-space:nowrap">
-        <button class="btn btn-green btn-sm" onclick="approveL('${l._id}')">✓ Approve</button>
-        <button class="btn btn-danger btn-sm" style="margin-left:4px" onclick="rejectL('${l._id}')">✗ Reject</button>
-      </td>
-    </tr>`).join('') || '<tr><td colspan="7" class="empty">No pending approvals 🎉</td></tr>';
+        <button class="btn bg bs" onclick="approveL('${l._id}',this)">✓ Approve</button>
+        <button class="btn bd2 bs" style="margin-left:4px" onclick="rejectL('${l._id}',this)">✗ Reject</button>
+      </td></tr>`).join('') || '<tr><td colspan="7" class="empty">No pending approvals 🎉</td></tr>';
   } catch(e) { alert('Error: '+e.message); }
 }
 
 async function loadLoans() {
-  if(!adminToken) { alert('Connect backend first via Dashboard'); return; }
   try {
-    const status = document.getElementById('loan-filter').value;
-    const qs = status ? '?status='+status : '';
-    const {loans} = await apiFetch('/admin/loans'+qs);
-    document.getElementById('loans-body').innerHTML = (loans||[]).map(l=>`<tr>
-      <td style="font-family:monospace;font-size:11px;color:var(--muted)">#${l._id.slice(-6)}</td>
+    const st = document.getElementById('lf').value;
+    const {loans} = await api('/admin/loans'+(st?'?status='+st:''));
+    document.getElementById('lb2').innerHTML = (loans||[]).map(l=>`<tr>
+      <td style="font-family:monospace;font-size:11px;color:var(--mu)">#${l._id.slice(-6)}</td>
       <td>${l.userId?.firstName||'—'} ${l.userId?.lastName||''}</td>
-      <td>${fmtMoney(l.loanAmount)}</td>
-      <td>${l.tenure} mo</td>
-      <td>${fmtMoney(l.monthlyEMI)}</td>
-      <td>${statusChip(l.status)}</td>
-      <td>${fmtDate(l.createdAt)}</td>
+      <td>${fmtM(l.loanAmount)}</td><td>${l.tenure} mo</td><td>${fmtM(l.monthlyEMI)}</td>
+      <td>${chip(l.status)}</td><td>${fmtD(l.createdAt)}</td>
       <td style="white-space:nowrap">
-        <button class="btn btn-green btn-sm" onclick="approveL('${l._id}')">✓</button>
-        <button class="btn btn-danger btn-sm" style="margin-left:4px" onclick="rejectL('${l._id}')">✗</button>
-      </td>
-    </tr>`).join('') || '<tr><td colspan="8" class="empty">No loans found</td></tr>';
+        <button class="btn bg bs" onclick="approveL('${l._id}',this)">✓</button>
+        <button class="btn bd2 bs" style="margin-left:4px" onclick="rejectL('${l._id}',this)">✗</button>
+      </td></tr>`).join('') || '<tr><td colspan="8" class="empty">No loans</td></tr>';
   } catch(e) { alert('Error: '+e.message); }
 }
 
 async function loadCustomers() {
-  if(!adminToken) { alert('Connect backend first via Dashboard'); return; }
   try {
-    const {users} = await apiFetch('/admin/users');
-    document.getElementById('customers-body').innerHTML = (users||[]).map(u=>`<tr>
-      <td><b>${u.firstName} ${u.lastName}</b></td>
+    const {users} = await api('/admin/users');
+    document.getElementById('cub').innerHTML = (users||[]).map(u=>`<tr>
+      <td><b>${u.firstName} ${u.lastName}</b><br><small style="color:var(--mu)">${u.email}</small></td>
       <td>${u.phone}</td>
-      <td style="font-size:12px">${u.email}</td>
       <td><code style="font-size:11px">${u.panNumber||'—'}</code></td>
-      <td>${statusChip(u.kycStatus)}</td>
-      <td>${u.phoneVerified?'<span class="chip chip-green">✓ Yes</span>':'<span class="chip chip-gray">No</span>'}</td>
-      <td>${u.loanHistory?.length||0}</td>
-      <td>${fmtDate(u.createdAt)}</td>
-    </tr>`).join('') || '<tr><td colspan="8" class="empty">No customers yet</td></tr>';
+      <td>${chip(u.kycStatus)}</td>
+      <td>${u.phoneVerified?'<span class="st s-ok">✓ Yes</span>':'<span class="st s-gray">No</span>'}</td>
+      <td>${u.loanHistory?.length||0}</td><td>${fmtD(u.createdAt)}</td></tr>`).join('')
+      || '<tr><td colspan="7" class="empty">No customers</td></tr>';
   } catch(e) { alert('Error: '+e.message); }
 }
 
-async function approveL(id) {
-  if(!confirm('Approve this loan application?')) return;
+async function approveL(id, btn) {
+  if(!confirm('Approve this loan?')) return;
+  if(btn) btn.disabled=true;
   try {
-    await apiFetch('/admin/loans/'+id+'/status', {method:'PUT', body:JSON.stringify({status:'approved'})});
-    logAudit('Loan approved', id);
-    alert('✓ Loan approved!');
+    await api('/admin/loans/'+id+'/status',{method:'PUT',body:JSON.stringify({status:'approved'})});
+    audit('Loan approved', id);
+    alert('✓ Approved!');
     loadApprovals();
-  } catch(e) { alert('Error: '+e.message); }
+  } catch(e) { alert('Error: '+e.message); if(btn) btn.disabled=false; }
 }
 
-async function rejectL(id) {
+async function rejectL(id, btn) {
   const reason = prompt('Reason for rejection (optional):');
-  if(reason === null) return;
+  if(reason===null) return;
+  if(btn) btn.disabled=true;
   try {
-    await apiFetch('/admin/loans/'+id+'/status', {method:'PUT', body:JSON.stringify({status:'rejected', rejectionReason:reason})});
-    logAudit('Loan rejected', id+': '+reason);
+    await api('/admin/loans/'+id+'/status',{method:'PUT',body:JSON.stringify({status:'rejected',rejectionReason:reason})});
+    audit('Loan rejected', id+': '+reason);
     alert('Loan rejected.');
     loadApprovals();
+  } catch(e) { alert('Error: '+e.message); if(btn) btn.disabled=false; }
+}
+
+// ══════════════════════════════════════════
+// API INTEGRATION DEFINITIONS
+// ══════════════════════════════════════════
+const KYC_DEFS = [
+  { id:'pan', icon:'🪪', title:'PAN Verification', desc:'Verify PAN card against NSDL/UTI database',
+    providers:[
+      { id:'karza', name:'Karza', docs:'https://karza.in', sandbox:'Test PAN: ABCDE1234F',
+        fields:[{k:'PAN_PROVIDER',v:'karza',hide:true},{k:'PAN_API_KEY',l:'API Key',secret:true,ph:'karza_live_xxxxx'}]},
+      { id:'idfy', name:'IDfy', docs:'https://idfy.com', sandbox:'Sandbox available in IDfy dashboard',
+        fields:[{k:'PAN_PROVIDER',v:'idfy',hide:true},{k:'PAN_API_KEY',l:'API Key',secret:true,ph:'idfy_xxxxx'},{k:'PAN_ACCOUNT_ID',l:'Account ID',ph:'acc_xxxx'}]},
+      { id:'signzy', name:'Signzy', docs:'https://signzy.com',
+        fields:[{k:'PAN_PROVIDER',v:'signzy',hide:true},{k:'PAN_API_KEY',l:'API Key',secret:true,ph:'signzy_xxxxx'},{k:'PAN_USERNAME',l:'Username',ph:''}]},
+      { id:'sandbox', name:'Sandbox', sandbox:'No keys needed. PAN format validation only. Any ABCDE1234F format works.',
+        fields:[{k:'PAN_PROVIDER',v:'',hide:true}]},
+    ], testId:'pan'},
+  { id:'otp', icon:'📱', title:'Mobile OTP (SMS)', desc:'Send OTP via SMS for phone number verification',
+    providers:[
+      { id:'fast2sms', name:'Fast2SMS', docs:'https://fast2sms.com', sandbox:'Free tier: 100 SMS/day. Test API key from fast2sms.com dashboard.',
+        fields:[{k:'SMS_PROVIDER',v:'fast2sms',hide:true},{k:'SMS_API_KEY',l:'API Key',secret:true,ph:'fast2sms_xxxxx'},{k:'SMS_SENDER_ID',l:'Sender ID',ph:'LIFINC',def:'LIFINC'}]},
+      { id:'msg91', name:'MSG91', docs:'https://msg91.com',
+        fields:[{k:'SMS_PROVIDER',v:'msg91',hide:true},{k:'SMS_API_KEY',l:'Auth Key',secret:true,ph:'xxxxx'},{k:'SMS_SENDER_ID',l:'Sender ID',ph:'LIFINC',def:'LIFINC'},{k:'MSG91_TEMPLATE_ID',l:'OTP Template ID',ph:'template_xxxxx'}]},
+      { id:'twilio', name:'Twilio', docs:'https://twilio.com',
+        fields:[{k:'SMS_PROVIDER',v:'twilio',hide:true},{k:'TWILIO_ACCOUNT_SID',l:'Account SID',ph:'ACxxxx'},{k:'TWILIO_AUTH_TOKEN',l:'Auth Token',secret:true,ph:'xxxxx'},{k:'TWILIO_PHONE',l:'Twilio Phone',ph:'+1xxxxx'}]},
+      { id:'sandbox', name:'Sandbox (No SMS)', sandbox:'OTP returned in API response as sandboxOtp. No real SMS sent. Safe for development.',
+        fields:[{k:'SMS_PROVIDER',v:'',hide:true}]},
+    ], testId:'sms'},
+];
+
+const CREDIT_DEFS = [
+  { id:'bureau', icon:'📊', title:'Credit Bureau Check', desc:'Pull CIBIL/Experian credit score of applicant',
+    providers:[
+      { id:'cibil', name:'TransUnion CIBIL', docs:'https://cibil.com', sandbox:'Requires NBFC license + membership. Contact CIBIL for sandbox.',
+        fields:[{k:'BUREAU_PROVIDER',v:'cibil',hide:true},{k:'BUREAU_API_KEY',l:'API Key',secret:true,ph:'cibil_xxxxx'},{k:'BUREAU_MEMBER_ID',l:'Member ID',ph:'xxxxxx'},{k:'BUREAU_PASSWORD',l:'Password',secret:true,ph:''}]},
+      { id:'experian', name:'Experian India', docs:'https://experian.in',
+        fields:[{k:'BUREAU_PROVIDER',v:'experian',hide:true},{k:'BUREAU_API_KEY',l:'API Key',secret:true,ph:'exp_xxxxx'},{k:'BUREAU_CLIENT_ID',l:'Client ID',ph:''}]},
+      { id:'sandbox', name:'Sandbox (Mock Score)', sandbox:'Returns mock score 720 for all applicants. No bureau pull.',
+        fields:[{k:'BUREAU_PROVIDER',v:'',hide:true}]},
+    ], testId:'bureau'},
+  { id:'income', icon:'💰', title:'Income Verification (AA)', desc:'Verify income via Account Aggregator or bank statement',
+    providers:[
+      { id:'finvu', name:'Finvu (AA)', docs:'https://finvu.in', sandbox:'RBI-licensed AA. Sandbox at finvu.in/developer.',
+        fields:[{k:'INCOME_PROVIDER',v:'finvu',hide:true},{k:'INCOME_API_KEY',l:'API Key',secret:true,ph:'finvu_xxxxx'},{k:'FINVU_CLIENT_ID',l:'Client ID',ph:''}]},
+      { id:'perfios', name:'Perfios', docs:'https://perfios.com',
+        fields:[{k:'INCOME_PROVIDER',v:'perfios',hide:true},{k:'INCOME_API_KEY',l:'API Key',secret:true,ph:'perf_xxxxx'},{k:'PERFIOS_INSTITUTION_ID',l:'Institution ID',ph:''}]},
+      { id:'sandbox', name:'Sandbox (Self-declared)', sandbox:'User self-declares income. No verification. Only for testing.',
+        fields:[{k:'INCOME_PROVIDER',v:'',hide:true}]},
+    ], testId:'income'},
+];
+
+const PAY_DEFS = [
+  { id:'bank_verify', icon:'🏦', title:'Bank Account Verification', desc:'Penny drop to verify beneficiary account before disbursal',
+    providers:[
+      { id:'razorpay', name:'Razorpay', docs:'https://razorpay.com',
+        sandbox:'Use rzp_test_ keys. IFSC lookup is always free (no keys needed).',
+        fields:[{k:'BANK_VERIFY_PROVIDER',v:'razorpay',hide:true},{k:'PAYMENT_KEY_ID',l:'Key ID',ph:'rzp_live_xxxxx'},{k:'PAYMENT_KEY_SECRET',l:'Key Secret',secret:true,ph:'xxxxx'}]},
+      { id:'cashfree', name:'Cashfree', docs:'https://cashfree.com',
+        fields:[{k:'BANK_VERIFY_PROVIDER',v:'cashfree',hide:true},{k:'CASHFREE_APP_ID',l:'App ID',ph:'xxxxx'},{k:'CASHFREE_SECRET',l:'Secret Key',secret:true,ph:'xxxxx'}]},
+      { id:'sandbox', name:'Sandbox (IFSC Lookup)', sandbox:'Uses free Razorpay IFSC API to show bank name. No penny drop.',
+        fields:[{k:'BANK_VERIFY_PROVIDER',v:'',hide:true}]},
+    ], testId:'bank'},
+  { id:'disburse', icon:'💸', title:'Loan Disbursement (Payout)', desc:'Transfer approved loan amount to borrower bank account',
+    providers:[
+      { id:'razorpay', name:'Razorpay Payouts', docs:'https://razorpay.com/docs/payouts',
+        sandbox:'Test payouts work with rzp_test_ keys. No real money moved.',
+        fields:[{k:'PAYOUT_PROVIDER',v:'razorpay',hide:true},{k:'PAYOUT_KEY_ID',l:'Key ID',ph:'rzp_live_xxxxx'},{k:'PAYOUT_KEY_SECRET',l:'Key Secret',secret:true,ph:'xxxxx'},{k:'PAYOUT_ACCOUNT_NUMBER',l:'LIFC Account Number',ph:'Your current account no.'}]},
+      { id:'cashfree', name:'Cashfree Payouts', docs:'https://docs.cashfree.com/reference/payouts',
+        fields:[{k:'PAYOUT_PROVIDER',v:'cashfree',hide:true},{k:'CASHFREE_PAYOUT_APP_ID',l:'App ID',ph:'xxxxx'},{k:'CASHFREE_PAYOUT_SECRET',l:'Secret',secret:true,ph:'xxxxx'}]},
+      { id:'sandbox', name:'Sandbox (Mock TXN)', sandbox:'Returns fake TXN ID. No real payout.',
+        fields:[{k:'PAYOUT_PROVIDER',v:'',hide:true}]},
+    ], testId:'payout'},
+  { id:'nach', icon:'🔁', title:'NACH eMandate (EMI Auto-debit)', desc:'Register mandate for monthly EMI collection',
+    providers:[
+      { id:'razorpay', name:'Razorpay Recurring', docs:'https://razorpay.com/docs/payments/recurring-payments',
+        sandbox:'Test with auth_method=netbanking in test mode.',
+        fields:[{k:'NACH_PROVIDER',v:'razorpay',hide:true},{k:'NACH_KEY_ID',l:'Key ID',ph:'rzp_live_xxxxx'},{k:'NACH_KEY_SECRET',l:'Key Secret',secret:true,ph:'xxxxx'}]},
+      { id:'digio', name:'Digio NACH', docs:'https://digio.in',
+        fields:[{k:'NACH_PROVIDER',v:'digio',hide:true},{k:'DIGIO_CLIENT_ID',l:'Client ID',ph:''},{k:'DIGIO_CLIENT_SECRET',l:'Client Secret',secret:true,ph:''}]},
+      { id:'sandbox', name:'Sandbox', sandbox:'No mandate created. Mock reference returned.',
+        fields:[{k:'NACH_PROVIDER',v:'',hide:true}]},
+    ], testId:'nach'},
+  { id:'esign', icon:'✍️', title:'Loan Agreement eSign', desc:'Aadhaar-based digital signature on loan documents',
+    providers:[
+      { id:'digio', name:'Digio', docs:'https://digio.in/developer',
+        sandbox:'Sandbox Aadhaar: 999941057058, OTP: 123456.',
+        fields:[{k:'ESIGN_PROVIDER',v:'digio',hide:true},{k:'DIGIO_CLIENT_ID',l:'Client ID',ph:''},{k:'DIGIO_CLIENT_SECRET',l:'Client Secret',secret:true,ph:''}]},
+      { id:'leegality', name:'Leegality', docs:'https://leegality.com',
+        fields:[{k:'ESIGN_PROVIDER',v:'leegality',hide:true},{k:'ESIGN_API_KEY',l:'API Key',secret:true,ph:'leg_xxxxx'},{k:'LEEGALITY_APP_ID',l:'App ID',ph:''}]},
+      { id:'sandbox', name:'Sandbox (Skip eSign)', sandbox:'eSign step skipped. Loan proceeds without digital signature.',
+        fields:[{k:'ESIGN_PROVIDER',v:'',hide:true}]},
+    ], testId:'esign'},
+];
+
+const COMM_DEFS = [
+  { id:'whatsapp', icon:'💬', title:'WhatsApp Notifications', desc:'Send loan updates and EMI reminders via WhatsApp',
+    providers:[
+      { id:'interakt', name:'Interakt', docs:'https://docs.interakt.ai', sandbox:'Free sandbox at interakt.ai/sandbox.',
+        fields:[{k:'WHATSAPP_PROVIDER',v:'interakt',hide:true},{k:'WHATSAPP_API_KEY',l:'API Key',secret:true,ph:'interakt_xxxxx'}]},
+      { id:'wati', name:'WATI', docs:'https://wati.io',
+        fields:[{k:'WHATSAPP_PROVIDER',v:'wati',hide:true},{k:'WATI_ENDPOINT',l:'API Endpoint URL',ph:'https://live-mt-server.wati.io/xxxxx'},{k:'WHATSAPP_API_KEY',l:'API Token',secret:true,ph:''}]},
+      { id:'sandbox', name:'Disabled', sandbox:'WhatsApp messages not sent.',
+        fields:[{k:'WHATSAPP_PROVIDER',v:'',hide:true}]},
+    ], testId:'whatsapp'},
+  { id:'email', icon:'📧', title:'Email Notifications', desc:'Send loan statements and approval emails',
+    providers:[
+      { id:'sendgrid', name:'SendGrid', docs:'https://sendgrid.com', sandbox:'Free tier: 100 emails/day.',
+        fields:[{k:'EMAIL_PROVIDER',v:'sendgrid',hide:true},{k:'EMAIL_API_KEY',l:'API Key',secret:true,ph:'SG.xxxxx'},{k:'EMAIL_FROM',l:'From Address',ph:'loans@lifc.in'},{k:'EMAIL_FROM_NAME',l:'From Name',ph:'LIFC Loans'}]},
+      { id:'smtp', name:'SMTP (Gmail etc.)', sandbox:'Use Gmail App Password (not your main password).',
+        fields:[{k:'EMAIL_PROVIDER',v:'smtp',hide:true},{k:'SMTP_HOST',l:'SMTP Host',ph:'smtp.gmail.com'},{k:'SMTP_PORT',l:'Port',ph:'587'},{k:'SMTP_USER',l:'Email',ph:'you@gmail.com'},{k:'SMTP_PASS',l:'App Password',secret:true,ph:''}]},
+      { id:'sandbox', name:'Disabled', sandbox:'Emails not sent.',
+        fields:[{k:'EMAIL_PROVIDER',v:'',hide:true}]},
+    ], testId:'email'},
+];
+
+// ══════════════════════════════════════════
+// RENDER API GROUP
+// ══════════════════════════════════════════
+// Holds the current config fetched from backend, keyed by config key name
+let remoteConfig = {};
+
+async function fetchRemoteConfig() {
+  if(!token) return;
+  try {
+    const data = await api('/admin/config');
+    remoteConfig = {};
+    (data.config||[]).forEach(c => remoteConfig[c.key] = c);
+  } catch(_) {}
+}
+
+function getRemoteVal(key) {
+  const c = remoteConfig[key];
+  if(!c) return '';
+  // If it's masked (has bullets), return empty so input shows placeholder
+  return c.isEmpty ? '' : c.value;
+}
+
+function renderGroup(containerId, defs) {
+  fetchRemoteConfig().then(() => {
+    document.getElementById(containerId).innerHTML = defs.map(def => renderDef(def)).join('');
+  });
+}
+
+function renderDef(def) {
+  const curProvider = getRemoteVal(def.providers[0]?.fields?.find(f=>f.hide)?.k || '') || 'sandbox';
+  const matchedProvider = def.providers.find(p => {
+    const pf = p.fields.find(f => f.hide);
+    if(!pf) return false;
+    const remVal = getRemoteVal(pf.k);
+    return remVal === p.id || (p.id==='sandbox' && (!remVal || remVal===''));
+  }) || def.providers[def.providers.length-1];
+
+  const isConfigured = matchedProvider.id !== 'sandbox';
+  const statusText = isConfigured ? `✓ ${matchedProvider.name}` : '⚡ Sandbox';
+  const statusClass = isConfigured ? 'background:#DCFCE7;color:#166534' : 'background:#FEF3C7;color:#92400E';
+
+  return `
+  <div class="api-group" id="ag-${def.id}">
+    <div class="api-group-head">
+      <span class="api-group-icon">${def.icon}</span>
+      <div><div class="ag-title">${def.title}</div><div class="ag-sub">${def.desc}</div></div>
+      <span class="ag-status" style="${statusClass}">${statusText}</span>
+    </div>
+    <div class="ag-body">
+      <div style="margin-bottom:12px">
+        <div style="font-size:11px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Select Provider</div>
+        <div class="ptabs">
+          ${def.providers.map(p=>`<div class="ptab ${p.id==='sandbox'?'sandbox':''} ${matchedProvider.id===p.id?'on':''}"
+              onclick="switchProvider('${def.id}',${JSON.stringify(def.providers.map(x=>x.id))},'${p.id}')">${p.name}</div>`).join('')}
+        </div>
+      </div>
+      ${def.providers.map(p=>`
+        <div class="pconf ${matchedProvider.id===p.id?'show':''}" id="pc-${def.id}-${p.id}">
+          ${p.sandbox ? `<div class="res info show" style="margin-bottom:12px"><span>ℹ️</span><span>${p.sandbox}</span></div>` : ''}
+          ${p.fields.filter(f=>!f.hide).map(f=>`
+            <div class="f">
+              <label>${f.l} <span class="env-chip">${f.k}</span></label>
+              <input type="${f.secret?'password':'text'}" id="fi-${def.id}-${f.k}"
+                value="${getRemoteVal(f.k)||f.def||''}"
+                placeholder="${getRemoteVal(f.k)?'(saved — enter new value to change)':f.ph}"
+                style="${f.secret?'font-family:monospace;font-size:12px':''}">
+            </div>`).join('')}
+          ${p.fields.filter(f=>!f.hide).length===0 ? '<div style="font-size:13px;color:var(--mu);padding:4px 0">No configuration needed.</div>' : ''}
+          <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+            <button class="btn bp bs" onclick="saveApiCfg('${def.id}',${JSON.stringify(p.fields)})">💾 Save to Backend</button>
+            <button class="btn bgr bs" onclick="testApi('${def.testId}','res-${def.id}')">🧪 Test Connection</button>
+            ${p.docs?`<a href="${p.docs}" target="_blank" class="btn bgr bs">📖 Docs</a>`:''}
+          </div>
+          <div id="res-${def.id}" class="res"></div>
+        </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function switchProvider(defId, allIds, selectedId) {
+  allIds.forEach(id => {
+    const el = document.getElementById(`pc-${defId}-${id}`);
+    if(el) el.classList.toggle('show', id===selectedId);
+  });
+  document.querySelectorAll(`#ag-${defId} .ptab`).forEach((t,i) => {
+    t.classList.toggle('on', allIds[i]===selectedId);
+  });
+}
+
+async function saveApiCfg(defId, fields) {
+  if(!token) { alert('Connect to backend first (Backend Setup page)'); return; }
+  const keys = {};
+  fields.forEach(f => {
+    const el = document.getElementById(`fi-${defId}-${f.k}`);
+    const val = f.hide ? f.v : (el ? el.value.trim() : f.v||'');
+    if(val !== '' || f.hide) { // always save hidden fields (provider name), skip empty visible fields unless user cleared them
+      keys[f.k] = { value: val, isSecret: !!f.secret, group: defId };
+    }
+  });
+  try {
+    const r = await api('/admin/config', {method:'PUT', body:JSON.stringify({keys})});
+    showRes(`res-${defId}`, 'ok', `✓ Saved ${r.saved} keys to MongoDB. Backend will use these on next API call.`);
+    audit('API config saved', defId+' → '+Object.keys(keys).join(', '));
+    // Re-render this group to show updated status
+    await fetchRemoteConfig();
+    const groups = {pan:'kyc',otp:'kyc',bureau:'credit',income:'credit',bank_verify:'pay',disburse:'pay',nach:'pay',esign:'pay',whatsapp:'comm',email:'comm'};
+    const page = groups[defId] || 'kyc';
+    const map = {kyc:['kyc-container',KYC_DEFS],credit:['credit-container',CREDIT_DEFS],pay:['pay-container',PAY_DEFS],comm:['comm-container',COMM_DEFS]};
+    if(map[page]) document.getElementById(map[page][0]).innerHTML = map[page][1].map(renderDef).join('');
+  } catch(e) {
+    showRes(`res-${defId}`, 'err', '✗ '+e.message);
+  }
+}
+
+async function testApi(integration, resId) {
+  if(!token) { showRes(resId,'err','Connect to backend first'); return; }
+  showRes(resId, 'info', '⏳ Testing…');
+  try {
+    const r = await api('/admin/config/test/'+integration, {method:'POST', body:JSON.stringify({})});
+    if(r.ok) showRes(resId, 'ok', `✓ ${r.message||'Connection successful'} ${r.mode?'(mode: '+r.mode+')':''} ${r.bank?'— Bank: '+r.bank:''}`);
+    else showRes(resId, 'err', '✗ '+( r.error||'Test failed'));
+    audit('API test', integration+': '+(r.ok?'pass':'fail'));
+  } catch(e) {
+    showRes(resId, 'err', '✗ '+e.message);
+  }
+}
+
+function showRes(id, type, msg) {
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.className = `res show ${type}`;
+  el.innerHTML = msg;
+}
+
+// ══════════════════════════════════════════
+// LOAN STAGES
+// ══════════════════════════════════════════
+const STAGES = [
+  {id:'otp_verify',   name:'Mobile OTP Verification', desc:'Verify phone number after signup', req:false, def:true},
+  {id:'pan_verify',   name:'PAN Verification',         desc:'Validate PAN card',                 req:true},
+  {id:'personal',     name:'Personal Details',          desc:'Name, DOB, gender, address',        req:true},
+  {id:'eligibility',  name:'Eligibility Check',         desc:'Pre-approved loan limit check',     req:true},
+  {id:'income',       name:'Income Verification',       desc:'Bank statement / AA income check',  req:false, def:false},
+  {id:'credit',       name:'Credit Bureau Check',       desc:'Pull CIBIL / Experian score',       req:false, def:false},
+  {id:'loan_plan',    name:'Loan Plan Selection',       desc:'Amount, tenure, EMI plan',          req:true},
+  {id:'bank',         name:'Bank Account Details',      desc:'Capture + verify bank account',     req:true},
+  {id:'esign',        name:'Loan Agreement eSign',      desc:'Digital signature on documents',    req:false, def:false},
+  {id:'disbursement', name:'Disbursement',              desc:'Transfer loan amount to account',   req:true},
+  {id:'nach',         name:'NACH eMandate',             desc:'Auto-debit for EMI collection',     req:false, def:false},
+];
+
+function renderStages() {
+  if(!token) { document.getElementById('stage-list').innerHTML = '<div class="empty">Connect to backend first</div>'; return; }
+  // Fetch saved stages from backend config
+  api('/admin/config').then(data => {
+    const saved = {};
+    (data.config||[]).forEach(c => { if(c.key.startsWith('stage_')) saved[c.key.replace('stage_','')] = c.value==='true'; });
+    document.getElementById('stage-list').innerHTML = STAGES.map((s,i)=>{
+      const en = s.req ? true : (saved[s.id] !== undefined ? saved[s.id] : (s.def||false));
+      return `<div class="stg">
+        <div style="width:24px;height:24px;background:${s.req?'var(--m)':'#D1D5DB'};color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">${i+1}</div>
+        <div style="flex:1"><div style="font-size:13px;font-weight:600">${s.name} ${s.req?'<span style="font-size:10px;background:#FEE2E2;color:#991B1B;padding:1px 6px;border-radius:10px">Required</span>':''}</div>
+        <div style="font-size:11px;color:var(--mu)">${s.desc}</div></div>
+        <label class="sw2"><input type="checkbox" id="st-${s.id}" ${en?'checked':''} ${s.req?'disabled':''}><span class="sl2"></span></label>
+      </div>`;
+    }).join('');
+  }).catch(()=>{});
+}
+
+async function saveStages() {
+  if(!token) { alert('Connect to backend first'); return; }
+  const keys = {};
+  STAGES.forEach(s => {
+    const el = document.getElementById('st-'+s.id);
+    if(el && !s.req) keys['stage_'+s.id] = {value: String(el.checked), group:'stages'};
+  });
+  try {
+    await api('/admin/config', {method:'PUT', body:JSON.stringify({keys})});
+    audit('Stages saved');
+    alert('✓ Stage configuration saved to backend!');
   } catch(e) { alert('Error: '+e.message); }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// BACKEND SETTINGS
-// ═══════════════════════════════════════════════════════════════
-function saveBackend() {
-  backendUrl = document.getElementById('backend-url').value.trim() || backendUrl;
-  adminToken = document.getElementById('admin-token').value.trim() || adminToken;
-  cfg.backendUrl = backendUrl; cfg.adminToken = adminToken;
-  save();
-  logAudit('Backend config saved', backendUrl);
-  fetch(backendUrl.replace('/api','')+'/api/health')
-    .then(r=>r.json())
-    .then(d=>showResult('backend-result','ok','✓ Connected — '+JSON.stringify(d)))
-    .catch(e=>showResult('backend-result','fail','✗ Could not connect: '+e.message));
+// ══════════════════════════════════════════
+// BACKEND SETUP
+// ══════════════════════════════════════════
+async function saveBackend() {
+  apiUrl = document.getElementById('burl').value.trim() || apiUrl;
+  token  = document.getElementById('btoken').value.trim() || token;
+  S.apiUrl=apiUrl; S.token=token; persist();
+  const el = document.getElementById('bres');
+  el.className='res info show'; el.textContent='⏳ Testing connection…';
+  try {
+    const r = await api('/admin/stats');
+    el.className='res ok show';
+    el.textContent=`✓ Connected! Found ${r.totalLoans||0} loans, ${r.totalUsers||0} users.`;
+    document.getElementById('al').textContent='Admin ✓';
+    document.querySelector('.ac .dot').style.background='var(--gn)';
+    audit('Backend connected', apiUrl);
+  } catch(e) {
+    el.className='res err show';
+    el.textContent='✗ '+e.message;
+  }
 }
 
-function getToken() {
-  alert('How to get your admin JWT token:\n\n1. Open Postman or curl\n2. POST to: '+backendUrl+'/auth/login\n3. Body: {"email":"admin@lifc.in","password":"yourpassword"}\n4. Copy the "token" field from the response\n5. Paste it in the Admin JWT Token field above\n\nNote: Make sure ADMIN_EMAIL=admin@lifc.in is set in Railway env vars.');
+function howToken() {
+  alert('How to get admin JWT token:\n\n1. Open Postman or any REST client\n2. POST ' + apiUrl + '/auth/login\n   Body: {"email":"itauditor@lifc.in","password":"yourpassword"}\n3. Copy the "token" from response\n4. Paste it in the Admin JWT Token field above\n\nNote: Make sure ADMIN_EMAIL=itauditor@lifc.in is set in Railway vars.');
 }
 
-// ═══════════════════════════════════════════════════════════════
-// UTILITY
-// ═══════════════════════════════════════════════════════════════
-function updateApiCount() {
-  const all = [...KYC_PROVIDERS, ...CREDIT_PROVIDERS, ...PAYMENT_PROVIDERS, ...COMM_PROVIDERS];
-  const configured = all.filter(g => cfg[g.id+'_provider'] && cfg[g.id+'_provider'] !== 'sandbox' && cfg[g.id+'_provider'] !== '').length;
-  document.getElementById('s-apis').textContent = configured;
-  document.getElementById('s-apis-sub').textContent = `of ${all.length} integrations`;
+// ══════════════════════════════════════════
+// AUDIT
+// ══════════════════════════════════════════
+function renderAudit() {
+  document.getElementById('audb').innerHTML = auditLog.length
+    ? auditLog.map(a=>`<tr><td style="font-size:11px;white-space:nowrap">${a.t}</td><td style="font-weight:600">${a.a}</td><td style="font-size:12px;color:var(--mu)">${a.d||'—'}</td></tr>`).join('')
+    : '<tr><td colspan="3" class="empty">No activity yet</td></tr>';
 }
 
-function copyToClipboard(name, value) {
-  navigator.clipboard.writeText(value||'').then(()=>alert('Copied: '+name)).catch(()=>alert('Could not copy'));
-}
-
-function exportConfig() {
-  const data = JSON.stringify(cfg, null, 2);
+// ══════════════════════════════════════════
+// IMPORT / EXPORT
+// ══════════════════════════════════════════
+function exportCfg() {
+  const data = JSON.stringify({exportedAt:new Date().toISOString(), apiUrl, env:envMode}, null, 2);
   const a = document.createElement('a');
-  a.href = 'data:application/json;charset=utf-8,'+encodeURIComponent(data);
-  a.download = 'lifc-admin-config.json';
-  a.click();
-  logAudit('Config exported');
+  a.href='data:application/json;charset=utf-8,'+encodeURIComponent(data);
+  a.download='lifc-portal-config.json'; a.click();
+  audit('Config exported');
 }
 
-function importConfig(e) {
-  const file = e.target.files[0];
-  if(!file) return;
+function importCfg(e) {
+  const file = e.target.files[0]; if(!file) return;
   const reader = new FileReader();
   reader.onload = ev => {
     try {
-      const imported = JSON.parse(ev.target.result);
-      cfg = {...cfg, ...imported};
-      save();
-      alert('Config imported successfully!');
-      logAudit('Config imported', file.name);
+      const d = JSON.parse(ev.target.result);
+      if(d.apiUrl) { apiUrl=d.apiUrl; S.apiUrl=apiUrl; }
+      persist();
+      alert('Config imported! Refresh the page.');
+      audit('Config imported', file.name);
     } catch { alert('Invalid JSON file'); }
   };
   reader.readAsText(file);
 }
 
-function renderAudit() {
-  document.getElementById('audit-body').innerHTML = auditLog.length ? auditLog.map(a=>`<tr>
-    <td style="font-size:12px;white-space:nowrap">${a.time}</td>
-    <td style="font-weight:600">${a.action}</td>
-    <td>Admin</td>
-    <td style="font-size:12px;color:var(--muted)">${a.detail||'—'}</td>
-  </tr>`).join('') : '<tr><td colspan="4" class="empty">No activity yet</td></tr>';
+// ══════════════════════════════════════════
+// BUILDS & DISTRIBUTION
+// ══════════════════════════════════════════
+function populateGhFields() {
+  fetchRemoteConfig().then(() => {
+    document.getElementById('gh-repo').value  = getRemoteVal('GITHUB_REPO') || '';
+    document.getElementById('gh-token').value = '';
+    previewGhLink();
+  });
 }
 
-// ═══════════════════════════════════════════════════════════════
+function previewGhLink() {
+  const repo = document.getElementById('gh-repo').value.trim();
+  const btn = document.getElementById('gh-link');
+  if(repo) { btn.style.display=''; btn.onclick=()=>window.open('https://github.com/'+repo+'/actions','_blank'); }
+  else btn.style.display='none';
+}
+
+async function saveGhConfig() {
+  if(!token) { alert('Connect to backend first'); return; }
+  const repo  = document.getElementById('gh-repo').value.trim();
+  const ghTok = document.getElementById('gh-token').value.trim();
+  const keys = {};
+  if(repo)  keys['GITHUB_REPO']  = { value: repo,  group:'builds' };
+  if(ghTok) keys['GITHUB_TOKEN'] = { value: ghTok, isSecret:true, group:'builds' };
+  if(!Object.keys(keys).length) { showRes('gh-res','warn','Nothing to save — enter repo and/or token'); return; }
+  try {
+    await api('/admin/config', {method:'PUT', body:JSON.stringify({keys})});
+    showRes('gh-res','ok','✓ GitHub config saved. Click Refresh to load builds.');
+    audit('GitHub config saved', repo);
+    previewGhLink();
+  } catch(e) { showRes('gh-res','err','✗ '+e.message); }
+}
+
+function buildStatusIcon(status, conclusion) {
+  if(status==='in_progress' || status==='queued') return '<span style="color:#D97706;font-size:15px">⏳</span>';
+  if(conclusion==='success') return '<span style="color:#16A34A;font-size:15px">✅</span>';
+  if(conclusion==='failure') return '<span style="color:#EF4444;font-size:15px">❌</span>';
+  if(conclusion==='cancelled') return '<span style="color:#6B7280;font-size:15px">⛔</span>';
+  return '<span style="font-size:15px">❓</span>';
+}
+
+function fmtDur(ms) {
+  if(!ms) return '—';
+  const s = Math.round(ms/1000);
+  return s < 60 ? s+'s' : Math.floor(s/60)+'m '+( s%60)+'s';
+}
+
+function artifactIcon(name) {
+  const n = name.toLowerCase();
+  if(n.includes('apk') || n.includes('android')) return '🤖';
+  if(n.includes('ipa') || n.includes('ios'))     return '🍎';
+  if(n.includes('web'))                           return '🌐';
+  return '📦';
+}
+
+function artifactDownloadBtn(a, needsToken) {
+  if(needsToken) {
+    return `<a href="${a.apiDownloadUrl}" class="btn bgr bs" style="font-size:11px;text-decoration:none" target="_blank">⬇ Download (GitHub login required)</a>`;
+  }
+  return `<a href="${a.downloadUrl}" class="btn bgr bs" style="font-size:11px;text-decoration:none" target="_blank">⬇ Download</a>`;
+}
+
+async function loadBuilds() {
+  const box = document.getElementById('builds-body');
+  if(!token) { box.innerHTML='<div class="empty">Connect to backend first (Backend Setup page)</div>'; return; }
+  box.innerHTML='<div class="empty">⏳ Fetching build status from GitHub…</div>';
+  try {
+    const data = await api('/admin/builds');
+    if(data.error && !data.builds?.length) {
+      box.innerHTML=`<div class="conn-banner"><b>⚠ ${data.error}</b><br><span style="font-size:12px">Enter your GitHub repo and token in the configuration below.</span></div>`;
+      return;
+    }
+    if(!data.builds?.length) { box.innerHTML='<div class="empty">No workflow runs found</div>'; return; }
+    const repo = data.repo || '';
+    const needsToken = !getRemoteVal('GITHUB_TOKEN');
+    box.innerHTML = data.builds.map(b => `
+      <div style="border:1px solid var(--bd);border-radius:10px;padding:14px 16px;margin-bottom:12px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+          ${buildStatusIcon(b.status, b.conclusion)}
+          <div style="flex:1">
+            <div style="font-weight:700;font-size:14px">${b.name}</div>
+            <div style="font-size:11px;color:var(--mu)">
+              Branch: <code>${b.branch}</code> &nbsp;·&nbsp; Commit: <code>${b.commit}</code> &nbsp;·&nbsp; ${b.commitMsg}
+            </div>
+          </div>
+          <div style="text-align:right;font-size:11px;color:var(--mu)">
+            <div>${b.conclusion ? b.conclusion.toUpperCase() : b.status.toUpperCase()}</div>
+            <div>${fmtDur(b.durationMs)}</div>
+            <div>${b.updatedAt ? new Date(b.updatedAt).toLocaleString('en-IN') : ''}</div>
+          </div>
+          <a href="${b.htmlUrl}" target="_blank" class="btn bgr bs" style="font-size:11px;text-decoration:none">View on GitHub</a>
+        </div>
+        ${b.artifacts?.length ? `
+          <div style="background:#F9FAFB;border-radius:8px;padding:10px 12px">
+            <div style="font-size:11px;font-weight:700;color:var(--mu);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Build Artifacts</div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px">
+              ${b.artifacts.map(a=>`
+                <div style="background:#fff;border:1px solid var(--bd);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:10px">
+                  <span style="font-size:20px">${artifactIcon(a.name)}</span>
+                  <div>
+                    <div style="font-weight:600;font-size:13px">${a.name}</div>
+                    <div style="font-size:11px;color:var(--mu)">${a.sizeKb > 1024 ? (a.sizeKb/1024).toFixed(1)+' MB' : a.sizeKb+' KB'} &nbsp;·&nbsp; Expires ${a.expiresAt ? new Date(a.expiresAt).toLocaleDateString('en-IN') : 'soon'}</div>
+                  </div>
+                  ${artifactDownloadBtn(a, needsToken)}
+                </div>`).join('')}
+            </div>
+          </div>` : b.status==='in_progress' ? '<div style="font-size:12px;color:var(--yw)">⏳ Build in progress — artifacts will appear when complete</div>' :
+          b.conclusion==='failure' ? '<div style="font-size:12px;color:#EF4444">❌ Build failed — no artifacts</div>' :
+          '<div style="font-size:12px;color:var(--mu)">No artifacts</div>'}
+      </div>`).join('');
+    audit('Builds loaded', repo+': '+data.builds.length+' workflows');
+  } catch(e) {
+    box.innerHTML=`<div class="conn-banner"><b>Error: ${e.message}</b></div>`;
+  }
+}
+
+// ══════════════════════════════════════════
 // INIT
-// ═══════════════════════════════════════════════════════════════
-setEnv(env);
-updateApiCount();
-document.getElementById('backend-url').value = backendUrl;
-loadDashboard();
-if(adminToken) document.getElementById('admin-label').textContent = 'Admin ✓';
+// ══════════════════════════════════════════
+document.getElementById('burl').value = apiUrl;
+document.getElementById('btoken').value = token;
+if(token) { document.getElementById('al').textContent='Admin ✓'; document.querySelector('.ac .dot').style.background='var(--gn)'; }
+loadDash();
 </script>
 </body>
 </html>

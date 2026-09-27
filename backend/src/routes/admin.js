@@ -2,6 +2,7 @@ import express from 'express';
 import User from '../models/User.js';
 import Loan from '../models/Loan.js';
 import { adminMiddleware } from '../middleware/auth.js';
+import { getConfig } from '../services/configService.js';
 
 const router = express.Router();
 
@@ -98,6 +99,71 @@ router.put('/users/:id/status', adminMiddleware, async (req, res) => {
     const user = await User.findByIdAndUpdate(req.params.id, { status }, { new: true }).select('-password');
     if (!user) return res.status(404).json({ error: 'User not found' });
     res.json({ message: 'User status updated', user });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/admin/builds — fetch GitHub Actions latest builds + artifact download links
+router.get('/builds', adminMiddleware, async (req, res) => {
+  try {
+    const ghToken = getConfig('GITHUB_TOKEN');
+    const ghRepo  = getConfig('GITHUB_REPO'); // e.g. "dsnai11/fintech-loan-app"
+    if (!ghRepo) return res.json({ builds: [], error: 'GITHUB_REPO not configured' });
+
+    const headers = {
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      ...(ghToken ? { 'Authorization': `Bearer ${ghToken}` } : {}),
+    };
+
+    // Get latest workflow runs (last 20)
+    const runsRes = await fetch(`https://api.github.com/repos/${ghRepo}/actions/runs?per_page=15`, { headers });
+    if (!runsRes.ok) {
+      const err = await runsRes.json().catch(() => ({}));
+      return res.json({ builds: [], error: err.message || `GitHub API error ${runsRes.status}` });
+    }
+    const { workflow_runs: runs } = await runsRes.json();
+
+    // For the most recent run per workflow, fetch its artifacts
+    const seen = new Set();
+    const latest = [];
+    for (const run of (runs || [])) {
+      if (!seen.has(run.name)) { seen.add(run.name); latest.push(run); }
+      if (latest.length >= 5) break;
+    }
+
+    const builds = await Promise.all(latest.map(async run => {
+      let artifacts = [];
+      if (run.status === 'completed' && run.conclusion === 'success') {
+        const artRes = await fetch(`https://api.github.com/repos/${ghRepo}/actions/runs/${run.id}/artifacts`, { headers })
+          .then(r => r.json()).catch(() => ({ artifacts: [] }));
+        artifacts = (artRes.artifacts || []).map(a => ({
+          name: a.name,
+          sizeKb: Math.round(a.size_in_bytes / 1024),
+          downloadUrl: `https://github.com/${ghRepo}/suites/${run.check_suite_id}/artifacts/${a.id}`,
+          apiDownloadUrl: a.archive_download_url,
+          expiresAt: a.expires_at,
+        }));
+      }
+      return {
+        id: run.id,
+        name: run.name,
+        branch: run.head_branch,
+        commit: run.head_sha?.slice(0, 7),
+        commitMsg: run.head_commit?.message?.split('\n')[0] || '',
+        status: run.status,
+        conclusion: run.conclusion,
+        startedAt: run.run_started_at,
+        updatedAt: run.updated_at,
+        durationMs: run.updated_at && run.run_started_at
+          ? new Date(run.updated_at) - new Date(run.run_started_at) : null,
+        htmlUrl: run.html_url,
+        artifacts,
+      };
+    }));
+
+    res.json({ builds, repo: ghRepo });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
