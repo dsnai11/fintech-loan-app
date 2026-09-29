@@ -18,7 +18,9 @@ http.createServer((req, res) => {
   const ext = path.extname(filePath);
   res.setHeader('Content-Type', MIME[ext] || 'text/plain');
   res.setHeader('Access-Control-Allow-Origin', '*');
-  fs.createReadStream(filePath).pipe(res);
+  const stream = fs.createReadStream(filePath);
+  stream.on('error', () => { res.statusCode = 500; res.end('Internal Server Error'); });
+  stream.pipe(res);
 }).listen(PORT, '0.0.0.0', () => {
   const os = require('os');
   const nets = os.networkInterfaces();

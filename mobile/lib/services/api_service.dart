@@ -234,10 +234,32 @@ class ApiService {
     }
   }
 
-  String _handleError(DioException error) {
+  Exception _handleError(DioException error) {
+    String message;
     if (error.response?.data is Map) {
-      return error.response?.data['error'] ?? 'An error occurred';
+      message = (error.response!.data as Map)['error']?.toString() ?? '';
+    } else {
+      message = '';
     }
-    return error.message ?? 'An error occurred';
+    if (message.isEmpty) {
+      if (error.type == DioExceptionType.connectionTimeout ||
+          error.type == DioExceptionType.receiveTimeout ||
+          error.type == DioExceptionType.sendTimeout) {
+        message = 'Request timed out. Check your connection and try again.';
+      } else if (error.type == DioExceptionType.connectionError) {
+        message = 'No internet connection. Check your network and try again.';
+      } else if (error.response?.statusCode == 401) {
+        message = 'Session expired. Please log in again.';
+      } else if (error.response?.statusCode == 403) {
+        message = 'You don\'t have permission to do this.';
+      } else if (error.response?.statusCode == 404) {
+        message = 'Service not found. Please update the app.';
+      } else if (error.response?.statusCode != null && error.response!.statusCode! >= 500) {
+        message = 'Server error. Please try again in a moment.';
+      } else {
+        message = error.message?.isNotEmpty == true ? error.message! : 'Something went wrong. Please try again.';
+      }
+    }
+    return Exception(message);
   }
 }
