@@ -60,7 +60,6 @@ class _SignupScreenState extends State<SignupScreen> {
             builder: (_) => OtpScreen(
               maskedPhone: result['phone'] ?? '**XXXXXX**',
               sandboxOtp: result['sandboxOtp'],
-              onVerified: () => Navigator.of(context).pushReplacementNamed('/home'),
             ),
           ));
         }
