@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../services/api_service.dart';
 import '../main.dart';
 import '../utils/error_utils.dart';
+import '../widgets/form_inputs.dart';
 
 class LoanApplicationScreen extends StatefulWidget {
   const LoanApplicationScreen({Key? key}) : super(key: key);
@@ -13,8 +14,8 @@ class LoanApplicationScreen extends StatefulWidget {
 }
 
 class _LoanApplicationScreenState extends State<LoanApplicationScreen> {
-  final _loanAmountController = TextEditingController();
-  final _tenureController = TextEditingController();
+  double _loanAmount = 100000;
+  int _tenure = 12;
   String _selectedPurpose = 'Personal';
   String _selectedLoanType = 'Personal Loan';
   bool _isLoading = false;
@@ -23,33 +24,28 @@ class _LoanApplicationScreenState extends State<LoanApplicationScreen> {
   final _purposes = ['Personal', 'Business', 'Education', 'Medical', 'Other'];
   final _loanTypes = ['Personal Loan', 'Micro Loan', 'Business Loan'];
 
-  @override
-  void dispose() {
-    _loanAmountController.dispose();
-    _tenureController.dispose();
-    super.dispose();
-  }
-
   void _calculateEMI() {
-    final amount = int.tryParse(_loanAmountController.text) ?? 0;
-    final tenure = int.tryParse(_tenureController.text) ?? 0;
-    if (amount > 0 && tenure > 0) {
+    if (_loanAmount > 0 && _tenure > 0) {
       const double rate = 15;
       final monthlyRate = rate / 12 / 100;
-      final emi = (amount * monthlyRate * pow(1 + monthlyRate, tenure)) /
-          (pow(1 + monthlyRate, tenure) - 1);
+      final emi = (_loanAmount * monthlyRate * pow(1 + monthlyRate, _tenure)) /
+          (pow(1 + monthlyRate, _tenure) - 1);
       setState(() => _monthlyEMI = emi);
     } else {
       setState(() => _monthlyEMI = 0);
     }
   }
 
+  @override
+  void initState() {
+    super.initState();
+    _calculateEMI();
+  }
+
   Future<void> _applyLoan() async {
-    final amount = int.tryParse(_loanAmountController.text) ?? 0;
-    final tenure = int.tryParse(_tenureController.text) ?? 0;
-    if (amount <= 0 || tenure <= 0) {
+    if (_loanAmount <= 0 || _tenure <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill in loan amount and tenure')),
+        const SnackBar(content: Text('Please select loan amount and tenure')),
       );
       return;
     }
@@ -57,8 +53,8 @@ class _LoanApplicationScreenState extends State<LoanApplicationScreen> {
     try {
       final apiService = context.read<ApiService>();
       final response = await apiService.applyLoan(
-        loanAmount: amount,
-        tenure: tenure,
+        loanAmount: _loanAmount.toInt(),
+        tenure: _tenure,
         purpose: _selectedPurpose,
         loanType: _selectedLoanType,
       );
@@ -134,8 +130,6 @@ class _LoanApplicationScreenState extends State<LoanApplicationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final tenure = int.tryParse(_tenureController.text) ?? 1;
-    final amount = int.tryParse(_loanAmountController.text) ?? 0;
 
     return Scaffold(
       backgroundColor: kNavy,
@@ -190,7 +184,7 @@ class _LoanApplicationScreenState extends State<LoanApplicationScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ── Loan Amount ──
+                    // ── Loan Amount Slider ──
                     Container(
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
@@ -204,42 +198,20 @@ class _LoanApplicationScreenState extends State<LoanApplicationScreen> {
                           ),
                         ],
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _label('LOAN AMOUNT'),
-                          TextField(
-                            controller: _loanAmountController,
-                            onChanged: (_) => _calculateEMI(),
-                            keyboardType: TextInputType.number,
-                            style: const TextStyle(
-                                fontSize: 18, fontWeight: FontWeight.w700, color: kNavy),
-                            decoration: InputDecoration(
-                              hintText: '1,00,000',
-                              prefixText: '₹ ',
-                              prefixStyle: const TextStyle(
-                                  fontSize: 18, fontWeight: FontWeight.w700, color: kNavy),
-                              hintStyle: const TextStyle(
-                                  color: Color(0xFFD1D5DB), fontWeight: FontWeight.w400),
-                              fillColor: const Color(0xFFF9FAFB),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text('Min: ₹1,000',
-                                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
-                              Text('Max: ₹5,00,000',
-                                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
-                            ],
-                          ),
-                        ],
+                      child: LoanAmountSlider(
+                        label: 'LOAN AMOUNT',
+                        minAmount: 1000,
+                        maxAmount: 500000,
+                        initialAmount: _loanAmount,
+                        onChanged: (amount) {
+                          setState(() => _loanAmount = amount);
+                          _calculateEMI();
+                        },
                       ),
                     ),
                     const SizedBox(height: 12),
 
-                    // ── Tenure ──
+                    // ── Tenure Slider ──
                     Container(
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
@@ -257,31 +229,59 @@ class _LoanApplicationScreenState extends State<LoanApplicationScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _label('LOAN TENURE'),
-                          TextField(
-                            controller: _tenureController,
-                            onChanged: (_) => _calculateEMI(),
-                            keyboardType: TextInputType.number,
-                            style: const TextStyle(
-                                fontSize: 18, fontWeight: FontWeight.w700, color: kNavy),
-                            decoration: const InputDecoration(
-                              hintText: '12',
-                              suffixText: 'months',
-                              suffixStyle: TextStyle(
-                                  color: Color(0xFF6B7280), fontWeight: FontWeight.w500),
-                              hintStyle: TextStyle(
-                                  color: Color(0xFFD1D5DB), fontWeight: FontWeight.w400),
-                              fillColor: Color(0xFFF9FAFB),
-                            ),
-                          ),
                           const SizedBox(height: 8),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text('Min: 6 months',
-                                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
-                              Text('Max: 60 months',
-                                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
-                            ],
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF9FAFB),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: const Color(0xFFE5E7EB)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text(
+                                      'Tenure',
+                                      style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+                                    ),
+                                    Text(
+                                      '$_tenure months',
+                                      style: const TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w700,
+                                        color: kNavy,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                                Slider(
+                                  value: _tenure.toDouble(),
+                                  min: 6,
+                                  max: 60,
+                                  divisions: 54,
+                                  activeColor: kNavy,
+                                  inactiveColor: const Color(0xFFE5E7EB),
+                                  onChanged: (value) {
+                                    setState(() => _tenure = value.toInt());
+                                    _calculateEMI();
+                                  },
+                                ),
+                                const SizedBox(height: 12),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: const [
+                                    Text('6 months',
+                                        style: TextStyle(fontSize: 11, color: Color(0xFF9CA3AF))),
+                                    Text('60 months',
+                                        style: TextStyle(fontSize: 11, color: Color(0xFF9CA3AF))),
+                                  ],
+                                ),
+                              ],
+                            ),
                           ),
                         ],
                       ),
@@ -358,8 +358,8 @@ class _LoanApplicationScreenState extends State<LoanApplicationScreen> {
                               ],
                             ),
                             const SizedBox(height: 16),
-                            _summaryRow('Loan Amount', '₹${_loanAmountController.text}'),
-                            _summaryRow('Tenure', '${_tenureController.text} months'),
+                            _summaryRow('Loan Amount', '₹${_loanAmount.toStringAsFixed(0)}'),
+                            _summaryRow('Tenure', '$_tenure months'),
                             _summaryRow('Interest Rate', '15% p.a.'),
                             const Divider(color: Colors.white24, height: 20),
                             _summaryRow(
@@ -369,11 +369,11 @@ class _LoanApplicationScreenState extends State<LoanApplicationScreen> {
                             ),
                             _summaryRow(
                               'Total Payable',
-                              '₹${(_monthlyEMI * tenure).toStringAsFixed(0)}',
+                              '₹${(_monthlyEMI * _tenure).toStringAsFixed(0)}',
                             ),
                             _summaryRow(
                               'Total Interest',
-                              '₹${(_monthlyEMI * tenure - amount).toStringAsFixed(0)}',
+                              '₹${(_monthlyEMI * _tenure - _loanAmount).toStringAsFixed(0)}',
                             ),
                           ],
                         ),

@@ -7,6 +7,8 @@ import '../services/auth_service.dart';
 import 'loan_flow_scaffold.dart';
 import 'loan_disbursed_screen.dart';
 import '../utils/error_utils.dart';
+import '../widgets/form_inputs.dart';
+import '../data/indian_data.dart';
 
 class BankDetailsScreen extends StatefulWidget {
   final LoanApplicationState appState;
@@ -207,25 +209,62 @@ class _BankDetailsScreenState extends State<BankDetailsScreen> {
             ),
 
             loanFieldLabel('IFSC CODE'),
-            TextField(
-              controller: _ifscController,
-              textCapitalization: TextCapitalization.characters,
-              onChanged: (v) {
-                if (v.length == 11) _lookupIfsc();
-                setState(() { _bankName = null; _bankVerified = false; });
-              },
-              decoration: InputDecoration(
-                hintText: 'e.g. SBIN0001234',
-                prefixIcon: const Icon(Icons.code_rounded, size: 18, color: Color(0xFF9CA3AF)),
-                suffixIcon: _isVerifyingIfsc
-                    ? const Padding(
-                        padding: EdgeInsets.all(12),
-                        child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-                      )
-                    : _bankVerified
-                        ? const Icon(Icons.check_circle_rounded, color: Color(0xFF16A34A), size: 20)
-                        : null,
-              ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: _ifscController,
+                  textCapitalization: TextCapitalization.characters,
+                  onChanged: (v) {
+                    if (v.length == 11) _lookupIfsc();
+                    setState(() { _bankName = null; _bankVerified = false; });
+                  },
+                  decoration: InputDecoration(
+                    hintText: 'e.g. SBIN0001234',
+                    prefixIcon: const Icon(Icons.code_rounded, size: 18, color: Color(0xFF9CA3AF)),
+                    suffixIcon: _isVerifyingIfsc
+                        ? const Padding(
+                            padding: EdgeInsets.all(12),
+                            child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                          )
+                        : _bankVerified
+                            ? const Icon(Icons.check_circle_rounded, color: Color(0xFF16A34A), size: 20)
+                            : null,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Or select from common banks:',
+                  style: TextStyle(fontSize: 12, color: Color(0xFF6B7280), fontWeight: FontWeight.w500),
+                ),
+                const SizedBox(height: 8),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: commonIfscCodes
+                        .map((item) => Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: ElevatedButton(
+                                onPressed: () {
+                                  _ifscController.text = item['code']!;
+                                  _lookupIfsc();
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFFF9FAFB),
+                                  foregroundColor: kNavy,
+                                  elevation: 0,
+                                  side: const BorderSide(color: Color(0xFFE5E7EB)),
+                                ),
+                                child: Text(
+                                  item['bank']!.split(' ').first,
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                              ),
+                            ))
+                        .toList(),
+                  ),
+                ),
+              ],
             ),
 
             if (_bankName != null) ...[

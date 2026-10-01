@@ -6,6 +6,8 @@ import '../services/api_service.dart';
 import 'loan_flow_scaffold.dart';
 import 'eligibility_check_screen.dart';
 import '../utils/error_utils.dart';
+import '../widgets/form_inputs.dart';
+import '../data/indian_data.dart';
 
 class PersonalDetailsScreen extends StatefulWidget {
   const PersonalDetailsScreen({Key? key}) : super(key: key);
@@ -19,8 +21,9 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
   final _pincodeController = TextEditingController();
   final _addressController = TextEditingController();
   String _gender = 'Male';
+  String _state = '';
+  DateTime? _dob;
   String _fullName = '';
-  String _dob = '';
   bool _isLoading = true;
   bool _isSaving = false;
   String? _error;
@@ -47,13 +50,11 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
         _fullName = '${profile['firstName'] ?? ''} ${profile['lastName'] ?? ''}'.trim();
         _emailController.text = profile['email'] ?? '';
         _gender = profile['gender'] ?? 'Male';
+        _state = profile['address']?['state'] ?? '';
         _pincodeController.text = profile['address']?['zipCode'] ?? '';
         _addressController.text = profile['address']?['street'] ?? '';
         if (profile['dateOfBirth'] != null) {
-          final d = DateTime.tryParse(profile['dateOfBirth']);
-          if (d != null) {
-            _dob = '${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year}';
-          }
+          _dob = DateTime.tryParse(profile['dateOfBirth']);
         }
         _isLoading = false;
       });
@@ -63,6 +64,19 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
   }
 
   Future<void> _continue() async {
+    if (_state.isEmpty) {
+      setState(() => _error = 'Please select your state');
+      return;
+    }
+    if (_pincodeController.text.isEmpty) {
+      setState(() => _error = 'Please enter your pincode');
+      return;
+    }
+    if (_addressController.text.isEmpty) {
+      setState(() => _error = 'Please enter your address');
+      return;
+    }
+
     setState(() { _isSaving = true; _error = null; });
     try {
       final api = context.read<ApiService>();
@@ -70,7 +84,10 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
         'gender': _gender,
         'address': {
           'street': _addressController.text.trim(),
+          'city': '',
+          'state': _state,
           'zipCode': _pincodeController.text.trim(),
+          'country': 'India',
         },
       });
 
@@ -116,10 +133,19 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
                   loanFieldLabel('FULL NAME (AS PER PAN)'),
                   _frozenField(_fullName.isNotEmpty ? _fullName : 'Your Name'),
 
-                  if (_dob.isNotEmpty) ...[
-                    loanFieldLabel('DATE OF BIRTH'),
-                    _frozenField(_dob),
-                  ],
+                  DatePickerField(
+                    label: 'DATE OF BIRTH',
+                    initialDate: _dob,
+                    firstDate: DateTime(1950),
+                    lastDate: DateTime.now(),
+                    onChanged: (date) => setState(() => _dob = date),
+                    validator: (date) {
+                      if (date == null) return 'Date of birth is required';
+                      final age = DateTime.now().year - date.year;
+                      if (age < 18) return 'You must be at least 18 years old';
+                      return null;
+                    },
+                  ),
 
                   loanFieldLabel('EMAIL ADDRESS'),
                   TextField(
@@ -131,6 +157,16 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
                     ),
                   ),
 
+                  DropdownField<String>(
+                    label: 'STATE',
+                    value: _state.isEmpty ? null : _state,
+                    items: indianStates
+                        .map((state) => DropdownItem(value: state, label: state))
+                        .toList(),
+                    onChanged: (value) => setState(() => _state = value ?? ''),
+                    hint: 'Select your state',
+                  ),
+
                   loanFieldLabel('PINCODE'),
                   TextField(
                     controller: _pincodeController,
@@ -139,6 +175,7 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
                     decoration: const InputDecoration(
                       hintText: '400001',
                       counterText: '',
+                      prefixIcon: Icon(Icons.location_on_outlined, size: 18, color: Color(0xFF9CA3AF)),
                     ),
                   ),
 
@@ -161,13 +198,27 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
                                   color: selected ? kNavy : const Color(0xFFE5E7EB),
                                 ),
                               ),
-                              child: Text(g,
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    color: selected ? Colors.white : const Color(0xFF374151),
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 13,
-                                  )),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    g == 'Male'
+                                        ? Icons.male_rounded
+                                        : g == 'Female'
+                                            ? Icons.female_rounded
+                                            : Icons.people_rounded,
+                                    size: 18,
+                                    color: selected ? Colors.white : const Color(0xFF6B7280),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(g,
+                                      style: TextStyle(
+                                        color: selected ? Colors.white : const Color(0xFF374151),
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13,
+                                      )),
+                                ],
+                              ),
                             ),
                           ),
                         ),
@@ -182,6 +233,10 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
                     decoration: const InputDecoration(
                       hintText: 'Enter your full address',
                       alignLabelWithHint: true,
+                      prefixIcon: Padding(
+                        padding: EdgeInsets.only(top: 12),
+                        child: Icon(Icons.location_on_outlined, size: 18, color: Color(0xFF9CA3AF)),
+                      ),
                     ),
                   ),
 

@@ -4,6 +4,7 @@ import '../services/auth_service.dart';
 import '../services/api_service.dart';
 import '../main.dart';
 import 'otp_screen.dart';
+import '../widgets/form_inputs.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({Key? key}) : super(key: key);
@@ -185,36 +186,22 @@ class _SignupScreenState extends State<SignupScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    _label('MOBILE NUMBER'),
-                    TextField(
+                    PhoneInputField(
+                      label: 'MOBILE NUMBER',
                       controller: _phoneController,
-                      keyboardType: TextInputType.phone,
-                      decoration: const InputDecoration(
-                        hintText: '9876543210',
-                        prefixIcon: Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                          child: Text('+91', style: TextStyle(fontWeight: FontWeight.w600, color: kNavy)),
-                        ),
-                      ),
+                      onChanged: (value) => setState(() {}),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) return 'Phone number is required';
+                        if (value.length != 10) return 'Phone must be 10 digits';
+                        if (!RegExp(r'^\d{10}$').hasMatch(value)) return 'Phone must contain only numbers';
+                        return null;
+                      },
                     ),
-                    const SizedBox(height: 16),
 
-                    _label('PASSWORD'),
-                    TextField(
+                    PasswordStrengthField(
+                      label: 'PASSWORD',
                       controller: _passwordController,
-                      obscureText: _obscurePassword,
-                      decoration: InputDecoration(
-                        hintText: 'Min 8 characters',
-                        prefixIcon: const Icon(Icons.lock_outline, size: 20, color: Color(0xFF9CA3AF)),
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                            size: 20,
-                            color: const Color(0xFF9CA3AF),
-                          ),
-                          onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                        ),
-                      ),
+                      onChanged: (value) => setState(() {}),
                     ),
                     const SizedBox(height: 16),
 
