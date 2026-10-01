@@ -159,6 +159,7 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
 
                   DropdownField<String>(
                     label: 'STATE',
+                    displayText: (value) => value ?? 'Select your state',
                     value: _state.isEmpty ? null : _state,
                     items: indianStates
                         .map((state) => DropdownItem(value: state, label: state))
