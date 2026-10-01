@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../main.dart';
 
+/// Reusable form input components for the LIFC fintech app
+/// Includes: DatePicker, Dropdown, Phone, LoanSlider, PasswordStrength
+
 // ═══════════════════════════════════════════════════════════════════
 // 📅 DATE PICKER INPUT
 // ═══════════════════════════════════════════════════════════════════
