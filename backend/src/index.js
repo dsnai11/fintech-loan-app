@@ -12,6 +12,7 @@ import userRoutes from './routes/users.js';
 import kycRoutes from './routes/kyc.js';
 import adminRoutes from './routes/admin.js';
 import configRoutes from './routes/config.js';
+import appConfigRoutes from './routes/appConfig.js';
 import { loadAllConfig } from './services/configService.js';
 
 dotenv.config();
@@ -53,6 +54,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/kyc', kycRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin/config', configRoutes);
+app.use('/api/app-config', appConfigRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date() });
