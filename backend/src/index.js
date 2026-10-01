@@ -14,6 +14,7 @@ import adminRoutes from './routes/admin.js';
 import configRoutes from './routes/config.js';
 import appConfigRoutes from './routes/appConfig.js';
 import loanManagementRoutes from './routes/loanManagement.js';
+import paymentRoutes from './routes/payments.js';
 import { loadAllConfig } from './services/configService.js';
 
 dotenv.config();
@@ -56,6 +57,7 @@ app.use('/api/kyc', kycRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin/config', configRoutes);
 app.use('/api/admin/loans', loanManagementRoutes);
+app.use('/api/payments', paymentRoutes);
 app.use('/api/app-config', appConfigRoutes);
 
 app.get('/api/health', (req, res) => {
