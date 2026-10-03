@@ -13,9 +13,9 @@ function stable(v) {
 export const hashEntry = e =>
   sha256(`${e.prevHash}|${e.seq}|${e.at}|${e.actor}|${e.role}|${e.action}|${e.entityType}|${e.entityId}|${stable(e.details)}|${e.ip}`);
 
+// req.ip honours the trusted proxy setting, so it is the address Railway saw, not a header the client wrote.
 export function clientIp(req) {
-  const fwd = req?.headers?.['x-forwarded-for'];
-  return (typeof fwd === 'string' ? fwd.split(',')[0].trim() : req?.ip) || '';
+  return req?.ip || '';
 }
 
 // Each entry carries the hash of the one before it, so editing or removing an old entry breaks the chain.

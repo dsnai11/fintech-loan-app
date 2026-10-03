@@ -31,6 +31,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 
+// Railway puts exactly one proxy in front of the app. Without this every visitor looks like the
+// proxy, so all users would share one rate limit and every logged IP would be the proxy's.
+app.set('trust proxy', 1);
+
 app.use(helmet({ contentSecurityPolicy: false })); // admin portal pages use inline scripts/styles
 app.use(cors({
   origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : '*',
