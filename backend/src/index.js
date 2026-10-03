@@ -5,7 +5,7 @@ import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import { fileURLToPath } from 'url';
-import { dirname } from 'path';
+import { dirname, join } from 'path';
 import authRoutes from './routes/auth.js';
 import loanRoutes from './routes/loans.js';
 import userRoutes from './routes/users.js';
@@ -24,7 +24,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 
-app.use(helmet());
+app.use(helmet({ contentSecurityPolicy: false })); // admin portal pages use inline scripts/styles
 app.use(cors({
   origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -66,7 +66,9 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date() });
 });
 
-app.get('/', (req, res) => {
+app.use(express.static(join(__dirname, '..', 'public')));
+
+app.get('/status', (req, res) => {
   res.json({ status: 'FintechLoan API is running', version: '1.0.0' });
 });
 

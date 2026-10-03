@@ -157,6 +157,25 @@ class ApiService {
     }
   }
 
+  // EMI endpoints
+  Future<Map<String, dynamic>> getEmiSchedule(String loanId) async {
+    try {
+      final response = await _dio.get('/emi/schedule/$loanId');
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> payEmi(String loanId, int emiNumber) async {
+    try {
+      final response = await _dio.post('/emi/initiate/$loanId/$emiNumber');
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   // Full loan application (7-step flow)
   Future<Map<String, dynamic>> applyLoanFull({
     required int loanAmount,

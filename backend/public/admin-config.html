@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LIFC - App Configuration Admin</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --navy: #0F1C2E;
+  --green: #16A34A;
+  --red: #EF4444;
+  --yellow: #F59E0B;
+  --gray: #6B7280;
+  --light: #F9FAFB;
+  --border: #E5E7EB;
+}
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--light); color: #111827; }
+.container { max-width: 1400px; margin: 0 auto; padding: 0 20px; }
+header {
+  background: var(--navy);
+  color: white;
+  padding: 20px 0;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+}
+header .logo { font-size: 24px; font-weight: 700; }
+.auth-section { display: flex; gap: 15px; align-items: center; }
+input.token-input {
+  padding: 8px 12px;
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 6px;
+  background: rgba(255,255,255,0.1);
+  color: white;
+  width: 250px;
+}
+input.token-input::placeholder { color: rgba(255,255,255,0.5); }
+button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+button.primary { background: var(--green); color: white; }
+button.primary:hover { background: #15803d; }
+button.secondary { background: white; color: var(--navy); border: 1px solid var(--border); }
+button.secondary:hover { background: var(--light); }
+button.danger { background: var(--red); color: white; }
+button.danger:hover { background: #dc2626; }
+.tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 30px;
+  border-bottom: 2px solid var(--border);
+  padding-bottom: 10px;
+}
+.tab {
+  padding: 10px 20px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gray);
+  border-bottom: 3px solid transparent;
+  transition: all 0.2s;
+}
+.tab.active {
+  color: var(--navy);
+  border-bottom-color: var(--navy);
+}
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+.card {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+.card-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 20px;
+  color: var(--navy);
+}
+.form-group {
+  margin-bottom: 15px;
+}
+label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+input, select, textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+}
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--navy);
+  box-shadow: 0 0 0 3px rgba(15, 28, 46, 0.1);
+}
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 20px;
+}
+.checkbox-group label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  text-transform: none;
+  font-weight: 400;
+  font-size: 14px;
+}
+input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+}
+.btn-group {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+.btn-group button { flex: 1; }
+.alert {
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+.alert.error { background: #FEF2F2; color: var(--red); border: 1px solid #FCA5A5; }
+.alert.success { background: #F0FDF4; color: var(--green); border: 1px solid #86EFAC; }
+.alert.warning { background: #FFFBEB; color: var(--yellow); border: 1px solid #FCD34D; }
+.item-list {
+  list-style: none;
+}
+.item-card {
+  background: var(--light);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.item-info { flex: 1; }
+.item-name { font-weight: 600; color: var(--navy); }
+.item-desc { font-size: 12px; color: var(--gray); margin-top: 4px; }
+.item-actions { display: flex; gap: 8px; }
+.item-actions button { padding: 6px 12px; font-size: 12px; }
+.status-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.status-enabled { background: #D1FAE5; color: var(--green); }
+.status-disabled { background: #FEE2E2; color: var(--red); }
+</style>
+</head>
+<body>
+<header>
+  <div class="container" style="width: 100%; display: flex; justify-content: space-between; align-items: center;">
+    <div class="logo">⚙️ App Configuration Admin</div>
+    <nav style="display: flex; gap: 20px; color: white;">
+      <a onclick="window.location.href='loan-management.html'" style="cursor: pointer; text-decoration: none; color: white;">💰 Loan Management</a>
+      <a onclick="window.location.href='emi-analytics.html'" style="cursor: pointer; text-decoration: none; color: white;">💳 EMI Collections</a>
+      <a onclick="window.location.href='admin-config.html'" style="cursor: pointer; text-decoration: none; color: white;">⚙️ Configuration</a>
+    </nav>
+    <div class="auth-section" id="authSection" style="display: none;">
+      <span id="userDisplay" style="color: white; font-size: 14px;"></span>
+      <button class="secondary" onclick="logout()">Logout</button>
+    </div>
+  </div>
+</header>
+
+<div class="container">
+  <div id="loginForm" style="padding: 60px 20px; text-align: center;">
+    <h2 style="margin-bottom: 30px;">Admin Configuration Login</h2>
+    <div class="card" style="max-width: 400px; margin: 0 auto;">
+      <div class="form-group">
+        <label>Email Address</label>
+        <input type="email" id="emailInput" placeholder="admin@lifc.in" autofocus>
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="passwordInput" placeholder="Enter password">
+      </div>
+      <button class="primary" onclick="adminLogin()" style="width: 100%; padding: 12px;">Login</button>
+      <div id="loginError" style="margin-top: 15px;"></div>
+    </div>
+  </div>
+
+  <div id="mainContent" style="display: none;">
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('loanProducts')">💰 Loan Products</button>
+      <button class="tab" onclick="switchTab('kycFlow')">🔐 KYC Flow</button>
+      <button class="tab" onclick="switchTab('providers')">🔌 Providers</button>
+      <button class="tab" onclick="switchTab('uiConfig')">🎨 UI Config</button>
+      <button class="tab" onclick="switchTab('features')">⚡ Features</button>
+    </div>
+
+    <!-- Loan Products Tab -->
+    <div id="loanProducts" class="tab-content active">
+      <div class="card">
+        <div class="card-title">Loan Products</div>
+        <p style="color: var(--gray); font-size: 14px; margin-bottom: 20px;">Add, edit, or delete loan products available to customers</p>
+
+        <div class="card" style="background: var(--light);">
+          <div class="card-title">Add New Product</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Product Name</label>
+              <input type="text" id="productName" placeholder="e.g. Instant Personal Loan">
+            </div>
+            <div class="form-group">
+              <label>Min Amount (₹)</label>
+              <input type="number" id="minAmount" value="1000">
+            </div>
+            <div class="form-group">
+              <label>Max Amount (₹)</label>
+              <input type="number" id="maxAmount" value="500000">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Min Tenure (months)</label>
+              <input type="number" id="minTenure" value="1">
+            </div>
+            <div class="form-group">
+              <label>Max Tenure (months)</label>
+              <input type="number" id="maxTenure" value="60">
+            </div>
+            <div class="form-group">
+              <label>Interest Rate (%)</label>
+              <input type="number" id="interestRate" value="15" step="0.1">
+            </div>
+          </div>
+          <button class="primary" onclick="addLoanProduct()" style="margin-top: 20px;">Add Product</button>
+        </div>
+
+        <div style="margin-top: 30px;">
+          <h4 style="margin-bottom: 15px;">Current Products</h4>
+          <ul class="item-list" id="loanProductsList"></ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- KYC Flow Tab -->
+    <div id="kycFlow" class="tab-content">
+      <div class="card">
+        <div class="card-title">KYC Verification Flow</div>
+        <p style="color: var(--gray); font-size: 14px; margin-bottom: 20px;">Configure KYC steps, order, and API endpoints</p>
+
+        <div id="kycList" style="margin-bottom: 30px;"></div>
+
+        <button class="primary" onclick="addKYCStep()">+ Add KYC Step</button>
+      </div>
+    </div>
+
+    <!-- Providers Tab -->
+    <div id="providers" class="tab-content">
+      <div class="card">
+        <div class="card-title">Provider Configuration</div>
+        <p style="color: var(--gray); font-size: 14px; margin-bottom: 20px;">Configure SMS, PAN, Bank, and Bureau providers</p>
+
+        <div class="form-group">
+          <label>SMS Provider</label>
+          <select id="smsProvider" onchange="updateProvider('sms')">
+            <option value="sandbox">Sandbox (Testing)</option>
+            <option value="fast2sms">Fast2SMS</option>
+            <option value="msg91">MSG91</option>
+            <option value="twilio">Twilio</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>PAN Verification Provider</label>
+          <select id="panProvider" onchange="updateProvider('pan')">
+            <option value="sandbox">Sandbox (Testing)</option>
+            <option value="karza">Karza</option>
+            <option value="idfy">IDfy</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Bank Verification Provider</label>
+          <select id="bankProvider" onchange="updateProvider('bank')">
+            <option value="sandbox">Sandbox (Testing)</option>
+            <option value="razorpay">Razorpay</option>
+            <option value="cashfree">Cashfree</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Bureau Provider</label>
+          <select id="bureauProvider" onchange="updateProvider('bureau')">
+            <option value="sandbox">Sandbox (Testing)</option>
+            <option value="equifax">Equifax</option>
+          </select>
+        </div>
+
+        <button class="primary" onclick="saveProviders()" style="margin-top: 20px;">Save Providers</button>
+      </div>
+    </div>
+
+    <!-- UI Config Tab -->
+    <div id="uiConfig" class="tab-content">
+      <div class="card">
+        <div class="card-title">UI Configuration</div>
+        <p style="color: var(--gray); font-size: 14px; margin-bottom: 20px;">Control app UI features and behavior</p>
+
+        <div class="checkbox-group">
+          <label><input type="checkbox" id="enableOTP"> Enable OTP Verification</label>
+          <label><input type="checkbox" id="enablePAN"> Enable PAN Verification</label>
+          <label><input type="checkbox" id="enableBank"> Enable Bank Verification</label>
+          <label><input type="checkbox" id="enableProfile"> Enable Profile Updates</label>
+        </div>
+
+        <div class="form-group">
+          <label>OTP Validity (minutes)</label>
+          <input type="number" id="otpValidity" value="5" min="1" max="60">
+        </div>
+
+        <div class="form-group">
+          <label>Max OTP Retries</label>
+          <input type="number" id="maxOTPRetries" value="3" min="1" max="10">
+        </div>
+
+        <button class="primary" onclick="saveUIConfig()" style="margin-top: 20px;">Save UI Config</button>
+      </div>
+    </div>
+
+    <!-- Features Tab -->
+    <div id="features" class="tab-content">
+      <div class="card">
+        <div class="card-title">Feature Flags</div>
+        <p style="color: var(--gray); font-size: 14px; margin-bottom: 20px;">Enable/disable experimental and premium features</p>
+
+        <div class="checkbox-group">
+          <label><input type="checkbox" id="instantDisbursement"> Instant Disbursement</label>
+          <label><input type="checkbox" id="autoRepayment"> Auto Repayment Setup</label>
+          <label><input type="checkbox" id="partialPayment"> Partial Payment Support</label>
+          <label><input type="checkbox" id="renewalLoans"> Renewal Loans</label>
+          <label><input type="checkbox" id="digitalContract"> Digital Contract Signing</label>
+        </div>
+
+        <button class="primary" onclick="saveFeatures()" style="margin-top: 20px;">Save Features</button>
+      </div>
+    </div>
+
+    <div id="alerts"></div>
+  </div>
+
+  <div id="loginPrompt" style="text-align: center; padding: 60px 20px;">
+    <h2 style="margin-bottom: 20px;">Admin Configuration Panel</h2>
+    <p style="color: var(--gray); margin-bottom: 20px;">Paste your admin JWT token above to manage app configuration</p>
+    <p style="font-size: 12px; color: var(--gray);">All changes will be reflected in connected mobile apps immediately</p>
+  </div>
+</div>
+
+<script>
+const API_URL = ['localhost', '127.0.0.1'].includes(location.hostname)
+  ? 'http://localhost:5000/api'
+  : 'https://fintech-loan-app-production.up.railway.app/api';
+let token = localStorage.getItem('admin_token');
+let currentUser = localStorage.getItem('admin_user');
+
+async function adminLogin() {
+  const email = document.getElementById('emailInput').value;
+  const password = document.getElementById('passwordInput').value;
+
+  if (!email || !password) return alert('Enter email and password');
+
+  try {
+    const res = await fetch(`${API_URL}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+
+    if (!res.ok) throw new Error('Login failed - invalid credentials');
+
+    const data = await res.json();
+    const user = data.user;
+
+    // Check if user is admin
+    if (user.email !== 'admin@lifc.in' && !user.isAdmin) {
+      showLoginError('Only admins can access this panel');
+      return;
+    }
+
+    // Store token and user
+    token = data.token;
+    currentUser = user.email;
+    localStorage.setItem('admin_token', token);
+    localStorage.setItem('admin_user', currentUser);
+
+    // Show main content
+    document.getElementById('loginForm').style.display = 'none';
+    document.getElementById('mainContent').style.display = 'block';
+    document.getElementById('authSection').style.display = 'flex';
+    document.getElementById('userDisplay').textContent = `👤 ${currentUser}`;
+
+    loadAllConfig();
+  } catch (e) {
+    showLoginError(e.message);
+  }
+}
+
+function showLoginError(msg) {
+  const div = document.getElementById('loginError');
+  div.innerHTML = `<div class="alert error">${msg}</div>`;
+}
+
+function logout() {
+  token = null;
+  currentUser = null;
+  localStorage.removeItem('admin_token');
+  localStorage.removeItem('admin_user');
+  location.reload();
+}
+
+function switchTab(tabName) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(tabName).classList.add('active');
+  event.target.classList.add('active');
+}
+
+async function apiCall(method, endpoint, body = null) {
+  const options = {
+    method,
+    headers: { 'Content-Type': 'application/json' }
+  };
+  if (token) options.headers.Authorization = `Bearer ${token}`;
+  if (body) options.body = JSON.stringify(body);
+
+  try {
+    const res = await fetch(`${API_URL}${endpoint}`, options);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (e) {
+    throw new Error(e.message);
+  }
+}
+
+async function loadAllConfig() {
+  try {
+    const config = await apiCall('GET', '/app-config');
+
+    // Load loan products
+    const list = document.getElementById('loanProductsList');
+    list.innerHTML = (config.loanProducts || []).map(p => `
+      <div class="item-card">
+        <div class="item-info">
+          <div class="item-name">${p.name}</div>
+          <div class="item-desc">₹${p.minAmount}-₹${p.maxAmount} | ${p.minTenure}-${p.maxTenure} months | ${p.interestRate}% interest</div>
+        </div>
+        <div class="item-actions">
+          <button class="secondary" onclick="editProduct('${p.id}')">Edit</button>
+          <button class="danger" onclick="deleteProduct('${p.id}')">Delete</button>
+        </div>
+      </div>
+    `).join('') || '<p>No products configured</p>';
+
+    // Load providers
+    if (config.providers) {
+      document.getElementById('smsProvider').value = config.providers.sms?.provider || 'sandbox';
+      document.getElementById('panProvider').value = config.providers.pan?.provider || 'sandbox';
+      document.getElementById('bankProvider').value = config.providers.bank?.provider || 'sandbox';
+      document.getElementById('bureauProvider').value = config.providers.bureau?.provider || 'sandbox';
+    }
+
+    // Load UI config
+    if (config.uiConfig) {
+      document.getElementById('enableOTP').checked = config.uiConfig.enableOTP !== false;
+      document.getElementById('enablePAN').checked = config.uiConfig.enablePAN !== false;
+      document.getElementById('enableBank').checked = config.uiConfig.enableBank !== false;
+      document.getElementById('enableProfile').checked = config.uiConfig.enableProfileUpdate !== false;
+      document.getElementById('otpValidity').value = config.uiConfig.otpValidityMinutes || 5;
+      document.getElementById('maxOTPRetries').value = config.uiConfig.maxOTPRetries || 3;
+    }
+
+    // Load features
+    if (config.features) {
+      document.getElementById('instantDisbursement').checked = config.features.instantDisbursement || false;
+      document.getElementById('autoRepayment').checked = config.features.autoRepayment || false;
+      document.getElementById('partialPayment').checked = config.features.partialPayment || false;
+      document.getElementById('renewalLoans').checked = config.features.renewalLoans || false;
+      document.getElementById('digitalContract').checked = config.features.digitalContract !== false;
+    }
+  } catch (e) {
+    showAlert('error', `Failed to load config: ${e.message}`);
+  }
+}
+
+async function addLoanProduct() {
+  try {
+    const product = {
+      name: document.getElementById('productName').value,
+      minAmount: parseInt(document.getElementById('minAmount').value),
+      maxAmount: parseInt(document.getElementById('maxAmount').value),
+      minTenure: parseInt(document.getElementById('minTenure').value),
+      maxTenure: parseInt(document.getElementById('maxTenure').value),
+      interestRate: parseFloat(document.getElementById('interestRate').value),
+      enabled: true
+    };
+
+    if (!product.name) return alert('Enter product name');
+
+    await apiCall('POST', '/app-config/admin/loan-products', product);
+    showAlert('success', 'Product added successfully');
+    loadAllConfig();
+    document.getElementById('productName').value = '';
+  } catch (e) {
+    showAlert('error', `Failed: ${e.message}`);
+  }
+}
+
+async function deleteProduct(productId) {
+  if (!confirm('Delete this product?')) return;
+  try {
+    await apiCall('DELETE', `/app-config/admin/loan-products/${productId}`);
+    showAlert('success', 'Product deleted');
+    loadAllConfig();
+  } catch (e) {
+    showAlert('error', `Failed: ${e.message}`);
+  }
+}
+
+async function updateProvider(providerType) {
+  // Just track the change, save on button click
+}
+
+async function saveProviders() {
+  try {
+    const providers = {
+      sms: { provider: document.getElementById('smsProvider').value, enabled: true },
+      pan: { provider: document.getElementById('panProvider').value, enabled: true },
+      bank: { provider: document.getElementById('bankProvider').value, enabled: true },
+      bureau: { provider: document.getElementById('bureauProvider').value, enabled: true }
+    };
+
+    await apiCall('PUT', '/app-config/admin/providers', providers);
+    showAlert('success', 'Providers updated');
+  } catch (e) {
+    showAlert('error', `Failed: ${e.message}`);
+  }
+}
+
+async function saveUIConfig() {
+  try {
+    const config = {
+      enableOTP: document.getElementById('enableOTP').checked,
+      enablePAN: document.getElementById('enablePAN').checked,
+      enableBank: document.getElementById('enableBank').checked,
+      enableProfileUpdate: document.getElementById('enableProfile').checked,
+      otpValidityMinutes: parseInt(document.getElementById('otpValidity').value),
+      maxOTPRetries: parseInt(document.getElementById('maxOTPRetries').value)
+    };
+
+    await apiCall('PUT', '/app-config/admin/ui-config', config);
+    showAlert('success', 'UI configuration updated');
+  } catch (e) {
+    showAlert('error', `Failed: ${e.message}`);
+  }
+}
+
+async function saveFeatures() {
+  try {
+    const features = {
+      instantDisbursement: document.getElementById('instantDisbursement').checked,
+      autoRepayment: document.getElementById('autoRepayment').checked,
+      partialPayment: document.getElementById('partialPayment').checked,
+      renewalLoans: document.getElementById('renewalLoans').checked,
+      digitalContract: document.getElementById('digitalContract').checked
+    };
+
+    await apiCall('PUT', '/app-config/admin/features', features);
+    showAlert('success', 'Features updated - apps will sync on next startup');
+  } catch (e) {
+    showAlert('error', `Failed: ${e.message}`);
+  }
+}
+
+function showAlert(type, msg) {
+  const div = document.createElement('div');
+  div.className = `alert ${type}`;
+  div.textContent = msg;
+  document.getElementById('alerts').appendChild(div);
+  setTimeout(() => div.remove(), 5000);
+}
+
+// Load on start if token exists
+if (token && currentUser) {
+  document.getElementById('loginForm').style.display = 'none';
+  document.getElementById('mainContent').style.display = 'block';
+  document.getElementById('authSection').style.display = 'flex';
+  document.getElementById('userDisplay').textContent = `👤 ${currentUser}`;
+  loadAllConfig();
+}
+</script>
+</body>
+</html>

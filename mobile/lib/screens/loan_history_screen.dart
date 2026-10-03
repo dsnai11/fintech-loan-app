@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../main.dart';
 import '../services/api_service.dart';
 import '../utils/error_utils.dart';
+import 'loan_detail_screen.dart';
 
 class LoanHistoryScreen extends StatefulWidget {
   const LoanHistoryScreen({Key? key}) : super(key: key);
@@ -145,7 +146,15 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
     final status = loan['status'] ?? 'submitted';
     final statusColor = _statusColor(status);
 
-    return Container(
+    final repayable = status == 'disbursed' || status == 'closed';
+
+    return GestureDetector(
+      onTap: repayable
+          ? () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => LoanDetailScreen(loan: loan)),
+              )
+          : null,
+      child: Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -209,7 +218,14 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
               ],
             ),
           ),
+          if (repayable)
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: Text('View EMI schedule & pay  ›',
+                  style: TextStyle(color: kNavy, fontSize: 12, fontWeight: FontWeight.w700)),
+            ),
         ],
+      ),
       ),
     );
   }
