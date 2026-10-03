@@ -2,6 +2,9 @@ import EMIPayment from '../models/EMIPayment.js';
 import Loan from '../models/Loan.js';
 import Transaction from '../models/Transaction.js';
 import { notify, templates } from './notificationService.js';
+import User from '../models/User.js';
+import { audit } from './auditService.js';
+import { flagEarlyClosure } from './amlService.js';
 
 const DAY = 24 * 60 * 60 * 1000;
 const feePct = () => {
@@ -114,6 +117,9 @@ export async function executeForeclosure(loanId, expectedTotal, paidBy) {
     metadata: { sandbox: true, initiatedBy: paidBy, completedAt: now },
   });
 
+  await audit({ email: paidBy, role: 'customer' }, 'LOAN_FORECLOSED', { type: 'Loan', id: loanId }, { total: quote.total, fee: quote.fee });
+  const borrower = await User.findById(loan.userId);
+  if (borrower) await flagEarlyClosure(loan, borrower);
   await notify(loan.userId, templates.foreclosed(loan, quote.total), { sms: true });
   return { quote, status: 'CLOSED' };
 }

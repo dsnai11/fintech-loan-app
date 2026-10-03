@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Compliance - LIFC Admin</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f5f7fa; --surface: #fcfcfb; --border: #e5e7eb;
+  --text: #0b0b0b; --text-2: #52514e; --muted: #6b7280;
+  --accent: #2a78d6; --header: linear-gradient(135deg, #1e40af 0%, #7c3aed 100%);
+  --good: #047857; --bad: #b91c1c; --warn: #b45309;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --bg: #111110; --surface: #1a1a19; --border: #2f2f2d;
+    --text: #fff; --text-2: #c3c2b7; --muted: #9a998f; --accent: #3987e5;
+    --good: #34d399; --bad: #f87171; --warn: #fbbf24;
+  }
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); }
+.container { max-width: 1280px; margin: 0 auto; padding: 20px 16px 40px; }
+.header { background: var(--header); color: #fff; padding: 24px; border-radius: 12px; margin-bottom: 18px; display: flex; flex-wrap: wrap; gap: 14px; justify-content: space-between; align-items: center; }
+.header h1 { font-size: 26px; } .header p { font-size: 13px; opacity: .9; margin-top: 4px; }
+.nav { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+.nav a { color: #fff; text-decoration: none; font-size: 14px; font-weight: 500; } .nav a:hover { text-decoration: underline; }
+.btn { padding: 7px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-weight: 600; font-size: 12px; cursor: pointer; }
+.btn:hover:not(:disabled) { border-color: var(--accent); }
+.btn.good { color: var(--good); border-color: var(--good); } .btn.bad { color: var(--bad); border-color: var(--bad); }
+.btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn.on-dark { background: rgba(255,255,255,.18); color: #fff; border-color: rgba(255,255,255,.6); }
+.alert { display: none; padding: 12px 16px; border-radius: 8px; margin-bottom: 14px; }
+.alert.show { display: block; } .alert.err { background: #fee2e2; color: #991b1b; } .alert.ok { background: #d1fae5; color: #065f46; }
+.tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.tabs button { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text-2); font-weight: 600; cursor: pointer; }
+.tabs button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.bar select, .bar input, .form input, .form select { padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; font-size: 13px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 10px 12px; font-size: 11px; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--border); white-space: nowrap; }
+td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+td.act { white-space: nowrap; display: flex; gap: 6px; }
+.empty { padding: 36px; text-align: center; color: var(--muted); }
+.sev { font-weight: 800; font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+.sev.HIGH { background: #fee2e2; color: #991b1b; } .sev.MEDIUM { background: #fef3c7; color: #92400e; }
+code { font-size: 11px; color: var(--text-2); word-break: break-all; }
+.form { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; padding: 14px; border-bottom: 1px solid var(--border); }
+.muted { color: var(--muted); font-size: 12px; }
+.pager { display: flex; gap: 10px; align-items: center; padding: 10px 12px; }
+.note { padding: 10px 14px; font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--border); }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div><h1>Compliance</h1><p>KYC review, AML alerts, data requests and the audit trail</p></div>
+    <div class="nav">
+      <a href="loan-management.html">Loan Management</a>
+      <a href="collections.html">Collections</a>
+      <a href="analytics.html">Analytics</a>
+      <a href="admin-config.html">Configuration</a>
+    </div>
+  </div>
+
+  <div id="alert" class="alert" role="alert"></div>
+
+  <div class="tabs" id="tabs">
+    <button data-t="kyc" class="on">KYC review</button>
+    <button data-t="aml">AML alerts <span id="aml-count"></span></button>
+    <button data-t="watch">Watchlist</button>
+    <button data-t="req">Data requests</button>
+    <button data-t="audit">Audit log</button>
+  </div>
+
+  <div id="p-kyc" class="card">
+    <div class="note">Customers are only auto-approved when a verification provider confirms their PAN and the name matches. Everyone else waits here.</div>
+    <div class="bar" style="padding:10px 12px 0"><select id="kyc-status"><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select></div>
+    <div class="scroll"><table><thead><tr><th>Customer</th><th>PAN</th><th>Date of birth</th><th>Phone verified</th><th>Bank account</th><th>Registered</th><th></th></tr></thead><tbody id="kyc-rows"></tbody></table></div>
+    <div id="kyc-empty" class="empty" style="display:none">Nothing to review.</div>
+  </div>
+
+  <div id="p-aml" class="card" style="display:none">
+    <div class="note">Rule-based checks: watchlist match, shared bank account, duplicate PAN, large loan, rapid re-application, early closure, KYC name mismatch. This is a first-line screen, not a substitute for regulated sanctions screening.</div>
+    <div class="bar" style="padding:10px 12px 0"><select id="aml-status"><option value="OPEN">Open</option><option value="ESCALATED">Escalated</option><option value="CLEARED">Cleared</option></select></div>
+    <div class="scroll"><table><thead><tr><th>Severity</th><th>Rule</th><th>Customer</th><th>Detail</th><th>Raised</th><th></th></tr></thead><tbody id="aml-rows"></tbody></table></div>
+    <div id="aml-empty" class="empty" style="display:none">No alerts.</div>
+  </div>
+
+  <div id="p-watch" class="card" style="display:none">
+    <div class="note">New entries are matched against all existing customers straight away and against every new application. Names are matched exactly, in any order and case.</div>
+    <div class="form">
+      <input id="w-name" placeholder="Full name"><input id="w-pan" placeholder="PAN" maxlength="10"><input id="w-phone" placeholder="Phone"><input id="w-acct" placeholder="Bank account number">
+      <input id="w-source" placeholder="Source (e.g. internal, court order)"><input id="w-reason" placeholder="Reason"><button class="btn primary" onclick="addWatch()">Add</button>
+    </div>
+    <div class="scroll"><table><thead><tr><th>Name</th><th>PAN</th><th>Phone</th><th>Account</th><th>Source</th><th>Reason</th><th>Added</th><th></th></tr></thead><tbody id="watch-rows"></tbody></table></div>
+    <div id="watch-empty" class="empty" style="display:none">The watchlist is empty.</div>
+  </div>
+
+  <div id="p-req" class="card" style="display:none">
+    <div class="note">Completing a deletion removes the customer's personal details. Loan, payment, agreement and audit records are kept as the law requires. Customers with unsettled loans cannot be deleted.</div>
+    <div class="bar" style="padding:10px 12px 0"><select id="req-status"><option value="OPEN">Open</option><option value="COMPLETED">Completed</option><option value="REJECTED">Rejected</option></select></div>
+    <div class="scroll"><table><thead><tr><th>Customer</th><th>Requested</th><th>Reason</th><th>Unsettled loans</th><th>Note</th><th></th></tr></thead><tbody id="req-rows"></tbody></table></div>
+    <div id="req-empty" class="empty" style="display:none">No requests.</div>
+  </div>
+
+  <div id="p-audit" class="card" style="display:none">
+    <div class="note">Every sensitive action is recorded in a tamper-evident chain. Use "Verify chain" to check that no entry has been edited or removed.</div>
+    <div class="bar" style="padding:10px 12px 0">
+      <select id="a-action"><option value="">All actions</option></select>
+      <input id="a-actor" placeholder="Actor email"><input id="a-from" type="date" aria-label="From"><input id="a-to" type="date" aria-label="To">
+      <button class="btn" onclick="auditPage = 1; loadAudit()">Filter</button>
+      <button class="btn" onclick="verifyChain()">Verify chain</button>
+      <button class="btn" onclick="exportAudit()">Export CSV</button>
+      <span id="verify" class="muted"></span>
+    </div>
+    <div class="scroll"><table><thead><tr><th>#</th><th>Time</th><th>Actor</th><th>Action</th><th>Entity</th><th>Details</th><th>IP</th></tr></thead><tbody id="audit-rows"></tbody></table></div>
+    <div id="audit-empty" class="empty" style="display:none">No entries.</div>
+    <div class="pager"><button class="btn" id="a-prev" onclick="auditPage--; loadAudit()">Previous</button><span id="a-info" class="muted"></span><button class="btn" id="a-next" onclick="auditPage++; loadAudit()">Next</button></div>
+  </div>
+</div>
+
+<script>
+const API = ['localhost', '127.0.0.1'].includes(location.hostname)
+  ? 'http://localhost:5000/api'
+  : 'https://fintech-loan-app-production.up.railway.app/api';
+const token = localStorage.getItem('admin_token');
+if (!token) location.href = 'admin-config.html';
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const date = d => d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+const dateTime = d => new Date(d).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+const RULES = { WATCHLIST_MATCH: 'Watchlist match', LARGE_LOAN: 'Large loan', RAPID_REAPPLICATION: 'Rapid re-application', SHARED_BANK_ACCOUNT: 'Shared bank account', EARLY_CLOSURE: 'Early closure', DUPLICATE_PAN: 'Duplicate PAN', KYC_NAME_MISMATCH: 'KYC name mismatch' };
+
+function msg(text, kind) {
+  const a = $('alert'); a.textContent = text; a.className = 'alert show ' + kind;
+  if (kind === 'ok') setTimeout(() => a.classList.remove('show'), 4000);
+}
+async function api(path, method = 'GET', body) {
+  const r = await fetch(API + path, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401 || r.status === 403) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  return r;
+}
+async function json(path, method, body) {
+  const r = await api(path, method, body);
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || 'Request failed');
+  return d;
+}
+const run = fn => fn().catch(e => msg(e.message, 'err'));
+
+let tab = 'kyc';
+$('tabs').addEventListener('click', e => {
+  const t = e.target.closest('button')?.dataset.t; if (!t) return;
+  tab = t;
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
+  for (const k of ['kyc', 'aml', 'watch', 'req', 'audit']) $('p-' + k).style.display = k === t ? '' : 'none';
+  load();
+});
+function load() { $('alert').classList.remove('show'); run({ kyc: loadKyc, aml: loadAml, watch: loadWatch, req: loadReq, audit: loadAudit }[tab]); }
+
+// ── KYC ──
+async function loadKyc() {
+  const d = await json('/admin/compliance/kyc?status=' + $('kyc-status').value);
+  const pending = d.status === 'pending';
+  $('kyc-rows').innerHTML = d.items.map(i =>
+    `<tr><td><b>${esc(i.name)}</b><div class="muted">${esc(i.email)} · ${esc(i.phone)}</div></td><td>${esc(i.pan)}</td><td>${date(i.dateOfBirth)}</td><td>${i.phoneVerified ? 'Yes' : 'No'}</td>` +
+    `<td>${i.bank ? esc(i.bank.holder || '') + '<div class="muted">' + esc(i.bank.ifsc) + ' · ' + esc(i.bank.account) + '</div>' : '—'}</td><td>${date(i.registered)}</td>` +
+    `<td class="act">${d.status !== 'approved' ? `<button class="btn good" onclick="kycDecide('${esc(i.userId)}','approve')">Approve</button>` : ''}${d.status !== 'rejected' ? `<button class="btn bad" onclick="kycDecide('${esc(i.userId)}','reject')">Reject</button>` : ''}</td></tr>`).join('');
+  $('kyc-empty').style.display = d.items.length ? 'none' : 'block';
+}
+$('kyc-status').onchange = () => run(loadKyc);
+async function kycDecide(id, decision) {
+  let reason = '';
+  if (decision === 'reject') { reason = prompt('Reason for rejecting (shown to the customer):'); if (!reason || !reason.trim()) return; }
+  else if (!confirm('Approve this customer\'s KYC? Check the PAN against their documents first.')) return;
+  run(async () => { await json(`/admin/compliance/kyc/${id}/decision`, 'POST', { decision, reason }); msg('KYC ' + decision + 'd.', 'ok'); await loadKyc(); });
+}
+
+// ── AML ──
+async function loadAml() {
+  const d = await json('/admin/compliance/aml/alerts?status=' + $('aml-status').value);
+  $('aml-count').textContent = d.counts.OPEN ? '(' + d.counts.OPEN + ')' : '';
+  $('aml-rows').innerHTML = d.items.map(a =>
+    `<tr><td><span class="sev ${esc(a.severity)}">${esc(a.severity)}</span></td><td>${esc(RULES[a.rule] || a.rule)}</td><td><b>${esc(a.customer)}</b><div class="muted">${esc(a.phone || '')}</div></td>` +
+    `<td>${esc(a.detail)}${a.reviewNote ? '<div class="muted">Review: ' + esc(a.reviewNote) + ' (' + esc(a.reviewedBy || '') + ')</div>' : ''}</td><td>${dateTime(a.createdAt)}</td>` +
+    `<td class="act">${a.status === 'OPEN' ? `<button class="btn bad" onclick="amlReview('${esc(a.id)}','ESCALATED')">Escalate</button>` : ''}${a.status !== 'CLEARED' ? `<button class="btn good" onclick="amlReview('${esc(a.id)}','CLEARED')">Clear</button>` : ''}</td></tr>`).join('');
+  $('aml-empty').style.display = d.items.length ? 'none' : 'block';
+}
+$('aml-status').onchange = () => run(loadAml);
+function amlReview(id, status) {
+  const note = prompt(status === 'CLEARED' ? 'Why is this alert cleared? (required)' : 'Why is this being escalated? (required)');
+  if (!note || !note.trim()) return;
+  run(async () => { await json('/admin/compliance/aml/alerts/' + id, 'POST', { status, note }); msg('Alert ' + status.toLowerCase() + '.', 'ok'); await loadAml(); });
+}
+
+// ── Watchlist ──
+async function loadWatch() {
+  const d = await json('/admin/compliance/aml/watchlist');
+  $('watch-rows').innerHTML = d.items.map(w =>
+    `<tr><td>${esc(w.name || '—')}</td><td>${esc(w.pan || '—')}</td><td>${esc(w.phone || '—')}</td><td>${esc(w.accountNumber || '—')}</td><td>${esc(w.source)}</td><td>${esc(w.reason)}</td><td>${date(w.createdAt)}</td>` +
+    `<td class="act"><button class="btn bad" onclick="removeWatch('${esc(w._id)}')">Remove</button></td></tr>`).join('');
+  $('watch-empty').style.display = d.items.length ? 'none' : 'block';
+}
+function addWatch() {
+  run(async () => {
+    const r = await json('/admin/compliance/aml/watchlist', 'POST', { name: $('w-name').value, pan: $('w-pan').value, phone: $('w-phone').value, accountNumber: $('w-acct').value, source: $('w-source').value, reason: $('w-reason').value });
+    ['w-name', 'w-pan', 'w-phone', 'w-acct', 'w-source', 'w-reason'].forEach(i => $(i).value = '');
+    msg(`Added. ${r.existingCustomersMatched} existing customer(s) matched.`, 'ok'); await loadWatch();
+  });
+}
+function removeWatch(id) { if (!confirm('Remove this entry from the watchlist?')) return; run(async () => { await json('/admin/compliance/aml/watchlist/' + id, 'DELETE'); await loadWatch(); }); }
+
+// ── Data requests ──
+async function loadReq() {
+  const d = await json('/admin/compliance/requests?status=' + $('req-status').value);
+  $('req-rows').innerHTML = d.items.map(r =>
+    `<tr><td><b>${esc(r.customer)}</b><div class="muted">${esc(r.email || '')}</div></td><td>${dateTime(r.requestedAt)}</td><td>${esc(r.reason || '—')}</td>` +
+    `<td>${r.activeLoans ? '<b style="color:var(--bad)">' + r.activeLoans + '</b>' : '0'}</td><td>${esc(r.note || '')}</td>` +
+    `<td class="act">${r.status === 'OPEN' ? `<button class="btn good" onclick="reqProcess('${esc(r.id)}','complete')">Delete data</button><button class="btn" onclick="reqProcess('${esc(r.id)}','reject')">Reject</button>` : ''}</td></tr>`).join('');
+  $('req-empty').style.display = d.items.length ? 'none' : 'block';
+}
+$('req-status').onchange = () => run(loadReq);
+function reqProcess(id, action) {
+  let note = '';
+  if (action === 'reject') { note = prompt('Reason for rejecting this request (required):'); if (!note || !note.trim()) return; }
+  else if (!confirm('Remove this customer\'s personal data? This cannot be undone.')) return;
+  run(async () => { const r = await json(`/admin/compliance/requests/${id}/process`, 'POST', { action, note }); msg(r.message, 'ok'); await loadReq(); });
+}
+
+// ── Audit ──
+let auditPage = 1;
+const auditQuery = () => {
+  const q = new URLSearchParams();
+  for (const [k, id] of [['action', 'a-action'], ['actor', 'a-actor'], ['from', 'a-from'], ['to', 'a-to']]) if ($(id).value) q.set(k, $(id).value);
+  return q;
+};
+async function loadAudit() {
+  const q = auditQuery(); q.set('page', auditPage);
+  const d = await json('/admin/compliance/audit?' + q);
+  const sel = $('a-action'), cur = sel.value;
+  sel.innerHTML = '<option value="">All actions</option>' + d.actions.map(a => `<option ${a === cur ? 'selected' : ''}>${esc(a)}</option>`).join('');
+  $('audit-rows').innerHTML = d.entries.map(e =>
+    `<tr><td>${e.seq}</td><td>${dateTime(e.at)}</td><td>${esc(e.actor)}<div class="muted">${esc(e.role)}</div></td><td><b>${esc(e.action)}</b></td>` +
+    `<td>${esc(e.entityType)}${e.entityId ? '<div class="muted">' + esc(e.entityId.slice(-8)) + '</div>' : ''}</td><td><code>${esc(JSON.stringify(e.details))}</code></td><td>${esc(e.ip)}</td></tr>`).join('');
+  $('audit-empty').style.display = d.entries.length ? 'none' : 'block';
+  const pages = Math.max(1, Math.ceil(d.total / d.limit));
+  $('a-info').textContent = `Page ${d.page} of ${pages} · ${d.total} entries`;
+  $('a-prev').disabled = d.page <= 1; $('a-next').disabled = d.page >= pages;
+}
+function verifyChain() {
+  $('verify').textContent = 'Checking…';
+  run(async () => {
+    const r = await json('/admin/compliance/audit/verify');
+    $('verify').innerHTML = r.ok
+      ? `<b style="color:var(--good)">Chain intact</b> — ${r.checked} entries checked`
+      : `<b style="color:var(--bad)">Chain broken at entry #${esc(r.brokenAt)}</b> — ${esc(r.reason)}`;
+  });
+}
+function exportAudit() {
+  run(async () => {
+    const r = await api('/admin/compliance/audit/export?' + auditQuery());
+    if (!r.ok) throw new Error((await r.json()).error || 'Export failed');
+    const url = URL.createObjectURL(await r.blob());
+    const a = document.createElement('a'); a.href = url; a.download = 'audit-log.csv'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  });
+}
+
+load();
+run(async () => { const d = await json('/admin/compliance/aml/alerts?status=OPEN'); $('aml-count').textContent = d.counts.OPEN ? '(' + d.counts.OPEN + ')' : ''; });
+</script>
+</body>
+</html>

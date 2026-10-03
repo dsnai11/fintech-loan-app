@@ -4,6 +4,8 @@ import User from '../models/User.js';
 import { adminMiddleware } from '../middleware/auth.js';
 import PaymentService from '../services/paymentService.js';
 import { notify, templates } from '../services/notificationService.js';
+import { audit } from '../services/auditService.js';
+import { openHighAlerts } from '../services/amlService.js';
 
 const router = express.Router();
 
@@ -87,12 +89,22 @@ router.post('/:loanId/approve', adminMiddleware, async (req, res) => {
       return res.status(400).json({ error: `Cannot approve a loan in status '${loan.status}'` });
     }
 
+    const customer = await User.findById(loan.userId).select('kycStatus');
+    if (process.env.REQUIRE_KYC_FOR_APPROVAL !== 'false' && customer?.kycStatus !== 'approved') {
+      return res.status(409).json({ error: `Customer KYC is ${customer?.kycStatus || 'missing'}. Approve it under Compliance > KYC before approving the loan.` });
+    }
+    const alerts = await openHighAlerts(loan.userId);
+    if (alerts.length) {
+      return res.status(409).json({ error: `${alerts.length} open high-severity AML alert(s) on this customer must be reviewed first (Compliance > AML).` });
+    }
+
     loan.status = 'approved';
     loan.approvedBy = req.user.email;
     loan.approvalDate = new Date();
     loan.approvalNotes = notes || '';
 
     await loan.save();
+    await audit(req.user, 'LOAN_APPROVED', { type: 'Loan', id: loan._id }, { amount: loan.loanAmount, notes: loan.approvalNotes }, req);
     await notify(loan.userId, templates.approved(loan), { sms: true });
 
     // Send approval notification to user
@@ -134,6 +146,7 @@ router.post('/:loanId/reject', adminMiddleware, async (req, res) => {
     loan.rejectionNotes = notes || '';
 
     await loan.save();
+    await audit(req.user, 'LOAN_REJECTED', { type: 'Loan', id: loan._id }, { reason }, req);
     await notify(loan.userId, templates.rejected(loan, reason), { sms: true });
 
     // Send rejection notification to user
@@ -173,7 +186,7 @@ router.post('/:loanId/disburse', adminMiddleware, async (req, res) => {
       transactionId: result.transferId,
     });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(e.status || 500).json({ error: e.message });
   }
 });
 

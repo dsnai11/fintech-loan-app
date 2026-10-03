@@ -3,6 +3,20 @@ import Transaction from '../models/Transaction.js';
 import Loan from '../models/Loan.js';
 import { createEMISchedule } from './emiService.js';
 import { notify, templates } from './notificationService.js';
+import AgreementAcceptance from '../models/AgreementAcceptance.js';
+import { openHighAlerts } from './amlService.js';
+import { audit } from './auditService.js';
+
+const blocked = message => Object.assign(new Error(message), { status: 409 });
+
+async function assertDisbursable(loan) {
+  if (process.env.REQUIRE_LOAN_AGREEMENT !== 'false') {
+    const signed = await AgreementAcceptance.exists({ loanId: loan._id });
+    if (!signed) throw blocked('The customer has not accepted the loan agreement yet. They can do this in the app.');
+  }
+  const alerts = await openHighAlerts(loan.userId._id || loan.userId);
+  if (alerts.length) throw blocked(`${alerts.length} open high-severity AML alert(s) on this customer must be reviewed first.`);
+}
 
 const RAZORPAY_API = 'https://api.razorpay.com/v1';
 
@@ -45,6 +59,7 @@ function bankOf(loan) {
 }
 
 export async function initiateTransfer(loanId, loan, adminEmail = 'admin') {
+  await assertDisbursable(loan);
   const bank = bankOf(loan);
   const bankDetails = {
     accountNumber: bank.accountNumber,
@@ -70,6 +85,7 @@ export async function initiateTransfer(loanId, loan, adminEmail = 'admin') {
       metadata: { sandbox: true, initiatedBy: adminEmail, initiatedAt: new Date(), completedAt: new Date() },
     });
     await markLoanDisbursed(loanId, loan.loanAmount, transferId, adminEmail);
+    await audit({ email: adminEmail, role: 'admin' }, 'LOAN_DISBURSED', { type: 'Loan', id: loanId }, { amount: loan.loanAmount, mode: 'sandbox' });
     return { status: 'COMPLETED', transferId, amount: loan.loanAmount };
   }
 
@@ -106,6 +122,7 @@ export async function initiateTransfer(loanId, loan, adminEmail = 'admin') {
       transferId: res.data.id,
       metadata: { razorpayResponse: res.data, initiatedBy: adminEmail, initiatedAt: new Date() },
     });
+    await audit({ email: adminEmail, role: 'admin' }, 'DISBURSEMENT_INITIATED', { type: 'Loan', id: loanId }, { amount: loan.loanAmount, transferId: res.data.id });
     return { status: 'PROCESSING', transferId: res.data.id, amount: loan.loanAmount };
   } catch (error) {
     await Transaction.create({

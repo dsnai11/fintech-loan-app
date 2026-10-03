@@ -1,6 +1,7 @@
 import express from 'express';
 import { adminMiddleware } from '../middleware/auth.js';
 import { getAllConfig, setManyConfig, getConfig } from '../services/configService.js';
+import { audit } from '../services/auditService.js';
 
 const router = express.Router();
 
@@ -36,6 +37,7 @@ router.put('/', adminMiddleware, async (req, res) => {
       if (val !== undefined) toSave[k] = v; // save even empty to allow clearing
     });
     await setManyConfig(toSave, adminEmail);
+    await audit(req.user, 'CONFIG_UPDATED', { type: 'Config' }, { keys: Object.keys(toSave) }, req);
     res.json({ message: 'Config saved', saved: Object.keys(toSave).length });
   } catch (e) {
     res.status(500).json({ error: e.message });

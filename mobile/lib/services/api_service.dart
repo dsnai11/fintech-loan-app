@@ -197,6 +197,55 @@ class ApiService {
     }
   }
 
+  // Compliance endpoints
+  Future<Map<String, dynamic>> getAgreement(String loanId) async {
+    try {
+      final response = await _dio.get('/compliance/agreement/$loanId');
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> acceptAgreement(String loanId, String hash) async {
+    try {
+      final response = await _dio.post(
+        '/compliance/agreement/$loanId/accept',
+        data: {'confirmed': true, 'hash': hash},
+      );
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> getMyData() async {
+    try {
+      final response = await _dio.get('/compliance/my-data');
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> requestDeletion(String reason) async {
+    try {
+      final response = await _dio.post('/compliance/deletion-request', data: {'reason': reason});
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> getDataRequests() async {
+    try {
+      final response = await _dio.get('/compliance/requests');
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   // Notification endpoints
   Future<Map<String, dynamic>> getNotifications() async {
     try {

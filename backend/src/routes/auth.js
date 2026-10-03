@@ -1,6 +1,7 @@
 import express from 'express';
 import User from '../models/User.js';
 import { generateToken } from '../middleware/auth.js';
+import { audit } from '../services/auditService.js';
 
 const router = express.Router();
 
@@ -69,6 +70,7 @@ router.post('/login', async (req, res) => {
     const adminEmail = process.env.ADMIN_EMAIL || 'admin@lifc.in';
     const isAdmin = user.email === adminEmail;
     const token = generateToken(user._id, user.email, isAdmin);
+    if (isAdmin) await audit({ email: user.email, role: 'admin' }, 'ADMIN_LOGIN', { type: 'User', id: user._id }, {}, req);
 
     res.json({
       message: 'Login successful',

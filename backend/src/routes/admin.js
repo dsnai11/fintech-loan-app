@@ -3,6 +3,7 @@ import User from '../models/User.js';
 import Loan from '../models/Loan.js';
 import { adminMiddleware } from '../middleware/auth.js';
 import { getConfig } from '../services/configService.js';
+import { audit } from '../services/auditService.js';
 
 const router = express.Router();
 
@@ -69,6 +70,10 @@ router.put('/loans/:id/status', adminMiddleware, async (req, res) => {
       return res.status(400).json({ error: `Status must be one of: ${allowed.join(', ')}` });
     }
 
+    if (status === 'approved' || status === 'disbursed') {
+      return res.status(400).json({ error: 'Approve and disburse loans from Loan Management, where KYC, AML and agreement checks are enforced.' });
+    }
+
     const update = { status };
     if (status === 'approved') update.approvalDate = new Date();
     if (status === 'disbursed') {
@@ -83,6 +88,7 @@ router.put('/loans/:id/status', adminMiddleware, async (req, res) => {
       .populate('userId', 'firstName lastName email phone');
     if (!loan) return res.status(404).json({ error: 'Loan not found' });
 
+    await audit(req.user, 'LOAN_STATUS_CHANGED', { type: 'Loan', id: loan._id }, { status }, req);
     res.json({ message: `Loan ${status}`, loan });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -98,6 +104,7 @@ router.put('/users/:id/status', adminMiddleware, async (req, res) => {
     }
     const user = await User.findByIdAndUpdate(req.params.id, { status }, { new: true }).select('-password');
     if (!user) return res.status(404).json({ error: 'User not found' });
+    await audit(req.user, 'USER_STATUS_CHANGED', { type: 'User', id: user._id }, { status }, req);
     res.json({ message: 'User status updated', user });
   } catch (error) {
     res.status(500).json({ error: error.message });

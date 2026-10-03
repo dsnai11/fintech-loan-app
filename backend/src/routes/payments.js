@@ -37,7 +37,7 @@ router.post('/disburse/:loanId', adminMiddleware, async (req, res) => {
       estimatedTime: result.status === 'PROCESSING' ? '1-2 hours (NEFT)' : 'Instant',
     });
   } catch (error) {
-    res.status(500).json({
+    res.status(error.status || 500).json({
       error: error.message,
       details: 'Disbursement initiation failed',
     });
@@ -250,7 +250,7 @@ router.post('/retry/:loanId', adminMiddleware, async (req, res) => {
       amount: result.amount,
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(error.status || 500).json({ error: error.message });
   }
 });
 

@@ -69,7 +69,7 @@ export const templates = {
   approved: loan => ({
     type: 'LOAN_APPROVED',
     title: 'Loan approved',
-    message: `Your loan of ${inr(loan.loanAmount)} has been approved. It will be disbursed to your bank account shortly.`,
+    message: `Your loan of ${inr(loan.loanAmount)} has been approved. Open the app, go to Loan History and accept the loan agreement so we can send the money to your bank account.`,
     loanId: loan._id,
   }),
   rejected: (loan, reason) => ({

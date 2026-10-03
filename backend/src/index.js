@@ -19,6 +19,8 @@ import emiRoutes from './routes/emi.js';
 import notificationRoutes from './routes/notifications.js';
 import reportRoutes from './routes/reports.js';
 import collectionsRoutes from './routes/collections.js';
+import complianceRoutes from './routes/compliance.js';
+import adminComplianceRoutes from './routes/adminCompliance.js';
 import { startScheduler } from './services/notificationService.js';
 import { loadAllConfig } from './services/configService.js';
 
@@ -36,7 +38,7 @@ app.use(cors({
 }));
 
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, message: { error: 'Too many attempts, try again in 15 minutes' } });
-const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200 });
+const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: Number(process.env.API_RATE_LIMIT) || 200 });
 
 app.use('/api/auth', authLimiter);
 app.use('/api', apiLimiter);
@@ -62,6 +64,8 @@ app.use('/api/users', userRoutes);
 app.use('/api/kyc', kycRoutes);
 app.use('/api/admin/reports', reportRoutes);
 app.use('/api/admin/collections', collectionsRoutes);
+app.use('/api/admin/compliance', adminComplianceRoutes);
+app.use('/api/compliance', complianceRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin/config', configRoutes);
 app.use('/api/admin/loans', loanManagementRoutes);

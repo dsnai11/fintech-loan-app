@@ -1,6 +1,8 @@
 import jwt from 'jsonwebtoken';
+import mongoose from 'mongoose';
+import User from '../models/User.js';
 
-export const authMiddleware = (req, res, next) => {
+export const authMiddleware = async (req, res, next) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
 
@@ -9,6 +11,14 @@ export const authMiddleware = (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (!mongoose.isValidObjectId(decoded.userId)) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+    const account = await User.findById(decoded.userId).select('status');
+    if (!account) return res.status(401).json({ error: 'Account not found' });
+    if (account.status && account.status !== 'active') {
+      return res.status(403).json({ error: 'Your account is not active. Please contact support.' });
+    }
     req.user = decoded;
     next();
   } catch (error) {

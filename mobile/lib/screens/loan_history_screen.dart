@@ -4,6 +4,7 @@ import '../main.dart';
 import '../services/api_service.dart';
 import '../utils/error_utils.dart';
 import 'loan_detail_screen.dart';
+import 'agreement_screen.dart';
 
 class LoanHistoryScreen extends StatefulWidget {
   const LoanHistoryScreen({Key? key}) : super(key: key);
@@ -153,9 +154,12 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
     final repayable = status == 'disbursed' || status == 'closed' || status == 'defaulted';
 
     return GestureDetector(
-      onTap: repayable
+      onTap: (repayable || status == 'approved')
           ? () => Navigator.of(context)
-              .push(MaterialPageRoute(builder: (_) => LoanDetailScreen(loan: loan)))
+              .push(MaterialPageRoute(builder: (_) {
+                if (status == 'approved') return AgreementScreen(loan: loan);
+                return LoanDetailScreen(loan: loan);
+              }))
               .then((_) => _fetchLoans())
           : null,
       child: Container(
@@ -222,6 +226,12 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
               ],
             ),
           ),
+          if (status == 'approved')
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: Text('Review & accept your loan agreement  ›',
+                  style: TextStyle(color: kNavy, fontSize: 12, fontWeight: FontWeight.w700)),
+            ),
           if (repayable)
             const Padding(
               padding: EdgeInsets.fromLTRB(16, 0, 16, 12),

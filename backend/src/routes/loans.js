@@ -2,6 +2,8 @@ import express from 'express';
 import Loan from '../models/Loan.js';
 import User from '../models/User.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { audit } from '../services/auditService.js';
+import { screenLoan } from '../services/amlService.js';
 
 const router = express.Router();
 
@@ -102,6 +104,8 @@ router.post('/apply-full', authMiddleware, async (req, res) => {
     await loan.save();
     user.loanHistory.push(loan._id);
     await user.save();
+    await audit(req.user, 'LOAN_APPLIED', { type: 'Loan', id: loan._id }, { amount: loan.loanAmount, tenure: loan.tenure }, req);
+    await screenLoan(loan, user);
 
     res.status(201).json({
       message: 'Loan application submitted successfully',
@@ -156,6 +160,8 @@ router.post('/apply', authMiddleware, async (req, res) => {
     await loan.save();
     user.loanHistory.push(loan._id);
     await user.save();
+    await audit(req.user, 'LOAN_APPLIED', { type: 'Loan', id: loan._id }, { amount: loan.loanAmount, tenure: loan.tenure }, req);
+    await screenLoan(loan, user);
 
     res.status(201).json({
       message: 'Loan application submitted',

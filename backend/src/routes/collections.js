@@ -6,6 +6,7 @@ import CollectionNote from '../models/CollectionNote.js';
 import { adminMiddleware } from '../middleware/auth.js';
 import { buildQueue, renderLetter, runEscalations, STAGES, STAGE_LABEL } from '../services/collectionsService.js';
 import { notify } from '../services/notificationService.js';
+import { audit } from '../services/auditService.js';
 
 const router = express.Router();
 router.use(adminMiddleware);
@@ -115,6 +116,7 @@ router.get('/:loanId/letter', async (req, res) => {
     const item = await getCase(req.params.loanId);
     if (!item) return bad(res, 404, 'This loan has no overdue EMIs');
     await addNote(item.loan, { type: 'LETTER', stage: item.stage, text: `Generated "${STAGE_LABEL[item.stage]}" letter` }, req.user);
+    await audit(req.user, 'COLLECTION_LETTER_GENERATED', { type: 'Loan', id: item.loan._id }, { stage: item.stage }, req);
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(renderLetter(item));
   } catch (e) {
@@ -143,6 +145,7 @@ router.post('/:loanId/default', async (req, res) => {
       message: 'Your loan has been classified as defaulted because of unpaid EMIs. Please contact us to settle the outstanding amount.',
       loanId: item.loan._id,
     }, { email: true, sms: true });
+    await audit(req.user, 'LOAN_DEFAULTED', { type: 'Loan', id: item.loan._id }, { daysOverdue: item.daysOverdue }, req);
     res.json({ message: 'Loan marked as defaulted', status: 'defaulted' });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -168,6 +171,7 @@ router.post('/:loanId/write-off', async (req, res) => {
     );
     if (!claimed) return bad(res, 409, 'Loan status changed. Refresh and try again.');
     await addNote(loan, { type: 'WRITE_OFF', amount: outstanding, text: reason.slice(0, 2000) }, req.user);
+    await audit(req.user, 'LOAN_WRITTEN_OFF', { type: 'Loan', id: loan._id }, { amount: outstanding, reason: reason.slice(0, 500) }, req);
     res.json({ message: 'Loan written off', writtenOffAmount: outstanding });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -186,6 +190,7 @@ router.post('/:loanId/recovery', async (req, res) => {
 
     const updated = await Loan.findByIdAndUpdate(loan._id, { $inc: { recoveredAmount: amount } }, { new: true });
     await addNote(loan, { type: 'RECOVERY', amount, text: String(req.body?.note || '').slice(0, 2000) }, req.user);
+    await audit(req.user, 'RECOVERY_RECORDED', { type: 'Loan', id: loan._id }, { amount }, req);
     res.json({ message: 'Recovery recorded', recoveredAmount: updated.recoveredAmount });
   } catch (e) {
     res.status(500).json({ error: e.message });
