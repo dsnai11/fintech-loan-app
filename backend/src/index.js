@@ -22,6 +22,7 @@ import collectionsRoutes from './routes/collections.js';
 import complianceRoutes from './routes/compliance.js';
 import adminComplianceRoutes from './routes/adminCompliance.js';
 import { startScheduler } from './services/notificationService.js';
+import { ensureAdmin } from './services/adminBootstrap.js';
 import { loadAllConfig } from './services/configService.js';
 
 dotenv.config();
@@ -54,6 +55,7 @@ mongoose.connect(mongoUrl)
   .then(async () => {
     console.log('MongoDB connected');
     await loadAllConfig(); // load API keys from DB into memory
+    await ensureAdmin();
     startScheduler();
   })
   .catch(err => console.log('MongoDB connection error:', err));
