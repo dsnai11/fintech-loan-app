@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Collections - LIFC Admin</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f5f7fa; --surface: #fcfcfb; --border: #e5e7eb;
+  --text: #0b0b0b; --text-2: #52514e; --muted: #6b7280;
+  --accent: #2a78d6; --header: linear-gradient(135deg, #1e40af 0%, #7c3aed 100%);
+  --s-reminder: #2a78d6; --s-follow: #b45309; --s-escal: #c2410c; --s-final: #b91c1c; --s-cand: #991b1b; --s-default: #4b5563;
+  --good: #047857; --bad: #b91c1c;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --bg: #111110; --surface: #1a1a19; --border: #2f2f2d;
+    --text: #fff; --text-2: #c3c2b7; --muted: #9a998f; --accent: #3987e5;
+    --s-reminder: #60a5fa; --s-follow: #fbbf24; --s-escal: #fb923c; --s-final: #f87171; --s-cand: #fca5a5; --s-default: #d1d5db;
+    --good: #34d399; --bad: #f87171;
+  }
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); }
+.container { max-width: 1280px; margin: 0 auto; padding: 20px 16px 40px; }
+.header { background: var(--header); color: #fff; padding: 24px; border-radius: 12px; margin-bottom: 18px; display: flex; flex-wrap: wrap; gap: 14px; justify-content: space-between; align-items: center; }
+.header h1 { font-size: 26px; } .header p { font-size: 13px; opacity: .9; margin-top: 4px; }
+.nav { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+.nav a { color: #fff; text-decoration: none; font-size: 14px; font-weight: 500; } .nav a:hover { text-decoration: underline; }
+.btn { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-weight: 600; font-size: 13px; cursor: pointer; }
+.btn:hover:not(:disabled) { border-color: var(--accent); } .btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn.danger { color: var(--bad); border-color: var(--bad); }
+.btn.on-dark { background: rgba(255,255,255,.18); color: #fff; border-color: rgba(255,255,255,.6); }
+.alert { display: none; padding: 12px 16px; border-radius: 8px; margin-bottom: 14px; }
+.alert.show { display: block; } .alert.err { background: #fee2e2; color: #991b1b; } .alert.ok { background: #d1fae5; color: #065f46; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.tile { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; cursor: pointer; text-align: left; color: var(--text); font: inherit; }
+.tile:hover { border-color: var(--accent); } .tile.active { outline: 2px solid var(--accent); }
+.tile .l { font-size: 11px; font-weight: 700; display: flex; align-items: center; gap: 6px; color: var(--text-2); }
+.dot { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+.tile .v { font-size: 24px; font-weight: 700; margin-top: 4px; } .tile .s { font-size: 12px; color: var(--muted); }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 10px 12px; font-size: 11px; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--border); white-space: nowrap; }
+td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+tbody tr.row { cursor: pointer; } tbody tr.row:hover { background: rgba(127,127,127,.08); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; }
+.warn { color: var(--bad); font-weight: 700; font-size: 12px; }
+.empty { padding: 36px; text-align: center; color: var(--muted); }
+.tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+.tabs button { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text-2); font-weight: 600; cursor: pointer; }
+.tabs button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 20; padding: 20px; overflow-y: auto; }
+.modal.open { display: block; }
+.panel { background: var(--surface); max-width: 760px; margin: 0 auto; border-radius: 14px; padding: 20px; }
+.panel h2 { font-size: 18px; } .panel .sub { color: var(--muted); font-size: 13px; margin: 2px 0 12px; }
+.kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin: 12px 0; }
+.kv div { background: rgba(127,127,127,.08); border-radius: 10px; padding: 10px; } .kv b { display: block; font-size: 16px; margin-top: 2px; } .kv span { font-size: 11px; color: var(--muted); font-weight: 600; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0; }
+.form .full { grid-column: 1 / -1; }
+.form select, .form input, .form textarea { padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; width: 100%; }
+.timeline { margin-top: 14px; } .timeline h3 { font-size: 13px; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+.ev { border-left: 3px solid var(--border); padding: 4px 0 10px 12px; font-size: 13px; }
+.ev .t { font-weight: 700; } .ev .m { color: var(--muted); font-size: 12px; }
+.x { float: right; background: none; border: none; font-size: 22px; color: var(--muted); cursor: pointer; }
+@media (max-width: 560px) { .form { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div><h1>Collections</h1><p>Overdue loans, follow-ups, defaults and recoveries</p></div>
+    <div class="nav">
+      <a href="loan-management.html">Loan Management</a>
+      <a href="emi-analytics.html">EMI Collections</a>
+      <a href="analytics.html">Analytics</a>
+      <a href="admin-config.html">Configuration</a>
+      <button class="btn on-dark" onclick="runJob()" title="Moves loans between stages and notifies customers">Run daily job now</button>
+      <button class="btn on-dark" onclick="refresh()">Refresh</button>
+    </div>
+  </div>
+
+  <div id="alert" class="alert" role="alert"></div>
+
+  <div class="tabs">
+    <button id="tab-queue" class="on" onclick="showTab('queue')">Overdue queue</button>
+    <button id="tab-wo" onclick="showTab('wo')">Written off</button>
+  </div>
+
+  <div id="view-queue">
+    <div class="tiles" id="tiles"></div>
+    <div class="card scroll"><table>
+      <thead><tr><th>Customer</th><th>Stage</th><th class="num">Days overdue</th><th class="num">EMIs</th><th class="num">Amount due</th><th>Promise to pay</th><th>Last action</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table><div id="queue-empty" class="empty" style="display:none">No loans in this stage.</div></div>
+  </div>
+
+  <div id="view-wo" style="display:none">
+    <div class="card scroll"><table>
+      <thead><tr><th>Customer</th><th>Written off on</th><th class="num">Written-off principal</th><th class="num">Recovered</th><th class="num">Still unrecovered</th><th></th></tr></thead>
+      <tbody id="wo-rows"></tbody>
+    </table><div id="wo-empty" class="empty" style="display:none">No written-off loans.</div></div>
+  </div>
+</div>
+
+<div id="modal" class="modal" onclick="if(event.target===this)closeModal()">
+  <div class="panel" id="panel"></div>
+</div>
+
+<script>
+const API = ['localhost', '127.0.0.1'].includes(location.hostname)
+  ? 'http://localhost:5000/api'
+  : 'https://fintech-loan-app-production.up.railway.app/api';
+const token = localStorage.getItem('admin_token');
+if (!token) location.href = 'admin-config.html';
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const money = n => '₹' + Math.round(n || 0).toLocaleString('en-IN');
+const date = d => d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+const dateTime = d => new Date(d).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+const STAGES = {
+  REMINDER: ['Reminder', 'var(--s-reminder)'], FOLLOW_UP: ['Follow-up', 'var(--s-follow)'], ESCALATED: ['Escalated', 'var(--s-escal)'],
+  FINAL_NOTICE: ['Final notice', 'var(--s-final)'], DEFAULT_CANDIDATE: ['Default candidate', 'var(--s-cand)'], DEFAULTED: ['Defaulted', 'var(--s-default)'],
+};
+const ACTION = { NOTE: 'Note', CALL: 'Call', PROMISE_TO_PAY: 'Promise to pay', LETTER: 'Letter', ESCALATION: 'Escalated', DEFAULTED: 'Defaulted', WRITE_OFF: 'Written off', RECOVERY: 'Recovery' };
+
+let stageFilter = '';
+let current = null;
+
+function msg(text, kind) {
+  const a = $('alert'); a.textContent = text; a.className = 'alert show ' + kind;
+  if (kind === 'ok') setTimeout(() => a.classList.remove('show'), 4000);
+}
+
+async function api(path, method = 'GET', body) {
+  const r = await fetch(API + path, {
+    method,
+    headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (r.status === 401 || r.status === 403) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  return r;
+}
+async function json(path, method, body) {
+  const r = await api(path, method, body);
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || 'Request failed');
+  return d;
+}
+
+function badge(stage) { const [l, c] = STAGES[stage] || [stage, 'var(--muted)']; return `<span class="badge"><i class="dot" style="background:${c}"></i>${esc(l)}</span>`; }
+
+async function loadQueue() {
+  const d = await json('/admin/collections/queue' + (stageFilter ? '?stage=' + stageFilter : ''));
+  $('tiles').innerHTML =
+    `<button class="tile ${stageFilter === '' ? 'active' : ''}" onclick="setStage('')"><div class="l">All overdue</div><div class="v">${d.total}</div><div class="s">${money(d.totalAmount)}</div></button>` +
+    Object.entries(d.stats).map(([k, s]) =>
+      `<button class="tile ${stageFilter === k ? 'active' : ''}" onclick="setStage('${k}')"><div class="l"><i class="dot" style="background:${STAGES[k][1]}"></i>${esc(s.label)}</div><div class="v">${s.cases}</div><div class="s">${money(s.amount)}</div></button>`).join('');
+  $('rows').innerHTML = d.items.map(i => {
+    const p = i.promise;
+    const promise = p ? `${date(p.date)}${p.amount ? ' · ' + money(p.amount) : ''}${p.broken ? ' <span class="warn">broken?</span>' : ''}` : '—';
+    const last = i.lastAction ? `${ACTION[i.lastAction.type] || i.lastAction.type} · ${dateTime(i.lastAction.at)}` : '—';
+    return `<tr class="row" onclick="openCase('${esc(i.loanId)}')"><td><b>${esc(i.customer)}</b><div class="s" style="color:var(--muted);font-size:12px">${esc(i.phone || '')}</div></td>` +
+      `<td>${badge(i.stage)}</td><td class="num">${i.daysOverdue}</td><td class="num">${i.overdueEmis}</td><td class="num"><b>${money(i.amountDue)}</b></td><td>${promise}</td><td>${last}</td></tr>`;
+  }).join('');
+  $('queue-empty').style.display = d.items.length ? 'none' : 'block';
+}
+
+async function loadWrittenOff() {
+  const d = await json('/admin/collections/written-off');
+  $('wo-rows').innerHTML = d.items.map(i =>
+    `<tr><td><b>${esc(i.customer)}</b><div style="color:var(--muted);font-size:12px">${esc(i.phone || '')}</div></td><td>${date(i.writtenOffAt)}</td>` +
+    `<td class="num">${money(i.writtenOffAmount)}</td><td class="num">${money(i.recoveredAmount)}</td><td class="num"><b>${money(Math.max(0, i.writtenOffAmount - i.recoveredAmount))}</b></td>` +
+    `<td><button class="btn" onclick="recordRecovery('${esc(i.loanId)}')">Record recovery</button></td></tr>`).join('');
+  $('wo-empty').style.display = d.items.length ? 'none' : 'block';
+}
+
+async function refresh() {
+  $('alert').classList.remove('show');
+  try { await Promise.all([loadQueue(), loadWrittenOff()]); } catch (e) { msg(e.message, 'err'); }
+}
+function setStage(s) { stageFilter = s; loadQueue().catch(e => msg(e.message, 'err')); }
+function showTab(t) {
+  $('view-queue').style.display = t === 'queue' ? '' : 'none';
+  $('view-wo').style.display = t === 'wo' ? '' : 'none';
+  $('tab-queue').classList.toggle('on', t === 'queue');
+  $('tab-wo').classList.toggle('on', t === 'wo');
+}
+
+async function runJob() {
+  try {
+    const r = await json('/admin/collections/run-escalations', 'POST');
+    msg(`Daily job done: ${r.inCollections} in collections, ${r.escalated} moved to a new stage, ${r.cleared} cleared.`, 'ok');
+    refresh();
+  } catch (e) { msg(e.message, 'err'); }
+}
+
+async function openCase(loanId) {
+  try {
+    current = await json('/admin/collections/' + loanId);
+    renderCase();
+    $('modal').classList.add('open');
+  } catch (e) { msg(e.message, 'err'); }
+}
+function closeModal() { $('modal').classList.remove('open'); current = null; }
+
+function renderCase() {
+  const c = current;
+  const events = c.notes.map(n => {
+    let extra = '';
+    if (n.type === 'PROMISE_TO_PAY') extra = ` — pays ${date(n.promiseDate)}${n.promiseAmount ? ' (' + money(n.promiseAmount) + ')' : ''}`;
+    if (n.type === 'RECOVERY' || n.type === 'WRITE_OFF') extra = n.amount ? ` — ${money(n.amount)}` : '';
+    return `<div class="ev"><div class="t">${esc(ACTION[n.type] || n.type)}${esc(extra)}</div>${n.text ? `<div>${esc(n.text)}</div>` : ''}<div class="m">${dateTime(n.createdAt)} · ${esc(n.createdBy)}</div></div>`;
+  }).join('') || '<div class="m" style="color:var(--muted)">No activity yet.</div>';
+
+  $('panel').innerHTML = `
+    <button class="x" onclick="closeModal()" aria-label="Close">×</button>
+    <h2>${esc(c.customer)}</h2>
+    <div class="sub">${esc(c.phone || '')}${c.email ? ' · ' + esc(c.email) : ''} · loan ${esc(c.loanId.slice(-8))} · ${money(c.loanAmount)}</div>
+    <div>${badge(c.stage)}</div>
+    <div class="kv">
+      <div><span>AMOUNT DUE</span><b>${money(c.amountDue)}</b></div>
+      <div><span>DAYS OVERDUE</span><b>${c.daysOverdue}</b></div>
+      <div><span>OVERDUE EMIs</span><b>${c.overdueEmis}</b></div>
+    </div>
+    <div class="scroll"><table><thead><tr><th>EMI</th><th>Due date</th><th class="num">Amount</th><th class="num">Late fee</th></tr></thead><tbody>
+      ${c.overdue.map(o => `<tr><td>#${o.emiNumber}</td><td>${date(o.dueDate)}</td><td class="num">${money(o.amount)}</td><td class="num">${money(o.penalty)}</td></tr>`).join('')}
+    </tbody></table></div>
+
+    <div class="actions">
+      <button class="btn" onclick="openLetter()">Generate letter</button>
+      <button class="btn danger" onclick="markDefaulted()" ${c.canMarkDefaulted ? '' : 'disabled'} title="${c.canMarkDefaulted ? '' : 'Needs 90+ days overdue'}">Mark defaulted</button>
+      <button class="btn danger" onclick="writeOff()" ${c.canWriteOff ? '' : 'disabled'} title="${c.canWriteOff ? '' : 'Loan must be marked defaulted first'}">Write off</button>
+    </div>
+
+    <h3 style="font-size:13px;text-transform:uppercase;color:var(--muted);margin-top:8px">Log an action</h3>
+    <div class="form">
+      <select id="n-type" onchange="togglePromise()"><option value="CALL">Call</option><option value="NOTE">Note</option><option value="PROMISE_TO_PAY">Promise to pay</option></select>
+      <span></span>
+      <input id="n-date" type="date" style="display:none" aria-label="Promise date">
+      <input id="n-amt" type="number" min="1" placeholder="Promised amount (optional)" style="display:none">
+      <textarea id="n-text" rows="2" class="full" placeholder="What happened?" maxlength="2000"></textarea>
+      <button class="btn primary full" onclick="addNote()">Save</button>
+    </div>
+    <div class="timeline"><h3>Timeline</h3>${events}</div>`;
+}
+function togglePromise() {
+  const p = $('n-type').value === 'PROMISE_TO_PAY';
+  $('n-date').style.display = p ? '' : 'none';
+  $('n-amt').style.display = p ? '' : 'none';
+}
+
+async function reopen() { await openCase(current.loanId); refresh(); }
+
+async function addNote() {
+  const type = $('n-type').value;
+  try {
+    await json(`/admin/collections/${current.loanId}/notes`, 'POST', {
+      type, text: $('n-text').value,
+      promiseDate: type === 'PROMISE_TO_PAY' ? $('n-date').value : undefined,
+      promiseAmount: type === 'PROMISE_TO_PAY' && $('n-amt').value ? Number($('n-amt').value) : undefined,
+    });
+    await reopen();
+  } catch (e) { msg(e.message, 'err'); }
+}
+
+async function openLetter() {
+  const w = window.open('', '_blank');
+  try {
+    const r = await api(`/admin/collections/${current.loanId}/letter`);
+    if (!r.ok) throw new Error((await r.json()).error || 'Could not generate letter');
+    const url = URL.createObjectURL(await r.blob());
+    if (w) w.location = url; else msg('Allow pop-ups to view the letter.', 'err');
+    await reopen();
+  } catch (e) { if (w) w.close(); msg(e.message, 'err'); }
+}
+
+async function markDefaulted() {
+  if (!confirm(`Mark ${current.customer}'s loan as DEFAULTED?\nThe customer will be notified. This is hard to undo.`)) return;
+  try { await json(`/admin/collections/${current.loanId}/default`, 'POST', {}); msg('Loan marked as defaulted.', 'ok'); await reopen(); }
+  catch (e) { msg(e.message, 'err'); }
+}
+
+async function writeOff() {
+  const reason = prompt('Reason for writing off this loan (required):');
+  if (!reason || !reason.trim()) return;
+  if (!confirm(`Write off ${current.customer}'s loan?\nIt will leave the collections queue and stop reminders. This cannot be undone here.`)) return;
+  try {
+    const r = await json(`/admin/collections/${current.loanId}/write-off`, 'POST', { reason });
+    closeModal(); msg(`Loan written off (${money(r.writtenOffAmount)} principal).`, 'ok'); refresh();
+  } catch (e) { msg(e.message, 'err'); }
+}
+
+async function recordRecovery(loanId) {
+  const v = prompt('Amount recovered (₹):');
+  if (v === null) return;
+  const amount = Number(v);
+  if (!Number.isFinite(amount) || amount <= 0) return msg('Enter a positive amount.', 'err');
+  const note = prompt('Note (optional):') || '';
+  try { await json(`/admin/collections/${loanId}/recovery`, 'POST', { amount, note }); msg('Recovery recorded.', 'ok'); refresh(); }
+  catch (e) { msg(e.message, 'err'); }
+}
+
+refresh();
+</script>
+</body>
+</html>

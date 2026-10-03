@@ -9,7 +9,7 @@ const loanSchema = new mongoose.Schema(
     loanType: { type: String, enum: ['Personal Loan', 'Micro Loan', 'Business Loan'], default: 'Personal Loan' },
     status: {
       type: String,
-      enum: ['submitted', 'under_review', 'approved', 'rejected', 'disbursed', 'closed', 'defaulted'],
+      enum: ['submitted', 'under_review', 'approved', 'rejected', 'disbursed', 'closed', 'defaulted', 'written_off'],
       default: 'submitted',
     },
     applicationDate: { type: Date, default: Date.now },
@@ -33,6 +33,13 @@ const loanSchema = new mongoose.Schema(
     transactionId: String,
     nextEmiDate: Date,
     closedAt: Date,
+    collectionStage: String,
+    collectionStageSince: Date,
+    defaultedAt: Date,
+    writtenOffAt: Date,
+    writtenOffAmount: Number,
+    writeOffReason: String,
+    recoveredAmount: { type: Number, default: 0 },
     foreclosure: {
       date: Date,
       amount: Number,

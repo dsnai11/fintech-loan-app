@@ -132,6 +132,7 @@ export async function initiateEMIPayment(loanId, emiNumber, userId) {
 
     const loan = await Loan.findById(loanId);
     if (!loan) throw new Error('Loan not found');
+    if (loan.status === 'written_off') throw Object.assign(new Error('This loan has been written off. Please contact support.'), { status: 409 });
 
     if (emi.status === 'PAID') throw new Error('EMI already paid');
 

@@ -461,6 +461,7 @@
       <div style="display: flex; gap: 15px; align-items: center;">
         <a href="emi-analytics.html" style="color: white; text-decoration: none; font-weight: 500; cursor: pointer;">💳 Collections</a>
         <a href="analytics.html" style="color: white; text-decoration: none; font-weight: 500; cursor: pointer;">📊 Analytics</a>
+        <a href="collections.html" style="color: white; text-decoration: none; font-weight: 500; cursor: pointer;">📞 Collections</a>
         <a href="admin-config.html" style="color: white; text-decoration: none; font-weight: 500; cursor: pointer;">⚙️ Configuration</a>
         <button class="logout-btn" onclick="logout()">Logout</button>
       </div>
@@ -504,6 +505,8 @@
           <option value="rejected">Rejected</option>
           <option value="disbursed">Disbursed</option>
           <option value="closed">Closed</option>
+          <option value="defaulted">Defaulted</option>
+          <option value="written_off">Written off</option>
         </select>
       </div>
       <div class="filter-group">
@@ -655,10 +658,10 @@
     }
 
     function statusClass(s) {
-      return s === 'submitted' || s === 'under_review' ? 'pending' : s === 'closed' ? 'disbursed' : s;
+      return s === 'submitted' || s === 'under_review' ? 'pending' : s === 'closed' ? 'disbursed' : (s === 'defaulted' || s === 'written_off') ? 'rejected' : s;
     }
     function statusLabel(s) {
-      return { submitted: 'Under Review', under_review: 'Under Review' }[s] ||
+      return { submitted: 'Under Review', under_review: 'Under Review', written_off: 'Written off' }[s] ||
         s.charAt(0).toUpperCase() + s.slice(1);
     }
     const authHeaders = () => ({

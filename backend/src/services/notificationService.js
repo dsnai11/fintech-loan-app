@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer';
 import Notification from '../models/Notification.js';
 import User from '../models/User.js';
+import Loan from '../models/Loan.js';
 import EMIPayment from '../models/EMIPayment.js';
 import { getConfig } from './configService.js';
 
@@ -108,8 +109,9 @@ export async function sendEmiReminders() {
   const { checkAndMarkOverdue } = await import('./emiService.js');
   await checkAndMarkOverdue();
 
+  const writtenOff = await Loan.find({ status: 'written_off' }).distinct('_id');
   const soon = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
-  const upcoming = await EMIPayment.find({ status: 'PENDING', dueDate: { $lte: soon }, 'metadata.reminderSent': { $ne: true } });
+  const upcoming = await EMIPayment.find({ status: 'PENDING', loanId: { $nin: writtenOff }, dueDate: { $lte: soon }, 'metadata.reminderSent': { $ne: true } });
   for (const emi of upcoming) {
     await notify(
       emi.userId,
@@ -124,7 +126,7 @@ export async function sendEmiReminders() {
     await EMIPayment.updateOne({ _id: emi._id }, { 'metadata.reminderSent': true });
   }
 
-  const overdue = await EMIPayment.find({ status: 'OVERDUE', 'metadata.notificationSent': { $ne: true } });
+  const overdue = await EMIPayment.find({ status: 'OVERDUE', loanId: { $nin: writtenOff }, 'metadata.notificationSent': { $ne: true } });
   for (const emi of overdue) {
     await notify(
       emi.userId,
@@ -142,7 +144,15 @@ export async function sendEmiReminders() {
 }
 
 export function startScheduler() {
-  const run = () => sendEmiReminders().catch(e => console.error('Reminder job failed:', e.message));
+  const run = async () => {
+    try {
+      await sendEmiReminders();
+      const { runEscalations } = await import('./collectionsService.js');
+      await runEscalations();
+    } catch (e) {
+      console.error('Reminder/collections job failed:', e.message);
+    }
+  };
   setTimeout(run, 30 * 1000);
   setInterval(run, 6 * 60 * 60 * 1000);
 }

@@ -7,7 +7,8 @@ const router = express.Router();
 router.use(adminMiddleware);
 
 const DAY = 24 * 60 * 60 * 1000;
-const REPAYING = ['disbursed', 'closed'];
+const REPAYING = ['disbursed', 'closed', 'defaulted', 'written_off'];
+const LIVE = ['disbursed', 'defaulted'];
 const monthKey = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 
 function lastMonths(n) {
@@ -45,8 +46,10 @@ router.get('/summary', async (req, res) => {
       { $match: { status: 'PAID' } },
       { $group: { _id: null, principal: { $sum: '$principalAmount' }, interest: { $sum: '$interestAmount' }, penalties: { $sum: '$penaltyApplied' }, collected: { $sum: '$paidAmount' } } },
     ]);
+    const liveIds = await Loan.find({ status: { $in: LIVE } }).distinct('_id');
+    const writtenOffIds = await Loan.find({ status: 'written_off' }).distinct('_id');
     const [unpaid] = await EMIPayment.aggregate([
-      { $match: { status: { $in: ['PENDING', 'OVERDUE', 'FAILED'] } } },
+      { $match: { status: { $in: ['PENDING', 'OVERDUE', 'FAILED'] }, loanId: { $in: liveIds } } },
       { $group: { _id: null, principal: { $sum: '$principalAmount' }, amount: { $sum: '$amount' } } },
     ]);
 
@@ -55,7 +58,7 @@ router.get('/summary', async (req, res) => {
       { $group: { _id: null, amount: { $sum: '$foreclosure.amount' }, principal: { $sum: '$foreclosure.principal' }, interest: { $sum: '$foreclosure.accruedInterest' }, fee: { $sum: '$foreclosure.fee' } } },
     ]);
 
-    const pastDue = await EMIPayment.find({ status: { $in: ['PENDING', 'OVERDUE', 'FAILED'] }, dueDate: { $lt: now } }).select('loanId amount principalAmount dueDate');
+    const pastDue = await EMIPayment.find({ status: { $in: ['PENDING', 'OVERDUE', 'FAILED'] }, loanId: { $in: liveIds }, dueDate: { $lt: now } }).select('loanId amount principalAmount dueDate');
     const worstAge = new Map();
     let overdueAmount = 0;
     for (const e of pastDue) {
@@ -65,7 +68,7 @@ router.get('/summary', async (req, res) => {
       worstAge.set(k, Math.max(worstAge.get(k) || 0, age));
     }
     const ages = [...worstAge.values()];
-    const dueOrPast = await EMIPayment.countDocuments({ dueDate: { $lt: now } });
+    const dueOrPast = await EMIPayment.countDocuments({ dueDate: { $lt: now }, loanId: { $nin: writtenOffIds } });
 
     const geography = await Loan.aggregate([
       { $lookup: { from: 'users', localField: 'userId', foreignField: '_id', as: 'u' } },
@@ -80,6 +83,12 @@ router.get('/summary', async (req, res) => {
       monthlySeries(Loan, 'disbursementDate', '$disbursedAmount', { status: { $in: REPAYING } }, months),
       monthlySeries(EMIPayment, 'paidDate', '$paidAmount', { status: 'PAID' }, months),
     ]);
+
+    const [wo] = await Loan.aggregate([
+      { $match: { status: 'written_off' } },
+      { $group: { _id: null, loans: { $sum: 1 }, amount: { $sum: '$writtenOffAmount' }, recovered: { $sum: '$recoveredAmount' } } },
+    ]);
+    const writtenOffLoans = wo?.loans || 0;
 
     const pct = (a, b) => (b ? +((a / b) * 100).toFixed(1) : 0);
     res.json({
@@ -105,7 +114,11 @@ router.get('/summary', async (req, res) => {
         loansPastDue: ages.length,
         loans30Plus: ages.filter(a => a >= 30).length,
         loans90Plus: ages.filter(a => a >= 90).length,
-        defaultRate90: pct(ages.filter(a => a >= 90).length, disbursedLoans),
+        defaultRate90: pct(ages.filter(a => a >= 90).length + writtenOffLoans, disbursedLoans),
+        defaultedLoans: count('defaulted'),
+        writtenOffLoans,
+        writtenOffAmount: wo?.amount || 0,
+        recoveredAfterWriteOff: wo?.recovered || 0,
       },
       trend: months.map((m, i) => ({
         month: m,

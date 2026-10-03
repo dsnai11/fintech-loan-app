@@ -12,7 +12,7 @@ const feePct = () => {
 const fail = (status, message, extra = {}) => Object.assign(new Error(message), { status, ...extra });
 
 // Same rule the overdue job uses: 2% of the EMI per month late, minimum Rs 500.
-const penaltyFor = (emi, now) =>
+export const penaltyFor = (emi, now) =>
   Math.round(Math.max(emi.amount * 0.02 * Math.ceil((now - emi.dueDate) / DAY / 30), 500));
 
 export async function getForeclosureQuote(loanId, now = new Date()) {

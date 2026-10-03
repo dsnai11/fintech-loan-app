@@ -54,6 +54,8 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
       case 'disbursed': return kGreen;
       case 'approved': return const Color(0xFF3B82F6);
       case 'rejected': return const Color(0xFFEF4444);
+      case 'defaulted': return const Color(0xFFB91C1C);
+      case 'written_off': return const Color(0xFF6B7280);
       case 'under_review': return const Color(0xFFF59E0B);
       default: return const Color(0xFF6B7280);
     }
@@ -67,6 +69,8 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
       case 'under_review': return 'Under Review';
       case 'submitted': return 'Submitted';
       case 'closed': return 'Closed';
+      case 'defaulted': return 'Overdue - action needed';
+      case 'written_off': return 'Closed by lender';
       default: return status;
     }
   }
@@ -146,7 +150,7 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
     final status = loan['status'] ?? 'submitted';
     final statusColor = _statusColor(status);
 
-    final repayable = status == 'disbursed' || status == 'closed';
+    final repayable = status == 'disbursed' || status == 'closed' || status == 'defaulted';
 
     return GestureDetector(
       onTap: repayable
