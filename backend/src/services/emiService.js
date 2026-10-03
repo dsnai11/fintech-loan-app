@@ -2,6 +2,7 @@ import EMIPayment from '../models/EMIPayment.js';
 import Loan from '../models/Loan.js';
 import User from '../models/User.js';
 import axios from 'axios';
+import { notify, templates } from './notificationService.js';
 
 const RAZORPAY_API = 'https://api.razorpay.com/v1';
 const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID || 'rzp_test_key';
@@ -204,9 +205,12 @@ async function markEMIPaid(emi, paymentId) {
     paidAmount: emi.amount + emi.penaltyApplied,
   });
 
+  await notify(emi.userId, templates.emiPaid(emi, emi.amount + emi.penaltyApplied), { sms: true });
+
   const unpaid = await EMIPayment.countDocuments({ loanId: emi.loanId, status: { $ne: 'PAID' } });
   if (unpaid === 0) {
     await Loan.findByIdAndUpdate(emi.loanId, { status: 'closed', closedAt: new Date() });
+    await notify(emi.userId, templates.closed(emi.loanId), { sms: true });
   }
 }
 

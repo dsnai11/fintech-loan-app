@@ -176,6 +176,32 @@ class ApiService {
     }
   }
 
+  // Notification endpoints
+  Future<Map<String, dynamic>> getNotifications() async {
+    try {
+      final response = await _dio.get('/notifications');
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<void> markNotificationRead(String id) async {
+    try {
+      await _dio.post('/notifications/$id/read');
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<void> markAllNotificationsRead() async {
+    try {
+      await _dio.post('/notifications/read-all');
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   // Full loan application (7-step flow)
   Future<Map<String, dynamic>> applyLoanFull({
     required int loanAmount,

@@ -2,6 +2,7 @@ import axios from 'axios';
 import Transaction from '../models/Transaction.js';
 import Loan from '../models/Loan.js';
 import { createEMISchedule } from './emiService.js';
+import { notify, templates } from './notificationService.js';
 
 const RAZORPAY_API = 'https://api.razorpay.com/v1';
 
@@ -16,6 +17,8 @@ function nextMonthStart() {
 }
 
 async function markLoanDisbursed(loanId, amount, transferId, adminEmail) {
+  const before = await Loan.findById(loanId).select('status');
+  if (before?.status === 'disbursed') return;
   const loan = await Loan.findByIdAndUpdate(
     loanId,
     {
@@ -30,6 +33,7 @@ async function markLoanDisbursed(loanId, amount, transferId, adminEmail) {
   );
   const existing = await import('../models/EMIPayment.js').then(m => m.default.countDocuments({ loanId }));
   if (!existing) await createEMISchedule(loan._id);
+  await notify(loan.userId, templates.disbursed(loan), { sms: true });
 }
 
 function bankOf(loan) {

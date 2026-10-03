@@ -3,6 +3,7 @@ import Loan from '../models/Loan.js';
 import User from '../models/User.js';
 import { adminMiddleware } from '../middleware/auth.js';
 import PaymentService from '../services/paymentService.js';
+import { notify, templates } from '../services/notificationService.js';
 
 const router = express.Router();
 
@@ -92,6 +93,7 @@ router.post('/:loanId/approve', adminMiddleware, async (req, res) => {
     loan.approvalNotes = notes || '';
 
     await loan.save();
+    await notify(loan.userId, templates.approved(loan), { sms: true });
 
     // Send approval notification to user
     console.log(`✅ Loan ${loan._id} approved by ${req.user.email}`);
@@ -132,6 +134,7 @@ router.post('/:loanId/reject', adminMiddleware, async (req, res) => {
     loan.rejectionNotes = notes || '';
 
     await loan.save();
+    await notify(loan.userId, templates.rejected(loan, reason), { sms: true });
 
     // Send rejection notification to user
     console.log(`❌ Loan ${loan._id} rejected by ${req.user.email}`);

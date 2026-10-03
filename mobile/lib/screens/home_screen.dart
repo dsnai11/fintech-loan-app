@@ -5,6 +5,7 @@ import '../main.dart';
 import 'pan_verify_screen.dart';
 import 'loan_history_screen.dart';
 import 'profile_screen.dart';
+import 'notifications_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -71,20 +72,26 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                             ],
                           ),
-                          GestureDetector(
-                            onTap: () {
-                              auth.logout();
-                              Navigator.of(context).pushReplacementNamed('/login');
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(10),
+                          Row(
+                            children: [
+                              const NotificationBell(),
+                              const SizedBox(width: 10),
+                              GestureDetector(
+                                onTap: () {
+                                  auth.logout();
+                                  Navigator.of(context).pushReplacementNamed('/login');
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: const Icon(Icons.logout_rounded,
+                                      color: Colors.white, size: 20),
+                                ),
                               ),
-                              child: const Icon(Icons.logout_rounded,
-                                  color: Colors.white, size: 20),
-                            ),
+                            ],
                           ),
                         ],
                       ),
