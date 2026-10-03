@@ -498,10 +498,11 @@
         <label>Filter by Status:</label>
         <select id="statusFilter" onchange="loadLoans()">
           <option value="">All</option>
-          <option value="Under Review">Under Review</option>
-          <option value="Approved">Approved</option>
-          <option value="Rejected">Rejected</option>
-          <option value="Disbursed">Disbursed</option>
+          <option value="submitted">Under Review</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+          <option value="disbursed">Disbursed</option>
+          <option value="closed">Closed</option>
         </select>
       </div>
       <div class="filter-group">
@@ -609,13 +610,18 @@
         <button class="btn-primary" id="btn-reject" onclick="rejectModal()" style="background: #ef4444;">
           ❌ Reject
         </button>
+        <button class="btn-primary" id="btn-disburse" onclick="disburseModal()" style="background: #1e40af; display: none;">
+          💰 Disburse
+        </button>
         <button class="btn-secondary" onclick="closeModal()">Close</button>
       </div>
     </div>
   </div>
 
   <script>
-    const API_BASE = 'http://localhost:5000/api';
+    const API_BASE = ['localhost', '127.0.0.1'].includes(location.hostname)
+      ? 'http://localhost:5000/api'
+      : 'https://fintech-loan-app-production.up.railway.app/api';
     let currentLoan = null;
 
     // Initialize
@@ -647,6 +653,37 @@
       }
     }
 
+    function statusClass(s) {
+      return s === 'submitted' || s === 'under_review' ? 'pending' : s === 'closed' ? 'disbursed' : s;
+    }
+    function statusLabel(s) {
+      return { submitted: 'Under Review', under_review: 'Under Review' }[s] ||
+        s.charAt(0).toUpperCase() + s.slice(1);
+    }
+    const authHeaders = () => ({
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${localStorage.getItem('admin_token')}`,
+    });
+
+    async function disburseModal() {
+      if (!currentLoan) return;
+      if (!confirm(`Disburse ₹${currentLoan.amount.toLocaleString()} to the customer's bank account?`)) return;
+      try {
+        const response = await fetch(`${API_BASE}/admin/loans/${currentLoan._id}/disburse`, {
+          method: 'POST',
+          headers: authHeaders(),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Disbursement failed');
+        showAlert('💰 ' + data.message, 'success');
+        closeModal();
+        loadLoans();
+        loadStats();
+      } catch (e) {
+        showAlert('Error: ' + e.message, 'error');
+      }
+    }
+
     // Load loans
     async function loadLoans() {
       const status = document.getElementById('statusFilter').value;
@@ -675,8 +712,8 @@
             <td><strong>${loan._id.slice(-8)}</strong></td>
             <td>${userName}</td>
             <td>₹${amount}</td>
-            <td><span class="score-badge excellent">750+</span></td>
-            <td><span class="status-badge ${loan.status.toLowerCase().replace(' ', '')}">${loan.status}</span></td>
+            <td>—</td>
+            <td><span class="status-badge ${statusClass(loan.status)}">${statusLabel(loan.status)}</span></td>
             <td>${new Date(loan.createdAt).toLocaleDateString()}</td>
             <td>
               <div class="action-buttons">
@@ -713,7 +750,11 @@
         document.getElementById('detail-phone').textContent = loan.userId.phone;
         document.getElementById('detail-amount').textContent = `₹${loan.amount.toLocaleString()}`;
         document.getElementById('detail-tenure').textContent = `${loan.tenure} months`;
-        document.getElementById('detail-emi').textContent = `₹${(loan.amount / loan.tenure).toFixed(0)}`;
+        document.getElementById('detail-emi').textContent = `₹${(loan.monthlyEMI || 0).toLocaleString()}`;
+        const reviewable = ['submitted', 'under_review'].includes(loan.status);
+        document.getElementById('btn-approve').style.display = reviewable ? '' : 'none';
+        document.getElementById('btn-reject').style.display = reviewable ? '' : 'none';
+        document.getElementById('btn-disburse').style.display = loan.status === 'approved' ? '' : 'none';
         document.getElementById('detail-score').textContent = data.creditScore;
         document.getElementById('detail-risk').textContent = data.riskAssessment.level;
         document.getElementById('detail-kyc').textContent = loan.userId.kycStatus;

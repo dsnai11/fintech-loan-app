@@ -2,6 +2,7 @@ import express from 'express';
 import Loan from '../models/Loan.js';
 import User from '../models/User.js';
 import { adminMiddleware } from '../middleware/auth.js';
+import PaymentService from '../services/paymentService.js';
 
 const router = express.Router();
 
@@ -81,13 +82,14 @@ router.post('/:loanId/approve', adminMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Loan not found' });
     }
 
-    loan.status = 'Approved';
-    loan.approved = true;
+    if (!['submitted', 'under_review'].includes(loan.status)) {
+      return res.status(400).json({ error: `Cannot approve a loan in status '${loan.status}'` });
+    }
+
+    loan.status = 'approved';
     loan.approvedBy = req.user.email;
-    loan.approvedAt = new Date();
+    loan.approvalDate = new Date();
     loan.approvalNotes = notes || '';
-    loan.conditions = conditions || [];
-    loan.updatedAt = new Date();
 
     await loan.save();
 
@@ -120,13 +122,14 @@ router.post('/:loanId/reject', adminMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Loan not found' });
     }
 
-    loan.status = 'Rejected';
-    loan.rejected = true;
+    if (!['submitted', 'under_review'].includes(loan.status)) {
+      return res.status(400).json({ error: `Cannot reject a loan in status '${loan.status}'` });
+    }
+
+    loan.status = 'rejected';
     loan.rejectedBy = req.user.email;
-    loan.rejectedAt = new Date();
     loan.rejectionReason = reason;
     loan.rejectionNotes = notes || '';
-    loan.updatedAt = new Date();
 
     await loan.save();
 
@@ -148,41 +151,23 @@ router.post('/:loanId/reject', adminMiddleware, async (req, res) => {
 
 router.post('/:loanId/disburse', adminMiddleware, async (req, res) => {
   try {
-    const loan = await Loan.findById(req.params.loanId);
+    const loan = await Loan.findById(req.params.loanId).populate('userId');
     if (!loan) {
       return res.status(404).json({ error: 'Loan not found' });
     }
 
-    if (loan.status !== 'Approved') {
+    if (loan.status !== 'approved') {
       return res.status(400).json({
         error: 'Only approved loans can be disbursed',
       });
     }
 
-    if (loan.disbursed) {
-      return res.status(400).json({
-        error: 'Loan already disbursed',
-      });
-    }
-
-    // TODO: Call payment gateway API (Razorpay/Cashfree)
-    // For now, mock successful transfer
-    loan.status = 'Disbursed';
-    loan.disbursed = true;
-    loan.disburseBy = req.user.email;
-    loan.disbursedAt = new Date();
-    loan.transactionId = `DISB-${Date.now()}`;
-    loan.updatedAt = new Date();
-
-    await loan.save();
-
-    // TODO: Trigger repayment schedule start
-    // TODO: Send disbursement notification to user
+    const result = await PaymentService.initiateTransfer(loan._id, loan, req.user.email);
 
     res.json({
-      message: 'Loan disbursed successfully',
-      loan,
-      transactionId: loan.transactionId,
+      message: result.status === 'COMPLETED' ? 'Loan disbursed successfully' : 'Disbursement initiated',
+      status: result.status,
+      transactionId: result.transferId,
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -326,20 +311,20 @@ function generateRecommendation(score, loan) {
 router.get('/analytics/summary', adminMiddleware, async (req, res) => {
   try {
     const total = await Loan.countDocuments();
-    const approved = await Loan.countDocuments({ status: 'Approved' });
-    const rejected = await Loan.countDocuments({ status: 'Rejected' });
-    const underReview = await Loan.countDocuments({ status: 'Under Review' });
-    const disbursed = await Loan.countDocuments({ status: 'Disbursed' });
+    const approved = await Loan.countDocuments({ status: 'approved' });
+    const rejected = await Loan.countDocuments({ status: 'rejected' });
+    const underReview = await Loan.countDocuments({ status: { $in: ['submitted', 'under_review'] } });
+    const disbursed = await Loan.countDocuments({ status: { $in: ['disbursed', 'closed'] } });
 
     const totalAmount = await Loan.aggregate([
-      { $match: { status: 'Disbursed' } },
-      { $group: { _id: null, total: { $sum: '$amount' } } },
+      { $match: { status: { $in: ['disbursed', 'closed'] } } },
+      { $group: { _id: null, total: { $sum: '$loanAmount' } } },
     ]);
 
     const avgAmount =
       total > 0
         ? (await Loan.aggregate([
-            { $group: { _id: null, avg: { $avg: '$amount' } } },
+            { $group: { _id: null, avg: { $avg: '$loanAmount' } } },
           ]))[0]?.avg || 0
         : 0;
 

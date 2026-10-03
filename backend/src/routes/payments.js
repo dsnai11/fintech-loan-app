@@ -1,7 +1,7 @@
 import express from 'express';
 import Loan from '../models/Loan.js';
 import Transaction from '../models/Transaction.js';
-import { adminMiddleware } from '../middleware/auth.js';
+import { adminMiddleware, authMiddleware } from '../middleware/auth.js';
 import PaymentService from '../services/paymentService.js';
 import crypto from 'crypto';
 
@@ -20,31 +20,21 @@ router.post('/disburse/:loanId', adminMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Loan not found' });
     }
 
-    if (loan.status !== 'Approved') {
+    if (loan.status !== 'approved') {
       return res.status(400).json({
         error: 'Only approved loans can be disbursed',
         currentStatus: loan.status,
       });
     }
 
-    if (loan.disbursed) {
-      return res.status(400).json({ error: 'Loan already disbursed' });
-    }
-
-    if (!loan.bankDetails?.accountNumber) {
-      return res.status(400).json({ error: 'Bank details not verified' });
-    }
-
-    // Initiate payment transfer
-    const result = await PaymentService.initiateTransfer(loanId, loan);
+    const result = await PaymentService.initiateTransfer(loanId, loan, req.user.email);
 
     res.json({
       message: 'Disbursement initiated',
-      transactionId: result.transactionId,
       transferId: result.transferId,
       status: result.status,
       amount: result.amount,
-      estimatedTime: result.status === 'processing' ? '1-2 hours (NEFT)' : 'Instant',
+      estimatedTime: result.status === 'PROCESSING' ? '1-2 hours (NEFT)' : 'Instant',
     });
   } catch (error) {
     res.status(500).json({
@@ -103,16 +93,11 @@ router.get('/status/:loanId', adminMiddleware, async (req, res) => {
 // 📊 GET TRANSACTION HISTORY (User)
 // ═══════════════════════════════════════════════════════════════════
 
-router.get('/history', async (req, res) => {
+router.get('/history', authMiddleware, async (req, res) => {
   try {
-    const userId = req.user?.id || req.query.userId;
-    if (!userId) {
-      return res.status(401).json({ error: 'User not authenticated' });
-    }
-
-    const transactions = await Transaction.find({ userId })
+    const transactions = await Transaction.find({ userId: req.user.userId })
       .sort({ createdAt: -1 })
-      .populate('loanId', 'amount tenure status')
+      .populate('loanId', 'loanAmount tenure status')
       .select('-metadata.razorpayResponse'); // Hide sensitive data
 
     res.json({
@@ -236,7 +221,7 @@ router.post('/retry/:loanId', adminMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Loan not found' });
     }
 
-    if (loan.status !== 'Approved') {
+    if (loan.status !== 'approved') {
       return res.status(400).json({
         error: 'Only approved loans can be retried',
       });
@@ -256,11 +241,10 @@ router.post('/retry/:loanId', adminMiddleware, async (req, res) => {
     }
 
     // Retry disbursement
-    const result = await PaymentService.initiateTransfer(loanId, loan);
+    const result = await PaymentService.initiateTransfer(loanId, loan, req.user.email);
 
     res.json({
       message: 'Disbursement retry initiated',
-      transactionId: result.transactionId,
       transferId: result.transferId,
       status: result.status,
       amount: result.amount,

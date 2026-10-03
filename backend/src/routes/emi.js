@@ -1,7 +1,7 @@
 import express from 'express';
 import EMIPayment from '../models/EMIPayment.js';
 import Loan from '../models/Loan.js';
-import { adminMiddleware } from '../middleware/auth.js';
+import { adminMiddleware, authMiddleware } from '../middleware/auth.js';
 import EMIService from '../services/emiService.js';
 import crypto from 'crypto';
 
@@ -11,8 +11,19 @@ const router = express.Router();
 // 📅 GET EMI SCHEDULE (Customer)
 // ═══════════════════════════════════════════════════════════════════
 
-router.get('/schedule/:loanId', async (req, res) => {
+const ownsLoan = async (req, res) => {
+  const loan = await Loan.findById(req.params.loanId);
+  const isAdmin = req.user.isAdmin || req.user.email === (process.env.ADMIN_EMAIL || 'admin@lifc.in');
+  if (!loan || (!isAdmin && String(loan.userId) !== String(req.user.userId))) {
+    res.status(404).json({ error: 'Loan not found' });
+    return null;
+  }
+  return loan;
+};
+
+router.get('/schedule/:loanId', authMiddleware, async (req, res) => {
   try {
+    if (!(await ownsLoan(req, res))) return;
     const { loanId } = req.params;
     const { emis, stats } = await EMIService.getEMISchedule(loanId);
 
@@ -41,16 +52,12 @@ router.get('/schedule/:loanId', async (req, res) => {
 // 💳 INITIATE EMI PAYMENT (Customer)
 // ═══════════════════════════════════════════════════════════════════
 
-router.post('/initiate/:loanId/:emiNumber', async (req, res) => {
+router.post('/initiate/:loanId/:emiNumber', authMiddleware, async (req, res) => {
   try {
+    if (!(await ownsLoan(req, res))) return;
     const { loanId, emiNumber } = req.params;
-    const userId = req.user?.id || req.query.userId;
 
-    if (!userId) {
-      return res.status(401).json({ error: 'User not authenticated' });
-    }
-
-    const result = await EMIService.initiateEMIPayment(loanId, parseInt(emiNumber), userId);
+    const result = await EMIService.initiateEMIPayment(loanId, parseInt(emiNumber), req.user.userId);
 
     res.json({
       message: 'EMI payment initiated',
@@ -94,8 +101,9 @@ router.post('/webhook/razorpay', async (req, res) => {
 // 📊 GET PAYMENT HISTORY (Customer)
 // ═══════════════════════════════════════════════════════════════════
 
-router.get('/history/:loanId', async (req, res) => {
+router.get('/history/:loanId', authMiddleware, async (req, res) => {
   try {
+    if (!(await ownsLoan(req, res))) return;
     const { loanId } = req.params;
     const payments = await EMIService.getPaymentHistory(loanId);
 
@@ -150,7 +158,7 @@ router.get('/admin/analytics', adminMiddleware, async (req, res) => {
       collections: {
         totalCollected: totalCollected[0]?.total || 0,
         totalPenalties: totalPenalties[0]?.total || 0,
-        collectionRate: ((paidEmis / totalEmis) * 100).toFixed(2) + '%',
+        collectionRate: (totalEmis ? (paidEmis / totalEmis) * 100 : 0).toFixed(2) + '%',
       },
     });
   } catch (error) {
@@ -166,17 +174,17 @@ router.get('/admin/overdue', adminMiddleware, async (req, res) => {
   try {
     const overdueEmis = await EMIPayment.find({ status: 'OVERDUE' })
       .populate('userId', 'firstName lastName email phone')
-      .populate('loanId', 'amount status')
+      .populate('loanId', 'loanAmount status')
       .sort({ daysOverdue: -1 });
 
     res.json({
       total: overdueEmis.length,
       emis: overdueEmis.map(emi => ({
         emiId: emi._id,
-        loanId: emi.loanId._id,
-        customer: `${emi.userId.firstName} ${emi.userId.lastName}`,
-        email: emi.userId.email,
-        phone: emi.userId.phone,
+        loanId: String(emi.loanId?._id || emi.loanId),
+        customer: emi.userId ? `${emi.userId.firstName} ${emi.userId.lastName}` : 'Unknown',
+        email: emi.userId?.email,
+        phone: emi.userId?.phone,
         emiNumber: emi.emiNumber,
         amount: emi.amount,
         daysOverdue: emi.daysOverdue,

@@ -514,7 +514,9 @@
   </div>
 
   <script>
-    const API_BASE = 'http://localhost:5000/api';
+    const API_BASE = ['localhost', '127.0.0.1'].includes(location.hostname)
+      ? 'http://localhost:5000/api'
+      : 'https://fintech-loan-app-production.up.railway.app/api';
     let token = localStorage.getItem('admin_token');
 
     if (!token) {

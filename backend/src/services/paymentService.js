@@ -1,348 +1,169 @@
 import axios from 'axios';
 import Transaction from '../models/Transaction.js';
 import Loan from '../models/Loan.js';
+import { createEMISchedule } from './emiService.js';
 
-// ═══════════════════════════════════════════════════════════════════
-// RAZORPAY INTEGRATION
-// ═══════════════════════════════════════════════════════════════════
-
-const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID || 'rzp_test_key';
-const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || 'rzp_test_secret';
 const RAZORPAY_API = 'https://api.razorpay.com/v1';
 
-const razorpayAuth = Buffer.from(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`).toString('base64');
+const isProduction = () => process.env.PAYMENT_MODE === 'PRODUCTION';
 
-// ═══════════════════════════════════════════════════════════════════
-// CREATE TRANSFER TO CUSTOMER BANK
-// ═══════════════════════════════════════════════════════════════════
+const razorpayAuth = () =>
+  Buffer.from(`${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`).toString('base64');
 
-export async function initiateTransfer(loanId, loan) {
+function nextMonthStart() {
+  const d = new Date();
+  return new Date(d.getFullYear(), d.getMonth() + 1, 1);
+}
+
+async function markLoanDisbursed(loanId, amount, transferId, adminEmail) {
+  const loan = await Loan.findByIdAndUpdate(
+    loanId,
+    {
+      status: 'disbursed',
+      disbursedBy: adminEmail,
+      disbursedAmount: amount,
+      disbursementDate: new Date(),
+      transactionId: transferId,
+      nextEmiDate: nextMonthStart(),
+    },
+    { new: true }
+  );
+  const existing = await import('../models/EMIPayment.js').then(m => m.default.countDocuments({ loanId }));
+  if (!existing) await createEMISchedule(loan._id);
+}
+
+function bankOf(loan) {
+  const bank = loan.userId?.bankAccount;
+  if (!bank?.accountNumber || !bank?.ifscCode) {
+    throw new Error('Customer bank details are missing');
+  }
+  return bank;
+}
+
+export async function initiateTransfer(loanId, loan, adminEmail = 'admin') {
+  const bank = bankOf(loan);
+  const bankDetails = {
+    accountNumber: bank.accountNumber,
+    ifscCode: bank.ifscCode,
+    accountHolder: bank.accountHolder,
+    bankName: bank.bankName,
+  };
+  const base = {
+    loanId,
+    userId: loan.userId._id,
+    type: 'DISBURSEMENT',
+    amount: loan.loanAmount,
+    bankDetails,
+  };
+
+  if (!isProduction()) {
+    const transferId = `sandbox_${Date.now()}`;
+    await Transaction.create({
+      ...base,
+      status: 'COMPLETED',
+      paymentGateway: 'SANDBOX',
+      transferId,
+      metadata: { sandbox: true, initiatedBy: adminEmail, initiatedAt: new Date(), completedAt: new Date() },
+    });
+    await markLoanDisbursed(loanId, loan.loanAmount, transferId, adminEmail);
+    return { status: 'COMPLETED', transferId, amount: loan.loanAmount };
+  }
+
   try {
-    if (!loan.bankDetails?.accountNumber || !loan.bankDetails?.ifscCode) {
-      throw new Error('Bank details not available');
-    }
-
-    // Step 1: Create payout in Razorpay
-    const payoutResponse = await axios.post(
+    const res = await axios.post(
       `${RAZORPAY_API}/payouts`,
       {
-        account_number: process.env.RAZORPAY_ACCOUNT_ID || 'test_account',
-        amount: loan.amount * 100, // Convert to paise
+        account_number: process.env.RAZORPAY_ACCOUNT_ID,
+        amount: Math.round(loan.loanAmount * 100),
         currency: 'INR',
-        mode: 'NEFT', // National Electronic Funds Transfer
-        purpose: 'loan_disbursement',
-        description: `Loan disbursement for ${loanId}`,
-        receipt: `LN-${loanId}-${Date.now()}`,
-        recipient: {
-          account_number: loan.bankDetails.accountNumber,
-          ifsc: loan.bankDetails.ifscCode,
-          name: loan.bankDetails.accountHolder,
-          email: loan.userId.email,
-          contact: loan.userId.phone,
-        },
-        notes: {
-          loanId: loanId.toString(),
-          customerId: loan.userId._id.toString(),
-          tenure: loan.tenure.toString(),
-          interestRate: '15%',
+        mode: 'NEFT',
+        purpose: 'payout',
+        queue_if_low_balance: true,
+        reference_id: `LN-${loanId}`,
+        narration: 'Loan disbursement',
+        fund_account: {
+          account_type: 'bank_account',
+          bank_account: { name: bank.accountHolder, ifsc: bank.ifscCode, account_number: bank.accountNumber },
+          contact: {
+            name: `${loan.userId.firstName} ${loan.userId.lastName}`,
+            email: loan.userId.email,
+            contact: loan.userId.phone,
+            type: 'customer',
+          },
         },
       },
-      {
-        headers: {
-          'Authorization': `Basic ${razorpayAuth}`,
-          'Content-Type': 'application/json',
-        },
-      }
+      { headers: { Authorization: `Basic ${razorpayAuth()}`, 'Content-Type': 'application/json' } }
     );
 
-    const transferId = payoutResponse.data.id;
-    const status = payoutResponse.data.status; // processing, failed, reversed, completed
-
-    // Step 2: Create transaction record
-    const transaction = await Transaction.create({
-      loanId,
-      userId: loan.userId._id,
-      type: 'DISBURSEMENT',
-      amount: loan.amount,
-      status: status === 'failed' ? 'FAILED' : 'PROCESSING',
-      paymentGateway: 'RAZORPAY',
-      transferId,
-      bankDetails: {
-        accountNumber: loan.bankDetails.accountNumber,
-        ifscCode: loan.bankDetails.ifscCode,
-        accountHolder: loan.bankDetails.accountHolder,
-      },
-      metadata: {
-        razorpayResponse: payoutResponse.data,
-        initiatedAt: new Date(),
-        initiatedBy: 'admin',
-      },
-    });
-
-    console.log(`✅ Disbursement initiated for loan ${loanId}: ${transferId}`);
-
-    return {
-      success: true,
-      transactionId: transaction._id,
-      transferId,
-      status,
-      amount: loan.amount,
-      message: 'Disbursement initiated successfully',
-    };
-  } catch (error) {
-    console.error(`❌ Disbursement error for loan ${loanId}:`, error.message);
-
-    // Create failed transaction record
     await Transaction.create({
-      loanId,
-      userId: loan.userId._id,
-      type: 'DISBURSEMENT',
-      amount: loan.amount,
+      ...base,
+      status: 'PROCESSING',
+      paymentGateway: 'RAZORPAY',
+      transferId: res.data.id,
+      metadata: { razorpayResponse: res.data, initiatedBy: adminEmail, initiatedAt: new Date() },
+    });
+    return { status: 'PROCESSING', transferId: res.data.id, amount: loan.loanAmount };
+  } catch (error) {
+    await Transaction.create({
+      ...base,
       status: 'FAILED',
       paymentGateway: 'RAZORPAY',
-      error: error.message,
-      metadata: {
-        errorDetails: error.response?.data || error.message,
-      },
+      error: error.response?.data?.error?.description || error.message,
     });
-
-    throw new Error(`Disbursement failed: ${error.message}`);
+    throw new Error(`Disbursement failed: ${error.response?.data?.error?.description || error.message}`);
   }
 }
-
-// ═══════════════════════════════════════════════════════════════════
-// CHECK TRANSFER STATUS
-// ═══════════════════════════════════════════════════════════════════
 
 export async function checkTransferStatus(transferId) {
-  try {
-    const response = await axios.get(
-      `${RAZORPAY_API}/payouts/${transferId}`,
-      {
-        headers: {
-          'Authorization': `Basic ${razorpayAuth}`,
-        },
-      }
-    );
-
-    const data = response.data;
-
-    return {
-      transferId: data.id,
-      status: data.status, // processing, failed, reversed, completed
-      amount: data.amount / 100, // Convert from paise
-      feeBreakup: data.fee_breakdown,
-      narration: data.narration,
-      createdAt: data.created_at,
-      failureReason: data.failure_reason,
-    };
-  } catch (error) {
-    console.error('Error checking transfer status:', error.message);
-    throw error;
-  }
+  const res = await axios.get(`${RAZORPAY_API}/payouts/${transferId}`, {
+    headers: { Authorization: `Basic ${razorpayAuth()}` },
+  });
+  return { transferId: res.data.id, status: res.data.status, failureReason: res.data.failure_reason };
 }
-
-// ═══════════════════════════════════════════════════════════════════
-// VERIFY & UPDATE TRANSACTION STATUS
-// ═══════════════════════════════════════════════════════════════════
 
 export async function verifyAndUpdateTransaction(loanId, transferId) {
-  try {
-    const transfer = await checkTransferStatus(transferId);
+  const transfer = await checkTransferStatus(transferId);
+  const map = { processed: 'COMPLETED', completed: 'COMPLETED', failed: 'FAILED', rejected: 'FAILED', reversed: 'REVERSED' };
+  const status = map[transfer.status] || 'PROCESSING';
 
-    let transactionStatus = 'PROCESSING';
-    if (transfer.status === 'completed') {
-      transactionStatus = 'COMPLETED';
-    } else if (transfer.status === 'failed') {
-      transactionStatus = 'FAILED';
-    } else if (transfer.status === 'reversed') {
-      transactionStatus = 'REVERSED';
-    }
-
-    // Update transaction record
-    const transaction = await Transaction.findOneAndUpdate(
-      { loanId, transferId },
-      {
-        status: transactionStatus,
-        'metadata.lastCheckedAt': new Date(),
-        'metadata.razorpayStatus': transfer.status,
-      },
-      { new: true }
-    );
-
-    // Update loan status if completed
-    if (transactionStatus === 'COMPLETED') {
-      await Loan.findByIdAndUpdate(loanId, {
-        status: 'Active', // Loan is active, repayment starts
-        disbursedAmount: transfer.amount,
-        disbursedAt: new Date(),
-        nextEmiDate: calculateNextEmiDate(),
-      });
-
-      console.log(`✅ Loan ${loanId} marked as Active - disbursement completed`);
-    }
-
-    return {
-      loanId,
-      transactionId: transaction._id,
-      status: transactionStatus,
-      amount: transfer.amount,
-      failureReason: transfer.failureReason,
-    };
-  } catch (error) {
-    console.error('Error verifying transaction:', error.message);
-    throw error;
-  }
+  const tx = await Transaction.findOneAndUpdate(
+    { loanId, transferId },
+    { status, 'metadata.lastCheckedAt': new Date(), 'metadata.razorpayStatus': transfer.status },
+    { new: true }
+  );
+  if (status === 'COMPLETED') await markLoanDisbursed(loanId, tx.amount, transferId, tx.metadata?.initiatedBy);
+  return { loanId, transactionId: tx._id, status, amount: tx.amount, failureReason: transfer.failureReason };
 }
-
-// ═══════════════════════════════════════════════════════════════════
-// GET TRANSACTION HISTORY
-// ═══════════════════════════════════════════════════════════════════
 
 export async function getTransactionHistory(userId, loanId = null) {
-  try {
-    const query = { userId };
-    if (loanId) query.loanId = loanId;
+  const query = { userId };
+  if (loanId) query.loanId = loanId;
+  return Transaction.find(query).sort({ createdAt: -1 }).populate('loanId', 'loanAmount tenure status');
+}
 
-    const transactions = await Transaction.find(query)
-      .sort({ createdAt: -1 })
-      .populate('loanId', 'amount tenure status');
+export async function handlePayoutWebhook({ event, payload }) {
+  const payout = payload.payout.entity;
+  const tx = await Transaction.findOne({ transferId: payout.id });
+  if (!tx) return { success: true, processed: false };
 
-    return transactions;
-  } catch (error) {
-    console.error('Error fetching transaction history:', error.message);
-    throw error;
+  if (event === 'payout.processed' || event === 'payout.completed') {
+    tx.status = 'COMPLETED';
+    tx.metadata.completedAt = new Date();
+    tx.metadata.webhookProcessed = true;
+    await tx.save();
+    await markLoanDisbursed(tx.loanId, tx.amount, payout.id, tx.metadata?.initiatedBy);
+  } else if (event === 'payout.failed' || event === 'payout.rejected') {
+    tx.status = 'FAILED';
+    tx.metadata.failureReason = payout.failure_reason;
+    tx.metadata.failedAt = new Date();
+    tx.metadata.webhookProcessed = true;
+    await tx.save();
   }
+  return { success: true, processed: true };
 }
-
-// ═══════════════════════════════════════════════════════════════════
-// HELPER: Calculate Next EMI Date
-// ═══════════════════════════════════════════════════════════════════
-
-function calculateNextEmiDate() {
-  const today = new Date();
-  const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
-  return nextMonth;
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// WEBHOOK HANDLER FOR RAZORPAY CALLBACKS
-// ═══════════════════════════════════════════════════════════════════
-
-export async function handlePayoutWebhook(webhookData) {
-  try {
-    const { event, payload } = webhookData;
-    const payout = payload.payout.entity;
-
-    if (event === 'payout.completed') {
-      // Find transaction and update
-      const transaction = await Transaction.findOneAndUpdate(
-        { transferId: payout.id },
-        {
-          status: 'COMPLETED',
-          'metadata.completedAt': new Date(),
-          'metadata.webhookProcessed': true,
-        },
-        { new: true }
-      );
-
-      if (transaction) {
-        // Update loan to Active
-        await Loan.findByIdAndUpdate(transaction.loanId, {
-          status: 'Active',
-          'metadata.disbursementWebhookProcessed': true,
-        });
-
-        console.log(`✅ Webhook: Disbursement completed for loan ${transaction.loanId}`);
-      }
-    } else if (event === 'payout.failed') {
-      const transaction = await Transaction.findOneAndUpdate(
-        { transferId: payout.id },
-        {
-          status: 'FAILED',
-          'metadata.failureReason': payout.failure_reason,
-          'metadata.failedAt': new Date(),
-          'metadata.webhookProcessed': true,
-        },
-        { new: true }
-      );
-
-      if (transaction) {
-        // Revert loan to Approved status (so it can be retried)
-        await Loan.findByIdAndUpdate(transaction.loanId, {
-          status: 'Approved',
-          'metadata.disbursementFailed': true,
-        });
-
-        console.log(`❌ Webhook: Disbursement failed for loan ${transaction.loanId}`);
-      }
-    }
-
-    return { success: true, processed: true };
-  } catch (error) {
-    console.error('Error handling webhook:', error.message);
-    throw error;
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// SANDBOX MODE (For Testing Without Real API)
-// ═══════════════════════════════════════════════════════════════════
-
-export async function initiateTransferSandbox(loanId, loan) {
-  try {
-    // Mock transfer response
-    const mockTransferId = `mock_${Date.now()}`;
-
-    const transaction = await Transaction.create({
-      loanId,
-      userId: loan.userId._id,
-      type: 'DISBURSEMENT',
-      amount: loan.amount,
-      status: 'COMPLETED', // Instant approval in sandbox
-      paymentGateway: 'SANDBOX',
-      transferId: mockTransferId,
-      bankDetails: {
-        accountNumber: loan.bankDetails.accountNumber,
-        ifscCode: loan.bankDetails.ifscCode,
-        accountHolder: loan.bankDetails.accountHolder,
-      },
-      metadata: {
-        sandbox: true,
-        completedAt: new Date(),
-      },
-    });
-
-    // Update loan to Active immediately
-    await Loan.findByIdAndUpdate(loanId, {
-      status: 'Active',
-      disbursedAmount: loan.amount,
-      disbursedAt: new Date(),
-      nextEmiDate: calculateNextEmiDate(),
-    });
-
-    console.log(`✅ [SANDBOX] Disbursement completed for loan ${loanId}`);
-
-    return {
-      success: true,
-      transactionId: transaction._id,
-      transferId: mockTransferId,
-      status: 'COMPLETED',
-      amount: loan.amount,
-      message: '[SANDBOX MODE] Disbursement completed',
-    };
-  } catch (error) {
-    console.error(`❌ Sandbox disbursement error:`, error.message);
-    throw error;
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// EXPORT CONTROL
-// ═══════════════════════════════════════════════════════════════════
 
 export const PaymentService = {
-  initiateTransfer: process.env.PAYMENT_MODE === 'SANDBOX' ? initiateTransferSandbox : initiateTransfer,
+  initiateTransfer,
   checkTransferStatus,
   verifyAndUpdateTransaction,
   getTransactionHistory,

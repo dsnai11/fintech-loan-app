@@ -22,7 +22,7 @@ export async function createEMISchedule(loanId) {
 
     const monthlyEMI = loan.monthlyEMI || calculateEMI(loan);
     const tenure = loan.tenure;
-    const startDate = loan.disbursedAt || new Date();
+    const startDate = loan.disbursementDate || new Date();
 
     let outstandingPrincipal = loan.loanAmount;
     const rate = loan.interestRate / 12 / 100;
@@ -132,7 +132,14 @@ export async function initiateEMIPayment(loanId, emiNumber, userId) {
     const loan = await Loan.findById(loanId);
     if (!loan) throw new Error('Loan not found');
 
+    if (emi.status === 'PAID') throw new Error('EMI already paid');
+
     const totalAmount = emi.amount + emi.penaltyApplied;
+
+    if (process.env.PAYMENT_MODE !== 'PRODUCTION') {
+      await markEMIPaid(emi, `sandbox_${Date.now()}`);
+      return { success: true, sandbox: true, status: 'PAID', amount: totalAmount, emiNumber };
+    }
 
     // Razorpay invoice creation
     const invoiceResponse = await axios.post(
@@ -189,6 +196,20 @@ export async function initiateEMIPayment(loanId, emiNumber, userId) {
   }
 }
 
+async function markEMIPaid(emi, paymentId) {
+  await EMIPayment.findByIdAndUpdate(emi._id, {
+    status: 'PAID',
+    paymentId,
+    paidDate: new Date(),
+    paidAmount: emi.amount + emi.penaltyApplied,
+  });
+
+  const unpaid = await EMIPayment.countDocuments({ loanId: emi.loanId, status: { $ne: 'PAID' } });
+  if (unpaid === 0) {
+    await Loan.findByIdAndUpdate(emi.loanId, { status: 'closed', closedAt: new Date() });
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // PROCESS EMI PAYMENT (Webhook)
 // ═══════════════════════════════════════════════════════════════════
@@ -201,28 +222,7 @@ export async function processEMIPayment(paymentData) {
     if (!emi) throw new Error('EMI not found');
 
     if (status === 'paid') {
-      await EMIPayment.findByIdAndUpdate(emi._id, {
-        status: 'PAID',
-        paymentId: payment_id,
-        paidDate: new Date(),
-        paidAmount: emi.amount + emi.penaltyApplied,
-      });
-
-      // Check if all EMIs are paid
-      const loan = await Loan.findById(emi.loanId);
-      const allEmis = await EMIPayment.find({ loanId: emi.loanId });
-      const paidEmis = allEmis.filter(e => e.status === 'PAID').length;
-
-      if (paidEmis === allEmis.length) {
-        // Loan closed
-        await Loan.findByIdAndUpdate(emi.loanId, {
-          status: 'closed',
-          closedAt: new Date(),
-        });
-        console.log(`✅ Loan ${emi.loanId} fully repaid and closed`);
-      }
-
-      console.log(`✅ EMI #${emi.emiNumber} paid for loan ${emi.loanId}`);
+      await markEMIPaid(emi, payment_id);
     } else if (status === 'issued') {
       // Payment pending
       await EMIPayment.findByIdAndUpdate(emi._id, {
