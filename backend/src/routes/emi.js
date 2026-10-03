@@ -3,6 +3,7 @@ import EMIPayment from '../models/EMIPayment.js';
 import Loan from '../models/Loan.js';
 import { adminMiddleware, authMiddleware } from '../middleware/auth.js';
 import EMIService from '../services/emiService.js';
+import { getForeclosureQuote, executeForeclosure } from '../services/foreclosureService.js';
 import crypto from 'crypto';
 
 const router = express.Router();
@@ -65,6 +66,33 @@ router.post('/initiate/:loanId/:emiNumber', authMiddleware, async (req, res) => 
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// 🏁 EARLY CLOSURE (FORECLOSURE)
+// ═══════════════════════════════════════════════════════════════════
+
+const sendError = (res, e) =>
+  res.status(e.status || 500).json({ error: e.message, ...(e.quote ? { quote: e.quote } : {}) });
+
+router.get('/foreclosure/:loanId', authMiddleware, async (req, res) => {
+  try {
+    if (!(await ownsLoan(req, res))) return;
+    const { quote } = await getForeclosureQuote(req.params.loanId);
+    res.json(quote);
+  } catch (e) {
+    sendError(res, e);
+  }
+});
+
+router.post('/foreclosure/:loanId', authMiddleware, async (req, res) => {
+  try {
+    if (!(await ownsLoan(req, res))) return;
+    const result = await executeForeclosure(req.params.loanId, Number(req.body?.expectedAmount), req.user.email);
+    res.json({ message: 'Loan closed successfully', ...result });
+  } catch (e) {
+    sendError(res, e);
   }
 });
 

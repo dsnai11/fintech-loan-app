@@ -176,6 +176,27 @@ class ApiService {
     }
   }
 
+  Future<Map<String, dynamic>> getForeclosureQuote(String loanId) async {
+    try {
+      final response = await _dio.get('/emi/foreclosure/$loanId');
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> foreclose(String loanId, num expectedAmount) async {
+    try {
+      final response = await _dio.post(
+        '/emi/foreclosure/$loanId',
+        data: {'expectedAmount': expectedAmount},
+      );
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   // Notification endpoints
   Future<Map<String, dynamic>> getNotifications() async {
     try {

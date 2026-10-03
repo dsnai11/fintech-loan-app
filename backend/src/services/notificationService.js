@@ -89,6 +89,12 @@ export const templates = {
     message: `We received ${inr(amount)} for EMI #${emi.emiNumber}. Thank you.`,
     loanId: emi.loanId,
   }),
+  foreclosed: (loan, total) => ({
+    type: 'LOAN_CLOSED',
+    title: 'Loan closed early',
+    message: `We received ${inr(total)} and your loan has been closed early. Remaining interest has been waived.`,
+    loanId: loan._id,
+  }),
   closed: loanId => ({
     type: 'LOAN_CLOSED',
     title: 'Loan fully repaid',

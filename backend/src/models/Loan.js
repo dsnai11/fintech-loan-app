@@ -33,6 +33,13 @@ const loanSchema = new mongoose.Schema(
     transactionId: String,
     nextEmiDate: Date,
     closedAt: Date,
+    foreclosure: {
+      date: Date,
+      amount: Number,
+      principal: Number,
+      accruedInterest: Number,
+      fee: Number,
+    },
     rejectionReason: String,
     disbursalDetails: {
       accountNumber: String,

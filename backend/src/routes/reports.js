@@ -50,6 +50,11 @@ router.get('/summary', async (req, res) => {
       { $group: { _id: null, principal: { $sum: '$principalAmount' }, amount: { $sum: '$amount' } } },
     ]);
 
+    const [fc] = await Loan.aggregate([
+      { $match: { 'foreclosure.amount': { $gt: 0 } } },
+      { $group: { _id: null, amount: { $sum: '$foreclosure.amount' }, principal: { $sum: '$foreclosure.principal' }, interest: { $sum: '$foreclosure.accruedInterest' }, fee: { $sum: '$foreclosure.fee' } } },
+    ]);
+
     const pastDue = await EMIPayment.find({ status: { $in: ['PENDING', 'OVERDUE', 'FAILED'] }, dueDate: { $lt: now } }).select('loanId amount principalAmount dueDate');
     const worstAge = new Map();
     let overdueAmount = 0;
@@ -88,10 +93,11 @@ router.get('/summary', async (req, res) => {
         approvalRate: pct(count('approved') + disbursedLoans, decided),
       },
       revenue: {
-        interestCollected: paid?.interest || 0,
+        interestCollected: (paid?.interest || 0) + (fc?.interest || 0),
         penaltiesCollected: paid?.penalties || 0,
-        principalRecovered: paid?.principal || 0,
-        totalCollected: paid?.collected || 0,
+        foreclosureFees: fc?.fee || 0,
+        principalRecovered: (paid?.principal || 0) + (fc?.principal || 0),
+        totalCollected: (paid?.collected || 0) + (fc?.amount || 0),
       },
       risk: {
         overdueAmount,

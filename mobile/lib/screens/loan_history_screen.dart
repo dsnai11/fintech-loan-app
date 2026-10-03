@@ -150,9 +150,9 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
 
     return GestureDetector(
       onTap: repayable
-          ? () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => LoanDetailScreen(loan: loan)),
-              )
+          ? () => Navigator.of(context)
+              .push(MaterialPageRoute(builder: (_) => LoanDetailScreen(loan: loan)))
+              .then((_) => _fetchLoans())
           : null,
       child: Container(
       margin: const EdgeInsets.only(bottom: 12),

@@ -72,6 +72,68 @@ class _LoanDetailScreenState extends State<LoanDetailScreen> {
     }
   }
 
+  Future<void> _foreclose() async {
+    final api = context.read<ApiService>();
+    Map<String, dynamic> q;
+    try {
+      q = await api.getForeclosureQuote(_loanId);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
+      return;
+    }
+    if (!mounted) return;
+
+    Widget row(String label, num value, {bool bold = false}) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: Row(children: [
+            Expanded(child: Text(label, style: TextStyle(fontWeight: bold ? FontWeight.w800 : FontWeight.w400))),
+            Text(_fmtMoney(value), style: TextStyle(fontWeight: bold ? FontWeight.w800 : FontWeight.w600)),
+          ]),
+        );
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Close loan early'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (_num(q['overdueAmount']) > 0)
+              row('Overdue EMIs + late fees (${q['overdueEmis']})', _num(q['overdueAmount'])),
+            row('Remaining principal (${q['remainingEmis']} EMIs)', _num(q['principal'])),
+            row('Interest till today', _num(q['accruedInterest'])),
+            row('Closure fee (${q['feePercent']}%)', _num(q['fee'])),
+            const Divider(),
+            row('Total to pay', _num(q['total']), bold: true),
+            const SizedBox(height: 8),
+            const Text('Future interest is waived. This amount is for today only.',
+                style: TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Pay & close')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    setState(() => _paying = -1);
+    try {
+      await api.foreclose(_loanId, _num(q['total']));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Loan closed successfully')));
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
+      setState(() => _paying = null);
+      _fetch();
+    }
+  }
+
   num _num(dynamic v) => v is num ? v : (num.tryParse(v?.toString() ?? '') ?? 0);
 
   String _fmtMoney(dynamic v) {
@@ -93,6 +155,7 @@ class _LoanDetailScreenState extends State<LoanDetailScreen> {
   Color _statusColor(String s) {
     switch (s) {
       case 'PAID': return kGreen;
+      case 'WAIVED': return const Color(0xFF6B7280);
       case 'OVERDUE': return const Color(0xFFEF4444);
       case 'FAILED': return const Color(0xFF6366F1);
       default: return const Color(0xFFF59E0B);
@@ -105,7 +168,7 @@ class _LoanDetailScreenState extends State<LoanDetailScreen> {
   Widget build(BuildContext context) {
     final paidCount = _emis.where((e) => e['status'] == 'PAID').length;
     final total = _emis.length;
-    final nextUnpaid = _emis.indexWhere((e) => e['status'] != 'PAID');
+    final nextUnpaid = _emis.indexWhere((e) => e['status'] != 'PAID' && e['status'] != 'WAIVED');
 
     return Scaffold(
       backgroundColor: kBg,
@@ -119,6 +182,14 @@ class _LoanDetailScreenState extends State<LoanDetailScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           _summaryCard(paidCount, total),
+          if (widget.loan['status'] == 'disbursed' && _emis.any((e) => e['status'] != 'PAID' && e['status'] != 'WAIVED')) ...[
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _paying == null ? _foreclose : null,
+              icon: const Icon(Icons.flag_rounded),
+              label: const Text('Close loan early'),
+            ),
+          ],
           const SizedBox(height: 16),
           const Text('EMI Schedule',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
@@ -202,7 +273,7 @@ class _LoanDetailScreenState extends State<LoanDetailScreen> {
     final n = (emi['emiNumber'] as num).toInt();
     final color = _statusColor(status);
     final penalty = _num(emi['penaltyApplied']);
-    final canPay = status != 'PAID';
+    final canPay = status != 'PAID' && status != 'WAIVED';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),

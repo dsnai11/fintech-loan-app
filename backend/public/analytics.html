@@ -236,6 +236,7 @@ function render() {
   $('tiles-revenue').innerHTML =
     tile('Interest collected', money(v.interestCollected), 'From paid EMIs') +
     tile('Late fees collected', money(v.penaltiesCollected)) +
+    tile('Early closure fees', money(v.foreclosureFees || 0)) +
     tile('Principal recovered', money(v.principalRecovered)) +
     tile('Total collected', money(v.totalCollected), 'All EMI payments received');
 
