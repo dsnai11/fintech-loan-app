@@ -7,7 +7,8 @@ const router = express.Router();
 
 router.post('/signup', async (req, res) => {
   try {
-    const { firstName, lastName, email, phone, password, confirmPassword } = req.body;
+    const { firstName, lastName, phone, password, confirmPassword } = req.body;
+    const email = String(req.body.email || '').trim().toLowerCase();
 
     if (!firstName || !lastName || !email || !phone || !password) {
       return res.status(400).json({ error: 'All fields are required' });
@@ -51,7 +52,9 @@ router.post('/signup', async (req, res) => {
 
 router.post('/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { password } = req.body;
+    // Stored emails are lowercase; phones love to capitalise the first letter or add a trailing space.
+    const email = String(req.body.email || '').trim().toLowerCase();
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
@@ -67,7 +70,7 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Invalid email or password' });
     }
 
-    const adminEmail = process.env.ADMIN_EMAIL || 'admin@lifc.in';
+    const adminEmail = (process.env.ADMIN_EMAIL || 'admin@lifc.in').toLowerCase();
     const isAdmin = user.email === adminEmail;
     const token = generateToken(user._id, user.email, isAdmin);
     if (isAdmin) await audit({ email: user.email, role: 'admin' }, 'ADMIN_LOGIN', { type: 'User', id: user._id }, {}, req);
