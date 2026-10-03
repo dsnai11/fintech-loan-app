@@ -6,6 +6,7 @@ import 'pan_verify_screen.dart';
 import 'loan_history_screen.dart';
 import 'profile_screen.dart';
 import 'notifications_screen.dart';
+import 'emi_calculator_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -242,7 +243,9 @@ class _HomeScreenState extends State<HomeScreen> {
                           icon: Icons.calculate_rounded,
                           label: 'EMI\nCalculator',
                           color: const Color(0xFF0891B2),
-                          onTap: () => _showComingSoon('EMI Calculator'),
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => const EmiCalculatorScreen()),
+                          ),
                         ),
                         _actionCard(
                           icon: Icons.person_rounded,
@@ -416,17 +419,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  void _showComingSoon(String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$feature — coming soon!'),
-        backgroundColor: kNavy,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
