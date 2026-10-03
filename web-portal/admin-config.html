@@ -182,6 +182,11 @@ input[type="checkbox"] {
 <header>
   <div class="container" style="width: 100%; display: flex; justify-content: space-between; align-items: center;">
     <div class="logo">⚙️ App Configuration Admin</div>
+    <nav style="display: flex; gap: 20px; color: white;">
+      <a onclick="window.location.href='loan-management.html'" style="cursor: pointer; text-decoration: none; color: white;">💰 Loan Management</a>
+      <a onclick="window.location.href='emi-analytics.html'" style="cursor: pointer; text-decoration: none; color: white;">💳 EMI Collections</a>
+      <a onclick="window.location.href='admin-config.html'" style="cursor: pointer; text-decoration: none; color: white;">⚙️ Configuration</a>
+    </nav>
     <div class="auth-section" id="authSection" style="display: none;">
       <span id="userDisplay" style="color: white; font-size: 14px;"></span>
       <button class="secondary" onclick="logout()">Logout</button>
@@ -375,7 +380,7 @@ input[type="checkbox"] {
 </div>
 
 <script>
-const API_URL = 'https://fintech-loan-app-production.up.railway.app/api';
+const API_URL = 'http://localhost:5000/api';
 let token = localStorage.getItem('admin_token');
 let currentUser = localStorage.getItem('admin_user');
 

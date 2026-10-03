@@ -19,14 +19,20 @@ router.get('/', adminMiddleware, async (req, res) => {
       .populate('userId', 'firstName lastName email phone panNumber')
       .select('-bankDetails.accountNumber'); // Hide sensitive info
 
+    // Transform loans: map loanAmount to amount for frontend compatibility
+    const transformedLoans = loans.map(loan => ({
+      ...loan.toObject(),
+      amount: loan.loanAmount,
+    }));
+
     const total = await Loan.countDocuments(filter);
-    const approved = await Loan.countDocuments({ status: 'Approved' });
-    const rejected = await Loan.countDocuments({ status: 'Rejected' });
-    const underReview = await Loan.countDocuments({ status: 'Under Review' });
-    const disbursed = await Loan.countDocuments({ status: 'Disbursed' });
+    const approved = await Loan.countDocuments({ status: 'approved' });
+    const rejected = await Loan.countDocuments({ status: 'rejected' });
+    const underReview = await Loan.countDocuments({ status: 'submitted' }); // submitted = under review
+    const disbursed = await Loan.countDocuments({ status: 'disbursed' });
 
     res.json({
-      loans,
+      loans: transformedLoans,
       total,
       stats: { approved, rejected, underReview, disbursed },
     });
@@ -52,7 +58,7 @@ router.get('/:loanId', adminMiddleware, async (req, res) => {
     const creditScore = await calculateCreditScore(loan.userId, loan);
 
     res.json({
-      loan,
+      loan: { ...loan.toObject(), amount: loan.loanAmount },
       creditScore,
       riskAssessment: assessRisk(creditScore, loan),
       recommendation: generateRecommendation(creditScore, loan),
@@ -237,8 +243,8 @@ async function calculateCreditScore(userId, loan) {
     }
 
     // Loan Amount vs Income (max 100 points)
-    if (income > 0 && loan.amount) {
-      const ratio = loan.amount / income;
+    if (income > 0 && loan.loanAmount) {
+      const ratio = loan.loanAmount / income;
       if (ratio <= 3) {
         score += 100; // Conservative
       } else if (ratio <= 6) {

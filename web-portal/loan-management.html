@@ -458,7 +458,11 @@
         <h1>💰 Loan Management</h1>
         <p>Review, approve, and disburse loans</p>
       </div>
-      <button class="logout-btn" onclick="logout()">Logout</button>
+      <div style="display: flex; gap: 15px; align-items: center;">
+        <a href="emi-analytics.html" style="color: white; text-decoration: none; font-weight: 500; cursor: pointer;">💳 Collections</a>
+        <a href="admin-config.html" style="color: white; text-decoration: none; font-weight: 500; cursor: pointer;">⚙️ Configuration</a>
+        <button class="logout-btn" onclick="logout()">Logout</button>
+      </div>
     </div>
 
     <!-- Alert -->
@@ -616,7 +620,7 @@
 
     // Initialize
     document.addEventListener('DOMContentLoaded', () => {
-      const token = localStorage.getItem('adminToken');
+      const token = localStorage.getItem('admin_token');
       if (!token) {
         window.location.href = 'admin-config.html';
         return;
@@ -629,7 +633,7 @@
     async function loadStats() {
       try {
         const response = await fetch(`${API_BASE}/admin/loans/analytics/summary`, {
-          headers: { 'Authorization': localStorage.getItem('adminToken') },
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` },
         });
         const data = await response.json();
 
@@ -657,17 +661,20 @@
 
         const response = await fetch(
           `${API_BASE}/admin/loans?${query}`,
-          { headers: { 'Authorization': localStorage.getItem('adminToken') } }
+          { headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` } }
         );
 
         const data = await response.json();
 
         const tbody = document.getElementById('loansBody');
-        tbody.innerHTML = data.loans.map(loan => `
+        tbody.innerHTML = data.loans.map(loan => {
+          const userName = loan.userId?.firstName ? `${loan.userId.firstName} ${loan.userId.lastName}` : 'N/A';
+          const amount = loan.amount ? loan.amount.toLocaleString() : '0';
+          return `
           <tr onclick="openLoanModal('${loan._id}')">
             <td><strong>${loan._id.slice(-8)}</strong></td>
-            <td>${loan.userId.firstName} ${loan.userId.lastName}</td>
-            <td>₹${loan.amount.toLocaleString()}</td>
+            <td>${userName}</td>
+            <td>₹${amount}</td>
             <td><span class="score-badge excellent">750+</span></td>
             <td><span class="status-badge ${loan.status.toLowerCase().replace(' ', '')}">${loan.status}</span></td>
             <td>${new Date(loan.createdAt).toLocaleDateString()}</td>
@@ -679,7 +686,8 @@
               </div>
             </td>
           </tr>
-        `).join('');
+        `;
+        }).join('');
 
         document.getElementById('loaning').style.display = 'none';
         document.getElementById('loansTable').style.display = 'table';
@@ -692,7 +700,7 @@
     async function openLoanModal(loanId) {
       try {
         const response = await fetch(`${API_BASE}/admin/loans/${loanId}`, {
-          headers: { 'Authorization': localStorage.getItem('adminToken') },
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` },
         });
         const data = await response.json();
         const loan = data.loan;
@@ -740,7 +748,7 @@
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': localStorage.getItem('adminToken'),
+            'Authorization': `Bearer ${localStorage.getItem('admin_token')}`,
           },
           body: JSON.stringify({ notes }),
         });
@@ -771,7 +779,7 @@
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': localStorage.getItem('adminToken'),
+            'Authorization': `Bearer ${localStorage.getItem('admin_token')}`,
           },
           body: JSON.stringify({ reason }),
         });
@@ -806,7 +814,7 @@
 
     // Logout
     function logout() {
-      localStorage.removeItem('adminToken');
+      localStorage.removeItem('admin_token');
       window.location.href = 'admin-config.html';
     }
   </script>
