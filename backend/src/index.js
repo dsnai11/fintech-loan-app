@@ -17,6 +17,7 @@ import loanManagementRoutes from './routes/loanManagement.js';
 import paymentRoutes from './routes/payments.js';
 import emiRoutes from './routes/emi.js';
 import notificationRoutes from './routes/notifications.js';
+import reportRoutes from './routes/reports.js';
 import { startScheduler } from './services/notificationService.js';
 import { loadAllConfig } from './services/configService.js';
 
@@ -58,6 +59,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/loans', loanRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/kyc', kycRoutes);
+app.use('/api/admin/reports', reportRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin/config', configRoutes);
 app.use('/api/admin/loans', loanManagementRoutes);

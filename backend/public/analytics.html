@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Portfolio Analytics - LIFC Admin</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f5f7fa;
+  --surface-1: #fcfcfb;
+  --border: #e5e7eb;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #6b7280;
+  --grid: #ececea;
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --header: linear-gradient(135deg, #1e40af 0%, #7c3aed 100%);
+  --warn: #b45309;
+  --bad: #b91c1c;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --bg: #111110;
+    --surface-1: #1a1a19;
+    --border: #2f2f2d;
+    --text-primary: #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted: #9a998f;
+    --grid: #2a2a28;
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --warn: #f59e0b;
+    --bad: #f87171;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #111110;
+  --surface-1: #1a1a19;
+  --border: #2f2f2d;
+  --text-primary: #ffffff;
+  --text-secondary: #c3c2b7;
+  --text-muted: #9a998f;
+  --grid: #2a2a28;
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --warn: #f59e0b;
+  --bad: #f87171;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text-primary); }
+.container { max-width: 1280px; margin: 0 auto; padding: 20px 16px 40px; }
+.header { background: var(--header); color: #fff; padding: 24px; border-radius: 12px; margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 16px; justify-content: space-between; align-items: center; }
+.header h1 { font-size: 26px; }
+.header p { font-size: 13px; opacity: .9; margin-top: 4px; }
+.nav { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+.nav a { color: #fff; text-decoration: none; font-size: 14px; font-weight: 500; }
+.nav a:hover { text-decoration: underline; }
+.btn { padding: 9px 16px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary); font-weight: 600; font-size: 13px; cursor: pointer; }
+.btn:hover { border-color: var(--series-1); }
+.btn.on-dark { background: rgba(255,255,255,.18); color: #fff; border-color: rgba(255,255,255,.6); }
+.alert { display: none; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; background: #fee2e2; color: #991b1b; }
+.alert.show { display: block; }
+h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .6px; color: var(--text-muted); margin: 22px 0 10px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; }
+.tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; }
+.tile .label { font-size: 12px; color: var(--text-muted); font-weight: 600; }
+.tile .value { font-size: 28px; font-weight: 700; margin: 6px 0 2px; color: var(--text-primary); }
+.tile .sub { font-size: 12px; color: var(--text-secondary); }
+.tile .flag { font-size: 12px; font-weight: 700; margin-top: 4px; }
+.flag.warn { color: var(--warn); }
+.flag.bad { color: var(--bad); }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; }
+.card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+.card h3 { font-size: 15px; margin-bottom: 2px; }
+.card .desc { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; }
+.card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.legend { display: flex; gap: 16px; font-size: 12px; color: var(--text-secondary); margin: 6px 0 8px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+svg text { fill: var(--text-muted); font-size: 11px; font-family: inherit; }
+.hbar { display: grid; grid-template-columns: 110px 1fr 90px; gap: 10px; align-items: center; margin: 7px 0; font-size: 13px; }
+.hbar .name { color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hbar .track { height: 14px; }
+.hbar .fill { height: 14px; background: var(--series-1); border-radius: 0 4px 4px 0; min-width: 2px; }
+.hbar .val { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-primary); font-weight: 600; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { padding: 8px 6px; text-align: right; border-bottom: 1px solid var(--border); }
+th:first-child, td:first-child { text-align: left; }
+th { color: var(--text-muted); font-size: 11px; text-transform: uppercase; }
+#tip { position: fixed; pointer-events: none; display: none; background: var(--surface-1); color: var(--text-primary); border: 1px solid var(--border); box-shadow: 0 4px 14px rgba(0,0,0,.18); border-radius: 8px; padding: 8px 10px; font-size: 12px; z-index: 10; }
+#tip b { display: block; margin-bottom: 4px; }
+.empty { color: var(--text-muted); font-size: 13px; padding: 20px 0; }
+.export { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.export input { padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-1); color: var(--text-primary); }
+.hidden { display: none; }
+.foot { margin-top: 18px; font-size: 12px; color: var(--text-muted); }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div>
+      <h1>Portfolio Analytics</h1>
+      <p>Disbursements, collections, revenue and risk</p>
+    </div>
+    <div class="nav">
+      <a href="loan-management.html">Loan Management</a>
+      <a href="emi-analytics.html">EMI Collections</a>
+      <a href="admin-config.html">Configuration</a>
+      <button class="btn on-dark" onclick="load()">Refresh</button>
+    </div>
+  </div>
+
+  <div id="alert" class="alert" role="alert"></div>
+
+  <h2>Portfolio</h2>
+  <div class="tiles" id="tiles-portfolio"></div>
+
+  <h2>Revenue</h2>
+  <div class="tiles" id="tiles-revenue"></div>
+
+  <h2>Risk</h2>
+  <div class="tiles" id="tiles-risk"></div>
+
+  <h2>Trends</h2>
+  <div class="card">
+    <div class="card-top">
+      <div>
+        <h3>Disbursed vs collected, last 6 months</h3>
+        <div class="desc">Money lent out against EMI money received, by month</div>
+      </div>
+      <button class="btn" id="toggle" onclick="toggleView()">Table view</button>
+    </div>
+    <div class="legend">
+      <span><i style="background: var(--series-1)"></i>Disbursed</span>
+      <span><i style="background: var(--series-2)"></i>Collected</span>
+    </div>
+    <div id="chart"></div>
+    <div id="table" class="hidden"></div>
+  </div>
+
+  <div class="grid2" style="margin-top:14px">
+    <div class="card">
+      <h3>Loans by status</h3>
+      <div class="desc">Number of loans</div>
+      <div id="status"></div>
+    </div>
+    <div class="card">
+      <h3>Top states by amount lent</h3>
+      <div class="desc">From the customer's profile state</div>
+      <div id="geo"></div>
+    </div>
+  </div>
+
+  <h2>Reports</h2>
+  <div class="card export">
+    <label for="month" style="font-size:13px;color:var(--text-secondary)">Month (optional)</label>
+    <input type="month" id="month">
+    <button class="btn" onclick="download('loans')">Download loans CSV</button>
+    <button class="btn" onclick="download('emis')">Download EMIs CSV</button>
+    <span style="font-size:12px;color:var(--text-muted)">Loans are filtered by application month, EMIs by due month. Leave the month empty for everything.</span>
+  </div>
+  <div class="foot" id="generated"></div>
+</div>
+<div id="tip"></div>
+
+<script>
+const API = ['localhost', '127.0.0.1'].includes(location.hostname)
+  ? 'http://localhost:5000/api'
+  : 'https://fintech-loan-app-production.up.railway.app/api';
+const token = localStorage.getItem('admin_token');
+if (!token) location.href = 'admin-config.html';
+
+let data = null;
+let tableView = false;
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+function money(n) {
+  n = Math.round(n || 0);
+  if (n >= 1e7) return '₹' + (n / 1e7).toFixed(2) + ' Cr';
+  if (n >= 1e5) return '₹' + (n / 1e5).toFixed(2) + ' L';
+  return '₹' + n.toLocaleString('en-IN');
+}
+function axisMoney(n) {
+  if (n >= 1e7) return (n / 1e7) + 'Cr';
+  if (n >= 1e5) return (n / 1e5) + 'L';
+  if (n >= 1e3) return (n / 1e3) + 'K';
+  return String(n);
+}
+const monthLabel = m => MONTHS[+m.slice(5) - 1] + " '" + m.slice(2, 4);
+
+function showError(msg) { const a = $('alert'); a.textContent = msg; a.classList.add('show'); }
+
+async function api(path) {
+  const r = await fetch(API + path, { headers: { Authorization: 'Bearer ' + token } });
+  if (r.status === 401 || r.status === 403) {
+    localStorage.removeItem('admin_token');
+    location.href = 'admin-config.html';
+    throw new Error('Session expired');
+  }
+  return r;
+}
+
+async function load() {
+  $('alert').classList.remove('show');
+  try {
+    const r = await api('/admin/reports/summary');
+    if (!r.ok) throw new Error((await r.json()).error || 'Failed to load analytics');
+    data = await r.json();
+    render();
+  } catch (e) {
+    showError('Could not load analytics: ' + e.message);
+  }
+}
+
+function tile(label, value, sub, flag) {
+  return `<div class="tile"><div class="label">${esc(label)}</div><div class="value">${esc(value)}</div>` +
+    (sub ? `<div class="sub">${esc(sub)}</div>` : '') +
+    (flag ? `<div class="flag ${flag.cls}">${flag.icon} ${esc(flag.text)}</div>` : '') + '</div>';
+}
+
+function render() {
+  const p = data.portfolio, v = data.revenue, k = data.risk;
+  $('tiles-portfolio').innerHTML =
+    tile('Total disbursed', money(p.totalDisbursed), `${(p.status.disbursed?.count || 0) + (p.status.closed?.count || 0)} loans`) +
+    tile('Outstanding principal', money(p.outstandingPrincipal), 'Still to be repaid') +
+    tile('Average loan', money(p.averageTicket)) +
+    tile('Approval rate', p.approvalRate + '%', 'Approved of decided applications');
+
+  $('tiles-revenue').innerHTML =
+    tile('Interest collected', money(v.interestCollected), 'From paid EMIs') +
+    tile('Late fees collected', money(v.penaltiesCollected)) +
+    tile('Principal recovered', money(v.principalRecovered)) +
+    tile('Total collected', money(v.totalCollected), 'All EMI payments received');
+
+  const defFlag = k.defaultRate90 >= 5 ? { cls: 'bad', icon: '▲', text: 'Above 5%' } : null;
+  const overFlag = k.overdueEmiRate >= 10 ? { cls: 'warn', icon: '▲', text: 'Above 10%' } : null;
+  $('tiles-risk').innerHTML =
+    tile('Overdue amount', money(k.overdueAmount), `${k.loansPastDue} loans with a missed EMI`) +
+    tile('Overdue EMI rate', k.overdueEmiRate + '%', 'Missed EMIs of all EMIs due so far', overFlag) +
+    tile('Loans 30+ days overdue', String(k.loans30Plus)) +
+    tile('Default rate (90+ days)', k.defaultRate90 + '%', `${k.loans90Plus} loans`, defFlag);
+
+  drawTrend();
+  drawTable();
+  drawStatus();
+  drawGeo();
+  $('generated').textContent = 'Generated ' + new Date(data.generatedAt).toLocaleString();
+}
+
+function niceMax(v) {
+  if (v <= 0) return 1000;
+  const pow = Math.pow(10, Math.floor(Math.log10(v)));
+  const n = v / pow;
+  return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * pow;
+}
+
+function drawTrend() {
+  const t = data.trend;
+  const step = niceMax(Math.max(...t.flatMap(x => [x.disbursed, x.collected])) / 4);
+  const max = step * 4;
+  if (!t.some(x => x.disbursed || x.collected)) {
+    $('chart').innerHTML = '<div class="empty">No disbursements or collections in the last 6 months.</div>';
+    return;
+  }
+  const W = 640, H = 260, L = 46, R = 8, T = 10, B = 28;
+  const iw = W - L - R, ih = H - T - B;
+  const slot = iw / t.length, bw = Math.min(26, slot * 0.34), gap = 2;
+  const y = val => T + ih - (val / max) * ih;
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Disbursed versus collected by month">`;
+  for (let i = 0; i <= 4; i++) {
+    const val = (max / 4) * i, yy = y(val);
+    s += `<line x1="${L}" x2="${W - R}" y1="${yy}" y2="${yy}" stroke="var(--grid)" stroke-width="1"/>`;
+    s += `<text x="${L - 6}" y="${yy + 4}" text-anchor="end">${axisMoney(val)}</text>`;
+  }
+  t.forEach((m, i) => {
+    const cx = L + slot * i + slot / 2;
+    const bars = [['disbursed', 'var(--series-1)', cx - bw - gap / 2], ['collected', 'var(--series-2)', cx + gap / 2]];
+    bars.forEach(([key, color, x]) => {
+      const h = Math.max(0, (m[key] / max) * ih);
+      if (h > 0) s += `<path d="M${x},${T + ih} V${y(m[key]) + 4} a4,4 0 0 1 4,-4 h${bw - 8} a4,4 0 0 1 4,4 V${T + ih} Z" fill="${color}"/>`;
+    });
+    s += `<text x="${cx}" y="${H - 8}" text-anchor="middle">${esc(monthLabel(m.month))}</text>`;
+    s += `<rect class="hit" data-i="${i}" x="${L + slot * i}" y="${T}" width="${slot}" height="${ih}" fill="transparent"/>`;
+  });
+  s += '</svg>';
+  $('chart').innerHTML = s;
+  document.querySelectorAll('#chart .hit').forEach(el => {
+    el.addEventListener('mousemove', e => showTip(e, t[+el.dataset.i]));
+    el.addEventListener('mouseleave', () => { $('tip').style.display = 'none'; });
+  });
+}
+
+function showTip(e, m) {
+  const tip = $('tip');
+  tip.innerHTML = `<b>${esc(monthLabel(m.month))}</b>` +
+    `<div><i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--series-1);margin-right:6px"></i>Disbursed ${money(m.disbursed)}</div>` +
+    `<div><i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--series-2);margin-right:6px"></i>Collected ${money(m.collected)}</div>` +
+    `<div style="color:var(--text-muted);margin-top:2px">${m.applications} new applications</div>`;
+  tip.style.display = 'block';
+  tip.style.left = Math.min(e.clientX + 14, window.innerWidth - tip.offsetWidth - 8) + 'px';
+  tip.style.top = (e.clientY + 14) + 'px';
+}
+
+function drawTable() {
+  const rows = data.trend.map(m =>
+    `<tr><td>${esc(monthLabel(m.month))}</td><td>${m.applications}</td><td>${money(m.disbursed)}</td><td>${money(m.collected)}</td></tr>`).join('');
+  $('table').innerHTML = `<table><thead><tr><th>Month</th><th>Applications</th><th>Disbursed</th><th>Collected</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function toggleView() {
+  tableView = !tableView;
+  $('chart').classList.toggle('hidden', tableView);
+  $('table').classList.toggle('hidden', !tableView);
+  $('toggle').textContent = tableView ? 'Chart view' : 'Table view';
+}
+
+function hbars(el, rows, fmt) {
+  const max = Math.max(1, ...rows.map(r => r.value));
+  el.innerHTML = rows.length
+    ? rows.map(r => `<div class="hbar"><div class="name" title="${esc(r.name)}">${esc(r.name)}</div>` +
+        `<div class="track"><div class="fill" style="width:${(r.value / max) * 100}%"></div></div>` +
+        `<div class="val">${fmt(r.value)}</div></div>`).join('')
+    : '<div class="empty">No data yet.</div>';
+}
+
+function drawStatus() {
+  const s = data.portfolio.status, c = k => s[k]?.count || 0;
+  hbars($('status'), [
+    { name: 'Under review', value: c('submitted') + c('under_review') },
+    { name: 'Approved', value: c('approved') },
+    { name: 'Disbursed', value: c('disbursed') },
+    { name: 'Closed', value: c('closed') },
+    { name: 'Rejected', value: c('rejected') },
+  ], String);
+}
+
+function drawGeo() {
+  hbars($('geo'), data.geography.map(g => ({ name: g.state, value: g.amount })), money);
+}
+
+async function download(type) {
+  const month = $('month').value;
+  try {
+    const r = await api(`/admin/reports/export?type=${type}${month ? '&month=' + month : ''}`);
+    if (!r.ok) throw new Error((await r.json()).error || 'Download failed');
+    const url = URL.createObjectURL(await r.blob());
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${type}-${month || 'all'}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    showError(e.message);
+  }
+}
+
+load();
+</script>
+</body>
+</html>
