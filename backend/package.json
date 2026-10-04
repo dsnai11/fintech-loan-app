@@ -8,7 +8,7 @@
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
     "test": "node test/run.mjs",
-    "sync-portal": "node -e \"require('fs').readdirSync('../web-portal').filter(f=>f.endsWith('.html')).forEach(f=>require('fs').copyFileSync('../web-portal/'+f,'public/'+f))\""
+    "sync-portal": "node scripts/sync-portal.mjs"
   },
   "dependencies": {
     "axios": "^1.6.2",

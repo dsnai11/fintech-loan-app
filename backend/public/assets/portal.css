@@ -1,0 +1,105 @@
+/* LIFC back office: one look for every page. Loaded after each page's own styles, so it wins on shared parts
+   (shell, buttons, tables, forms, cards, alerts, tabs). Pages keep their own layout inside the content area. */
+
+:root {
+  --e-bg: #f1f5f9; --e-surface: #ffffff; --e-surface-2: #f8fafc; --e-border: #dbe2ea; --e-border-strong: #c3cdd9;
+  --e-text: #0f172a; --e-text-2: #475569; --e-muted: #64748b;
+  --e-primary: #1d4ed8; --e-primary-hover: #1e40af; --e-primary-soft: #e8eefc;
+  --e-danger: #b91c1c; --e-danger-soft: #fdecec; --e-good: #047857; --e-good-soft: #e3f5ee; --e-warn: #b45309; --e-warn-soft: #fdf1dd;
+  --e-side: #0f172a; --e-side-text: #b6c2d3; --e-side-active: #1e293b; --e-side-hover: #172033; --e-side-line: #243146;
+  --e-shadow: 0 1px 2px rgba(15, 23, 42, .06), 0 1px 3px rgba(15, 23, 42, .04);
+  --e-radius: 8px;
+  --e-font: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+/* Light only: the back office looks the same on every machine, whatever the system theme. */
+:root { color-scheme: light; }
+
+body.ent, body.ent-lite { background: var(--e-bg) !important; color: var(--e-text); font-family: var(--e-font); font-size: 14px; line-height: 1.5; margin: 0; }
+
+/* ── Shell ─────────────────────────────────────────────── */
+.ent-app { display: flex; min-height: 100vh; }
+.ent-side { width: 236px; flex: none; background: var(--e-side); color: var(--e-side-text); display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; overflow-y: auto; z-index: 30; }
+.ent-brand { padding: 18px 18px 14px; border-bottom: 1px solid var(--e-side-line); }
+.ent-brand b { display: block; color: #fff; font-size: 15px; letter-spacing: .2px; }
+.ent-brand span { font-size: 11px; color: #7f8da3; }
+.ent-nav { padding: 10px 10px 18px; display: flex; flex-direction: column; gap: 2px; }
+.ent-nav .grp { font-size: 10.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: #6b7a91; padding: 14px 10px 6px; }
+.ent-nav a { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 6px; color: var(--e-side-text); text-decoration: none; font-size: 13.5px; font-weight: 500; border-left: 3px solid transparent; }
+.ent-nav a:hover { background: var(--e-side-hover); color: #fff; }
+.ent-nav a:focus-visible { outline: 2px solid #7aa0ff; outline-offset: -2px; }
+.ent-nav a.on { background: var(--e-side-active); color: #fff; border-left-color: #5b8cff; }
+.ent-nav svg { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+.ent-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ent-top { position: sticky; top: 0; z-index: 20; background: var(--e-surface); border-bottom: 1px solid var(--e-border); padding: 10px 24px; min-height: 56px; display: flex; align-items: center; gap: 14px; }
+.ent-burger { display: none; background: none; border: 1px solid var(--e-border); border-radius: 6px; width: 36px; height: 36px; color: var(--e-text); cursor: pointer; font-size: 18px; }
+.ent-title { min-width: 0; flex: 1; }
+.ent-title h1 { margin: 0; font-size: 17px; font-weight: 650; color: var(--e-text); line-height: 1.25; }
+.ent-title p { margin: 1px 0 0; font-size: 12px; color: var(--e-muted); }
+.ent-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.ent-user { display: flex; align-items: center; gap: 10px; padding-left: 14px; border-left: 1px solid var(--e-border); }
+.ent-user .who { text-align: right; line-height: 1.25; }
+.ent-user .who b { display: block; font-size: 12.5px; font-weight: 600; max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ent-role { display: inline-block; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--e-primary); background: var(--e-primary-soft); padding: 1px 8px; border-radius: 99px; }
+.ent-content { padding: 22px 24px 48px; width: 100%; max-width: 1480px; margin: 0 auto; }
+.ent-content .container { max-width: none !important; width: auto !important; margin: 0 !important; padding: 0 !important; }
+.ent-toast { position: fixed; right: 18px; bottom: 18px; background: #0f172a; color: #fff; padding: 12px 16px; border-radius: 8px; font-size: 13px; box-shadow: 0 8px 24px rgba(0, 0, 0, .25); z-index: 100; }
+
+body.ent-bare .ent-side, body.ent-bare .ent-top { display: none; }
+body.ent-bare .ent-content { max-width: 560px; padding-top: 64px; }
+
+/* Plain pages (sign-in, password reset, customer portal) */
+body.ent-lite header, body.ent-lite .header { background: var(--e-side) !important; color: #fff; box-shadow: none !important; }
+
+@media (max-width: 900px) {
+  .ent-side { position: fixed; left: 0; top: 0; transform: translateX(-100%); transition: transform .18s ease; box-shadow: 0 0 40px rgba(0, 0, 0, .4); }
+  body.ent-open .ent-side { transform: none; }
+  .ent-burger { display: inline-block; }
+  .ent-top { padding: 10px 14px; }
+  .ent-content { padding: 16px 14px 40px; }
+  .ent-user .who { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .ent-side { transition: none; } }
+
+/* ── Standard components ───────────────────────────────── */
+.ent-main .btn, .ent-main button.primary, .ent-main button.secondary, .ent-main .btn-primary, .ent-main .btn-secondary, .ent-main .logout-btn, .ent-top .btn {
+  font: 600 13px/1.2 var(--e-font); padding: 8px 14px; border-radius: 6px; border: 1px solid var(--e-border-strong); background: var(--e-surface); color: var(--e-text);
+  cursor: pointer; box-shadow: none; text-transform: none; letter-spacing: 0; transition: background .12s, border-color .12s;
+}
+.ent-main .btn:hover, .ent-main button.secondary:hover, .ent-main .btn-secondary:hover, .ent-top .btn:hover { background: var(--e-surface-2); border-color: var(--e-muted); }
+.ent-main .btn.primary, .ent-main button.primary, .ent-main .btn-primary, .ent-main .btn.btn-primary, .ent-top .btn.primary { background: var(--e-primary); border-color: var(--e-primary); color: #fff; }
+.ent-main .btn.primary:hover, .ent-main button.primary:hover, .ent-main .btn-primary:hover, .ent-top .btn.primary:hover { background: var(--e-primary-hover); border-color: var(--e-primary-hover); }
+.ent-main .btn.danger, .ent-main .btn.bad, .ent-main button.danger { background: var(--e-danger); border-color: var(--e-danger); color: #fff; }
+.ent-main .btn.good { background: var(--e-good); border-color: var(--e-good); color: #fff; }
+.ent-main .btn.on-dark { background: var(--e-surface); color: var(--e-text); border-color: var(--e-border-strong); }
+.ent-main .btn:disabled, .ent-main button:disabled { opacity: .5; cursor: not-allowed; }
+.ent-main .btn:focus-visible, .ent-main button:focus-visible, .ent-top .btn:focus-visible { outline: 2px solid var(--e-primary); outline-offset: 2px; }
+
+.ent-main input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), .ent-main select, .ent-main textarea {
+  font: 400 13.5px var(--e-font); padding: 8px 10px; border: 1px solid var(--e-border-strong); border-radius: 6px; background: var(--e-surface); color: var(--e-text);
+}
+.ent-main input:focus, .ent-main select:focus, .ent-main textarea:focus { outline: 2px solid var(--e-primary); outline-offset: -1px; border-color: var(--e-primary); }
+.ent-main label { font-size: 12px; font-weight: 600; color: var(--e-text-2); }
+
+.ent-main .card, .ent-main .stat-card, .ent-main .tile, .ent-main .panel, .ent-main .section {
+  background: var(--e-surface); border: 1px solid var(--e-border); border-radius: var(--e-radius); box-shadow: var(--e-shadow); color: var(--e-text);
+}
+.ent-main .card h2, .ent-main .section h2, .ent-main h2 { font-size: 15px; font-weight: 650; color: var(--e-text); }
+
+.ent-main table { border-collapse: collapse; width: 100%; background: transparent; font-size: 13px; }
+.ent-main th { background: var(--e-surface-2); color: var(--e-muted); font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--e-border); }
+.ent-main td { padding: 10px; border-bottom: 1px solid var(--e-border); color: var(--e-text); }
+.ent-main tbody tr:hover td { background: var(--e-surface-2); }
+
+.ent-main .alert { border-radius: 6px; font-size: 13px; border: 1px solid transparent; }
+.ent-main .alert.err, .ent-main .alert.error { background: var(--e-danger-soft); color: var(--e-danger); border-color: var(--e-danger); }
+.ent-main .alert.ok, .ent-main .alert.success { background: var(--e-good-soft); color: var(--e-good); border-color: var(--e-good); }
+
+.ent-main .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--e-border); margin-bottom: 16px; flex-wrap: wrap; background: none; box-shadow: none; padding: 0; }
+.ent-main .tabs button, .ent-main .tab { background: none; border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 10px 14px; font: 600 13px var(--e-font); color: var(--e-muted); cursor: pointer; }
+.ent-main .tabs button:hover, .ent-main .tab:hover { color: var(--e-text); }
+.ent-main .tabs button.on, .ent-main .tabs button.active, .ent-main .tab.active, .ent-main .tab.on { color: var(--e-primary); border-bottom-color: var(--e-primary); background: none; }
+
+.ent-main .pill, .ent-main .badge, .ent-main .status-badge { border-radius: 99px; font-size: 11px; font-weight: 700; }
+.ent-main .modal .panel, .ent-main .modal-content { border-radius: 10px; border: 1px solid var(--e-border); background: var(--e-surface); color: var(--e-text); }
+.ent-main a { color: var(--e-primary); }

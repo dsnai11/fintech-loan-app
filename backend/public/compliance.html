@@ -13,14 +13,7 @@
   --accent: #2a78d6; --header: linear-gradient(135deg, #1e40af 0%, #7c3aed 100%);
   --good: #047857; --bad: #b91c1c; --warn: #b45309;
 }
-@media (prefers-color-scheme: dark) {
-  :root:where(:not([data-theme="light"])) {
-    color-scheme: dark;
-    --bg: #111110; --surface: #1a1a19; --border: #2f2f2d;
-    --text: #fff; --text-2: #c3c2b7; --muted: #9a998f; --accent: #3987e5;
-    --good: #34d399; --bad: #f87171; --warn: #fbbf24;
-  }
-}
+
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); }
 .container { max-width: 1280px; margin: 0 auto; padding: 20px 16px 40px; }
@@ -55,8 +48,9 @@ code { font-size: 11px; color: var(--text-2); word-break: break-all; }
 .pager { display: flex; gap: 10px; align-items: center; padding: 10px 12px; }
 .note { padding: 10px 14px; font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--border); }
 </style>
+<link rel="stylesheet" href="assets/portal.css">
 </head>
-<body>
+<body data-shell="app">
 <div class="container">
   <div class="header">
     <div><h1>Compliance</h1><p>KYC review, AML alerts, data requests and the audit trail</p></div>
@@ -383,5 +377,6 @@ function copyLink() {
 load();
 run(async () => { const d = await json('/admin/compliance/aml/alerts?status=OPEN'); $('aml-count').textContent = d.counts.OPEN ? '(' + d.counts.OPEN + ')' : ''; });
 </script>
+<script src="assets/portal.js"></script>
 </body>
 </html>

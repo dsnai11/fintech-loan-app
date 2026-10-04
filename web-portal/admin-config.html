@@ -178,8 +178,9 @@ input[type="checkbox"] {
 .status-enabled { background: #D1FAE5; color: var(--green); }
 .status-disabled { background: #FEE2E2; color: var(--red); }
 </style>
+<link rel="stylesheet" href="assets/portal.css">
 </head>
-<body>
+<body data-shell="app">
 <header>
   <div class="container" style="width: 100%; display: flex; justify-content: space-between; align-items: center;">
     <div class="logo">⚙️ App Configuration Admin</div>
@@ -446,6 +447,8 @@ async function adminLogin() {
     const LANDING = { credit_officer: 'loan-management.html', finance: 'loan-management.html', kyc_reviewer: 'compliance.html', compliance_officer: 'compliance.html', auditor: 'compliance.html', collections_agent: 'collections.html', collections_manager: 'collections.html' };
     if (user.role && user.role !== 'super_admin') { location.href = LANDING[user.role] || 'customers.html'; return; }
 
+    if (window.PortalShell) PortalShell.refresh();
+
     // Show main content
     document.getElementById('loginForm').style.display = 'none';
     document.getElementById('mainContent').style.display = 'block';
@@ -651,5 +654,6 @@ if (token && currentUser) {
   loadAllConfig();
 }
 </script>
+<script src="assets/portal.js"></script>
 </body>
 </html>

@@ -21,22 +21,7 @@
   --warn: #b45309;
   --bad: #b91c1c;
 }
-@media (prefers-color-scheme: dark) {
-  :root:where(:not([data-theme="light"])) {
-    color-scheme: dark;
-    --bg: #111110;
-    --surface-1: #1a1a19;
-    --border: #2f2f2d;
-    --text-primary: #ffffff;
-    --text-secondary: #c3c2b7;
-    --text-muted: #9a998f;
-    --grid: #2a2a28;
-    --series-1: #3987e5;
-    --series-2: #d95926;
-    --warn: #f59e0b;
-    --bad: #f87171;
-  }
-}
+
 :root[data-theme="dark"] {
   color-scheme: dark;
   --bg: #111110;
@@ -99,8 +84,9 @@ th { color: var(--text-muted); font-size: 11px; text-transform: uppercase; }
 .hidden { display: none; }
 .foot { margin-top: 18px; font-size: 12px; color: var(--text-muted); }
 </style>
+<link rel="stylesheet" href="assets/portal.css">
 </head>
-<body>
+<body data-shell="app">
 <div class="container">
   <div class="header">
     <div>
@@ -371,5 +357,6 @@ async function download(type) {
 
 load();
 </script>
+<script src="assets/portal.js"></script>
 </body>
 </html>

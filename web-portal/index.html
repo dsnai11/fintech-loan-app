@@ -242,8 +242,9 @@ tr:hover { background: var(--light); }
 #loginCard button { width: 100%; margin-top: 6px; }
 #loginMsg { color: var(--red); font-size: 13px; min-height: 18px; margin: 8px 0 0; }
 </style>
+<link rel="stylesheet" href="assets/portal.css">
 </head>
-<body>
+<body data-shell="lite">
 <div id="loginOverlay">
   <form id="loginCard" onsubmit="login(event)">
     <h2>💰 LIFC Loan Portal</h2>
@@ -740,5 +741,6 @@ function showAlert(pageId, type, msg) {
 
 if (token) start(); else showLogin();
 </script>
+<script src="assets/portal.js"></script>
 </body>
 </html>
