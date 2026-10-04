@@ -9,6 +9,13 @@ const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID || 'rzp_test_key';
 const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || 'rzp_test_secret';
 const razorpayAuth = Buffer.from(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`).toString('base64');
 
+// The 3 and 6 month plans charge flat interest (e.g. 5% of the loan, split evenly). Loans made before
+// planType was stored are recognised by their numbers: total repayable equals loan x (1 + rate).
+export function isFlatInterest(loan, emi) {
+  if (loan.planType) return true;
+  return Math.abs(emi * loan.tenure - loan.loanAmount * (1 + (loan.interestRate || 0) / 100)) <= loan.tenure;
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // CREATE EMI SCHEDULE FOR LOAN
 // ═══════════════════════════════════════════════════════════════════
@@ -24,30 +31,42 @@ export async function createEMISchedule(loanId) {
     const monthlyEMI = loan.monthlyEMI || calculateEMI(loan);
     const tenure = loan.tenure;
     const startDate = loan.disbursementDate || new Date();
+    const principalTotal = loan.loanAmount;
+    const flat = isFlatInterest(loan, monthlyEMI);
+    const monthlyRate = loan.interestRate / 12 / 100;
 
-    let outstandingPrincipal = loan.loanAmount;
-    const rate = loan.interestRate / 12 / 100;
-
+    // Whatever the plan, the principal parts add up to exactly the loan amount.
+    let balance = principalTotal;
     for (let i = 1; i <= tenure; i++) {
       const dueDate = new Date(startDate);
       dueDate.setMonth(dueDate.getMonth() + i);
+      const last = i === tenure;
 
-      // Calculate interest for this month
-      const interestAmount = Math.round(outstandingPrincipal * rate);
-      const principalAmount = monthlyEMI - interestAmount;
+      let principalAmount;
+      let interestAmount;
+      if (flat) {
+        // Flat plans: the same principal and the same interest every month.
+        principalAmount = last ? balance : Math.round(principalTotal / tenure);
+        interestAmount = Math.max(0, monthlyEMI - principalAmount);
+      } else {
+        // Reducing balance: interest on what is still owed; the last EMI clears whatever is left.
+        const accrued = Math.round(balance * monthlyRate);
+        principalAmount = last ? balance : Math.min(balance, monthlyEMI - accrued);
+        interestAmount = last ? Math.max(0, monthlyEMI - principalAmount) : accrued;
+      }
 
       await EMIPayment.create({
         loanId,
         userId: loan.userId,
         emiNumber: i,
         dueDate,
-        amount: monthlyEMI,
+        amount: principalAmount + interestAmount,
         principalAmount,
         interestAmount,
         status: 'PENDING',
       });
 
-      outstandingPrincipal -= principalAmount;
+      balance -= principalAmount;
     }
 
     console.log(`✅ EMI schedule created for loan ${loanId}: ${tenure} months`);
@@ -198,15 +217,16 @@ export async function initiateEMIPayment(loanId, emiNumber, userId) {
   }
 }
 
-async function markEMIPaid(emi, paymentId) {
+async function markEMIPaid(emi, paymentId, amountPaid) {
+  const paid = amountPaid ?? emi.amount + emi.penaltyApplied;
   await EMIPayment.findByIdAndUpdate(emi._id, {
     status: 'PAID',
     paymentId,
     paidDate: new Date(),
-    paidAmount: emi.amount + emi.penaltyApplied,
+    paidAmount: paid,
   });
 
-  await notify(emi.userId, templates.emiPaid(emi, emi.amount + emi.penaltyApplied), { sms: true });
+  await notify(emi.userId, templates.emiPaid(emi, paid), { sms: true });
 
   const unpaid = await EMIPayment.countDocuments({ loanId: emi.loanId, status: { $ne: 'PAID' } });
   if (unpaid === 0) {
@@ -221,13 +241,22 @@ async function markEMIPaid(emi, paymentId) {
 
 export async function processEMIPayment(paymentData) {
   try {
-    const { invoice_id, payment_id, status } = paymentData;
+    const { invoice_id, payment_id, status, amount_paid } = paymentData;
 
     const emi = await EMIPayment.findOne({ orderId: invoice_id });
-    if (!emi) throw new Error('EMI not found');
+    if (!emi) {
+      // Not one of ours (or already cleaned up). Acknowledge so Razorpay does not keep retrying.
+      console.warn(`Webhook for unknown invoice ${invoice_id} ignored`);
+      return { success: true, ignored: true, reason: 'unknown invoice' };
+    }
 
     if (status === 'paid') {
-      await markEMIPaid(emi, payment_id);
+      if (emi.status === 'PAID') return { success: true, alreadyPaid: true };
+      if (typeof amount_paid === 'number' && amount_paid + 1 < emi.amount) {
+        console.error(`EMI ${emi._id}: invoice ${invoice_id} paid ${amount_paid}, expected at least ${emi.amount}. Not marking paid.`);
+        return { success: false, reason: 'underpaid' };
+      }
+      await markEMIPaid(emi, payment_id, typeof amount_paid === 'number' ? amount_paid : undefined);
     } else if (status === 'issued') {
       // Payment pending
       await EMIPayment.findByIdAndUpdate(emi._id, {

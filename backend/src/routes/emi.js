@@ -3,8 +3,8 @@ import EMIPayment from '../models/EMIPayment.js';
 import Loan from '../models/Loan.js';
 import { adminMiddleware, authMiddleware } from '../middleware/auth.js';
 import EMIService from '../services/emiService.js';
+import { verifyRazorpayWebhook } from '../services/webhookSecurity.js';
 import { getForeclosureQuote, executeForeclosure } from '../services/foreclosureService.js';
-import crypto from 'crypto';
 
 const router = express.Router();
 
@@ -102,22 +102,22 @@ router.post('/foreclosure/:loanId', authMiddleware, async (req, res) => {
 
 router.post('/webhook/razorpay', async (req, res) => {
   try {
-    const signature = req.headers['x-razorpay-signature'];
-    const body = JSON.stringify(req.body);
+    const check = verifyRazorpayWebhook(req);
+    if (!check.ok) return res.status(check.status).json({ error: check.error });
 
-    // Verify signature
-    const expectedSignature = crypto
-      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET || 'test_secret')
-      .update(body)
-      .digest('hex');
+    const { event, payload } = req.body || {};
+    if (event !== 'invoice.paid') return res.json({ status: 'ok', ignored: true, event });
 
-    if (signature !== expectedSignature) {
-      return res.status(401).json({ error: 'Invalid signature' });
-    }
+    const invoice = payload?.invoice?.entity;
+    const payment = payload?.payment?.entity;
+    if (!invoice?.id) return res.status(400).json({ error: 'Invoice details missing' });
 
-    // Process payment
-    const result = await EMIService.processEMIPayment(req.body);
-
+    const result = await EMIService.processEMIPayment({
+      invoice_id: invoice.id,
+      payment_id: payment?.id,
+      status: 'paid',
+      amount_paid: typeof invoice.amount_paid === 'number' ? invoice.amount_paid / 100 : undefined,
+    });
     res.json({ status: 'ok', ...result });
   } catch (error) {
     console.error('Webhook error:', error.message);

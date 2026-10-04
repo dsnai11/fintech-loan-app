@@ -93,6 +93,7 @@ router.post('/apply-full', authMiddleware, async (req, res) => {
       monthlyEMI,
       totalAmount: monthlyEMI * actualTenure,
       status: 'submitted',
+      planType: ['one_time', '3_emi', '6_emi'].includes(planType) ? planType : undefined,
       disbursalDetails: {
         accountNumber: bankDetails?.accountNumber || '',
         bankName: _inferBankName(bankDetails?.ifscCode),

@@ -80,7 +80,7 @@ router.get('/summary', async (req, res) => {
 
     const [applications, disbursedTrend, collections] = await Promise.all([
       monthlySeries(Loan, 'createdAt', '$loanAmount', {}, months),
-      monthlySeries(Loan, 'disbursementDate', '$disbursedAmount', { status: { $in: REPAYING } }, months),
+      monthlySeries(Loan, 'disbursementDate', '$loanAmount', { status: { $in: REPAYING } }, months),
       monthlySeries(EMIPayment, 'paidDate', '$paidAmount', { status: 'PAID' }, months),
     ]);
 

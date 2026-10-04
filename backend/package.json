@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node test/run.mjs",
     "sync-portal": "node -e \"require('fs').readdirSync('../web-portal').filter(f=>f.endsWith('.html')).forEach(f=>require('fs').copyFileSync('../web-portal/'+f,'public/'+f))\""
   },
   "dependencies": {

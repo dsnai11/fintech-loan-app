@@ -6,6 +6,7 @@ const loanSchema = new mongoose.Schema(
     loanAmount: { type: Number, required: true, min: 1000, max: 500000 },
     tenure: { type: Number, required: true, min: 1, max: 60 },
     purpose: { type: String, enum: ['Personal', 'Business', 'Education', 'Medical', 'Other'] },
+    planType: { type: String, enum: ['one_time', '3_emi', '6_emi'] },
     loanType: { type: String, enum: ['Personal Loan', 'Micro Loan', 'Business Loan'], default: 'Personal Loan' },
     status: {
       type: String,

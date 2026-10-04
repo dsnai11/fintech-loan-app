@@ -76,6 +76,7 @@ code { font-size: 11px; color: var(--text-2); word-break: break-all; }
     <button data-t="watch">Watchlist</button>
     <button data-t="req">Data requests</button>
     <button data-t="audit">Audit log</button>
+    <button data-t="reset">Customer password reset</button>
   </div>
 
   <div id="p-kyc" class="card">
@@ -107,6 +108,18 @@ code { font-size: 11px; color: var(--text-2); word-break: break-all; }
     <div class="bar" style="padding:10px 12px 0"><select id="req-status"><option value="OPEN">Open</option><option value="COMPLETED">Completed</option><option value="REJECTED">Rejected</option></select></div>
     <div class="scroll"><table><thead><tr><th>Customer</th><th>Requested</th><th>Reason</th><th>Unsettled loans</th><th>Note</th><th></th></tr></thead><tbody id="req-rows"></tbody></table></div>
     <div id="req-empty" class="empty" style="display:none">No requests.</div>
+  </div>
+
+  <div id="p-reset" class="card" style="display:none">
+    <div class="note">For a customer who cannot get the reset email. Confirm who they are first (for example by calling the phone number on their account), then create a one-time link and give it to them. The link works once and expires in 2 hours.</div>
+    <div class="form">
+      <input id="r-id" placeholder="Customer email or phone number"><button class="btn primary" onclick="createResetLink()">Create reset link</button>
+    </div>
+    <div id="r-out" style="padding: 14px; display: none;">
+      <div id="r-who" style="font-weight: 700; margin-bottom: 6px;"></div>
+      <input id="r-link" readonly style="width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font-size: 12px;">
+      <div style="margin-top: 8px; display: flex; gap: 8px; align-items: center;"><button class="btn" onclick="copyLink()">Copy link</button><span id="r-exp" class="muted"></span></div>
+    </div>
   </div>
 
   <div id="p-audit" class="card" style="display:none">
@@ -160,10 +173,10 @@ $('tabs').addEventListener('click', e => {
   const t = e.target.closest('button')?.dataset.t; if (!t) return;
   tab = t;
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
-  for (const k of ['kyc', 'aml', 'watch', 'req', 'audit']) $('p-' + k).style.display = k === t ? '' : 'none';
+  for (const k of ['kyc', 'aml', 'watch', 'req', 'audit', 'reset']) $('p-' + k).style.display = k === t ? '' : 'none';
   load();
 });
-function load() { $('alert').classList.remove('show'); run({ kyc: loadKyc, aml: loadAml, watch: loadWatch, req: loadReq, audit: loadAudit }[tab]); }
+function load() { $('alert').classList.remove('show'); run({ kyc: loadKyc, aml: loadAml, watch: loadWatch, req: loadReq, audit: loadAudit, reset: async () => {} }[tab]); }
 
 // ── KYC ──
 async function loadKyc() {
@@ -270,6 +283,22 @@ function exportAudit() {
     const url = URL.createObjectURL(await r.blob());
     const a = document.createElement('a'); a.href = url; a.download = 'audit-log.csv'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
   });
+}
+
+function createResetLink() {
+  run(async () => {
+    const d = await json('/admin/compliance/customers/reset-link', 'POST', { identifier: $('r-id').value });
+    $('r-who').textContent = `${d.customer.name} - ${d.customer.email} - ${d.customer.phone}`;
+    $('r-link').value = d.link;
+    $('r-exp').textContent = 'Expires ' + dateTime(d.expires);
+    $('r-out').style.display = 'block';
+    msg('Link created. Give it only to this customer.', 'ok');
+  });
+}
+function copyLink() {
+  const input = $('r-link');
+  input.select();
+  (navigator.clipboard ? navigator.clipboard.writeText(input.value) : Promise.resolve(document.execCommand('copy'))).then(() => msg('Copied.', 'ok'));
 }
 
 load();

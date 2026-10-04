@@ -3,7 +3,7 @@ import Loan from '../models/Loan.js';
 import Transaction from '../models/Transaction.js';
 import { adminMiddleware, authMiddleware } from '../middleware/auth.js';
 import PaymentService from '../services/paymentService.js';
-import crypto from 'crypto';
+import { verifyRazorpayWebhook } from '../services/webhookSecurity.js';
 
 const router = express.Router();
 
@@ -115,27 +115,11 @@ router.get('/history', authMiddleware, async (req, res) => {
 
 router.post('/webhook/razorpay', async (req, res) => {
   try {
-    const signature = req.headers['x-razorpay-signature'];
-    const body = JSON.stringify(req.body);
+    const check = verifyRazorpayWebhook(req);
+    if (!check.ok) return res.status(check.status).json({ error: check.error });
 
-    // Verify webhook signature
-    const expectedSignature = crypto
-      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET || 'test_secret')
-      .update(body)
-      .digest('hex');
-
-    if (signature !== expectedSignature) {
-      return res.status(401).json({ error: 'Invalid signature' });
-    }
-
-    // Process webhook
     const result = await PaymentService.handlePayoutWebhook(req.body);
-
-    res.json({
-      status: 'ok',
-      message: 'Webhook processed',
-      result,
-    });
+    res.json({ status: 'ok', message: 'Webhook processed', result });
   } catch (error) {
     console.error('Webhook error:', error.message);
     res.status(500).json({ error: error.message });

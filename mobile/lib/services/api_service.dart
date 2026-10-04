@@ -197,6 +197,14 @@ class ApiService {
     }
   }
 
+  Future<void> forgotPassword(String email) async {
+    try {
+      await _dio.post('/auth/forgot-password', data: {'email': email});
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   // Compliance endpoints
   Future<Map<String, dynamic>> getAgreement(String loanId) async {
     try {

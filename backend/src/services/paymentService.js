@@ -58,8 +58,12 @@ function bankOf(loan) {
   return bank;
 }
 
+// Fees and GST are deducted when the loan is paid out, so the customer receives less than the loan amount.
+const payoutAmount = loan => loan.disbursalDetails?.disbursedAmount || loan.loanAmount;
+
 export async function initiateTransfer(loanId, loan, adminEmail = 'admin') {
   await assertDisbursable(loan);
+  const payout = payoutAmount(loan);
   const bank = bankOf(loan);
   const bankDetails = {
     accountNumber: bank.accountNumber,
@@ -71,7 +75,7 @@ export async function initiateTransfer(loanId, loan, adminEmail = 'admin') {
     loanId,
     userId: loan.userId._id,
     type: 'DISBURSEMENT',
-    amount: loan.loanAmount,
+    amount: payout,
     bankDetails,
   };
 
@@ -84,9 +88,9 @@ export async function initiateTransfer(loanId, loan, adminEmail = 'admin') {
       transferId,
       metadata: { sandbox: true, initiatedBy: adminEmail, initiatedAt: new Date(), completedAt: new Date() },
     });
-    await markLoanDisbursed(loanId, loan.loanAmount, transferId, adminEmail);
-    await audit({ email: adminEmail, role: 'admin' }, 'LOAN_DISBURSED', { type: 'Loan', id: loanId }, { amount: loan.loanAmount, mode: 'sandbox' });
-    return { status: 'COMPLETED', transferId, amount: loan.loanAmount };
+    await markLoanDisbursed(loanId, payout, transferId, adminEmail);
+    await audit({ email: adminEmail, role: 'admin' }, 'LOAN_DISBURSED', { type: 'Loan', id: loanId }, { amount: payout, loanAmount: loan.loanAmount, mode: 'sandbox' });
+    return { status: 'COMPLETED', transferId, amount: payout };
   }
 
   try {
@@ -94,7 +98,7 @@ export async function initiateTransfer(loanId, loan, adminEmail = 'admin') {
       `${RAZORPAY_API}/payouts`,
       {
         account_number: process.env.RAZORPAY_ACCOUNT_ID,
-        amount: Math.round(loan.loanAmount * 100),
+        amount: Math.round(payout * 100),
         currency: 'INR',
         mode: 'NEFT',
         purpose: 'payout',
@@ -122,8 +126,8 @@ export async function initiateTransfer(loanId, loan, adminEmail = 'admin') {
       transferId: res.data.id,
       metadata: { razorpayResponse: res.data, initiatedBy: adminEmail, initiatedAt: new Date() },
     });
-    await audit({ email: adminEmail, role: 'admin' }, 'DISBURSEMENT_INITIATED', { type: 'Loan', id: loanId }, { amount: loan.loanAmount, transferId: res.data.id });
-    return { status: 'PROCESSING', transferId: res.data.id, amount: loan.loanAmount };
+    await audit({ email: adminEmail, role: 'admin' }, 'DISBURSEMENT_INITIATED', { type: 'Loan', id: loanId }, { amount: payout, loanAmount: loan.loanAmount, transferId: res.data.id });
+    return { status: 'PROCESSING', transferId: res.data.id, amount: payout };
   } catch (error) {
     await Transaction.create({
       ...base,
@@ -166,6 +170,7 @@ export async function handlePayoutWebhook({ event, payload }) {
   const payout = payload.payout.entity;
   const tx = await Transaction.findOne({ transferId: payout.id });
   if (!tx) return { success: true, processed: false };
+  if (tx.status === 'COMPLETED' && event !== 'payout.reversed') return { success: true, processed: false, reason: 'already completed' };
 
   if (event === 'payout.processed' || event === 'payout.completed') {
     tx.status = 'COMPLETED';
@@ -173,6 +178,11 @@ export async function handlePayoutWebhook({ event, payload }) {
     tx.metadata.webhookProcessed = true;
     await tx.save();
     await markLoanDisbursed(tx.loanId, tx.amount, payout.id, tx.metadata?.initiatedBy);
+  } else if (event === 'payout.reversed') {
+    tx.status = 'REVERSED';
+    tx.metadata.webhookProcessed = true;
+    await tx.save();
+    await audit('system', 'DISBURSEMENT_REVERSED', { type: 'Loan', id: tx.loanId }, { transferId: payout.id });
   } else if (event === 'payout.failed' || event === 'payout.rejected') {
     tx.status = 'FAILED';
     tx.metadata.failureReason = payout.failure_reason;

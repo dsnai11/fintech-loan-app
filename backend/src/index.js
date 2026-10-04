@@ -42,13 +42,18 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
-const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, message: { error: 'Too many attempts, try again in 15 minutes' } });
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: Number(process.env.AUTH_RATE_LIMIT) || 20, message: { error: 'Too many attempts, try again in 15 minutes' } });
 const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: Number(process.env.API_RATE_LIMIT) || 200 });
 
 app.use('/api/auth', authLimiter);
 app.use('/api', apiLimiter);
 
-app.use(express.json({ limit: '5mb' }));
+app.use(express.json({
+  limit: '5mb',
+  verify: (req, res, buf) => {
+    if (req.originalUrl.includes('/webhook/')) req.rawBody = buf;
+  },
+}));
 app.use(express.urlencoded({ limit: '5mb', extended: true }));
 
 const PORT = process.env.PORT || 5000;
@@ -60,7 +65,7 @@ mongoose.connect(mongoUrl)
     console.log('MongoDB connected');
     await loadAllConfig(); // load API keys from DB into memory
     await ensureAdmin();
-    startScheduler();
+    if (process.env.DISABLE_SCHEDULER !== '1') startScheduler();
   })
   .catch(err => console.log('MongoDB connection error:', err));
 

@@ -12,6 +12,7 @@ import { adminMiddleware } from '../middleware/auth.js';
 import { audit, verifyChain } from '../services/auditService.js';
 import { raiseWatchlistAlerts } from '../services/amlService.js';
 import { notify } from '../services/notificationService.js';
+import { issueResetToken } from '../services/passwordReset.js';
 
 const router = express.Router();
 router.use(adminMiddleware);
@@ -226,6 +227,24 @@ router.delete('/aml/watchlist/:id', async (req, res) => {
     if (!doc) return bad(res, 404, 'Entry not found');
     await audit(req.user, 'WATCHLIST_REMOVED', { type: 'WatchlistEntry', id: doc._id }, {}, req);
     res.json({ message: 'Removed from watchlist' });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Customer password reset (when self-service email is not available) ──
+router.post('/customers/reset-link', async (req, res) => {
+  try {
+    const identifier = trunc(req.body?.identifier, 120).toLowerCase();
+    if (!identifier) return bad(res, 400, "Enter the customer's email or phone number");
+    const user = await User.findOne({ $or: [{ email: identifier }, { phone: identifier }] });
+    if (!user) return bad(res, 404, 'No customer found with that email or phone');
+    if (user.email === (process.env.ADMIN_EMAIL || 'admin@lifc.in').toLowerCase()) {
+      return bad(res, 403, 'Admin passwords are reset from the server settings, not from here');
+    }
+    const { link, expires } = await issueResetToken(user._id, 120);
+    await audit(req.user, 'ADMIN_RESET_LINK_CREATED', { type: 'User', id: user._id }, { expires: expires.toISOString() }, req);
+    res.json({ customer: { name: `${user.firstName} ${user.lastName}`, email: user.email, phone: user.phone }, link, expires });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

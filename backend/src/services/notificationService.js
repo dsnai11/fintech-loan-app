@@ -46,6 +46,11 @@ async function sendSms(user, message) {
   }
 }
 
+// For account emails (password reset). Returns 'sent', 'failed' or 'skipped' (email not configured).
+export async function sendPlainEmail(to, subject, text) {
+  return sendEmail({ email: to, firstName: 'there' }, subject, text);
+}
+
 // Never throws: a notification failure must not break loan or payment flows.
 export async function notify(userId, { type, title, message, loanId }, { email = true, sms = false } = {}) {
   try {

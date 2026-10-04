@@ -1,0 +1,22 @@
+# Flutter / Dart build output and machine-specific files
+.dart_tool/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+
+# Android
+android/.gradle/
+android/local.properties
+android/app/debug/
+android/app/profile/
+android/app/release/
+*.jks
+*.keystore
+
+# IDE
+.idea/
+*.iml
+.vscode/
