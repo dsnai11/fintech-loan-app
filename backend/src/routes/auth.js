@@ -1,9 +1,15 @@
 import express from 'express';
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
 import User from '../models/User.js';
 import { generateToken } from '../middleware/auth.js';
 import { audit } from '../services/auditService.js';
 import { issueResetToken, consumeResetToken } from '../services/passwordReset.js';
 import { sendPlainEmail } from '../services/notificationService.js';
+import { lockedSeconds, recordFailure, recordSuccess, lockMessage } from '../services/loginGuard.js';
+
+// Checked against when the email is unknown, so a wrong email and a wrong password take the same time.
+const DUMMY_HASH = bcrypt.hashSync('not-a-real-password', 10);
 
 const router = express.Router();
 
@@ -18,6 +24,9 @@ router.post('/signup', async (req, res) => {
 
     if (password !== confirmPassword) {
       return res.status(400).json({ error: 'Passwords do not match' });
+    }
+    if (typeof password !== 'string' || password.length < 8 || password.length > 128) {
+      return res.status(400).json({ error: 'Password must be 8 to 128 characters' });
     }
 
     const existingUser = await User.findOne({ $or: [{ email }, { phone }] });
@@ -62,15 +71,27 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
+    const locked = await lockedSeconds(email);
+    if (locked) return res.status(429).json({ error: lockMessage(locked) });
+
     const user = await User.findOne({ email });
-    if (!user) {
+    const passwordOk = user ? await user.comparePassword(String(password)) : (await bcrypt.compare(String(password), DUMMY_HASH), false);
+    if (!passwordOk) {
+      const nowLocked = await recordFailure(email);
+      if (nowLocked && user) await audit({ email, role: 'customer' }, 'ACCOUNT_LOCKED', { type: 'User', id: user._id }, { at: 'password step' }, req);
       return res.status(400).json({ error: 'Invalid email or password' });
+    }
+    if (user.status && user.status !== 'active') {
+      return res.status(403).json({ error: 'Your account is not active. Please contact support.' });
     }
 
-    const isPasswordMatch = await user.comparePassword(password);
-    if (!isPasswordMatch) {
-      return res.status(400).json({ error: 'Invalid email or password' });
+    // With two-factor on, the failure counter is only cleared once the code is also right. Otherwise someone
+    // who knows the password could sign in again after every wrong code and never run out of guesses.
+    if (user.twoFactorEnabled) {
+      const challengeToken = jwt.sign({ userId: String(user._id), purpose: '2fa' }, process.env.JWT_SECRET, { expiresIn: '5m' });
+      return res.json({ twoFactorRequired: true, challengeToken });
     }
+    await recordSuccess(email);
 
     const adminEmail = (process.env.ADMIN_EMAIL || 'admin@lifc.in').toLowerCase();
     const isAdmin = user.email === adminEmail;

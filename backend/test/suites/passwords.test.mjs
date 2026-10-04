@@ -37,12 +37,12 @@ section('ASKING FOR A RESET LINK');
 const known = await forgot('alice@x.in');
 const unknown = await forgot('nobody@x.in');
 check('known and unknown emails get the same answer (no account fishing)', known.s === 200 && unknown.s === 200 && known.d.message === unknown.d.message);
-const stored = await User.findById(alice._id);
+const stored = await User.findById(alice._id).select('+passwordResetHash +passwordResetExpires');
 check('a reset token hash is stored, valid for about an hour', /^[a-f0-9]{64}$/.test(stored.passwordResetHash) && Math.abs(stored.passwordResetExpires - Date.now() - 3600000) < 60000);
 await forgot('alice@x.in');
-check('asking again within a minute does not send or replace anything', (await User.findById(alice._id)).passwordResetHash === stored.passwordResetHash);
+check('asking again within a minute does not send or replace anything', (await User.findById(alice._id).select('+passwordResetHash')).passwordResetHash === stored.passwordResetHash);
 await forgot('blocked@x.in');
-check('a blocked account gets no reset token', !(await User.findById(blocked._id)).passwordResetHash);
+check('a blocked account gets no reset token', !(await User.findById(blocked._id).select('+passwordResetHash')).passwordResetHash);
 check('empty email is a bad request (400)', (await call('POST', '/auth/forgot-password', null, {})).s === 400);
 check('the request is recorded, without the token', await hasAudit('PASSWORD_RESET_REQUESTED', e => !JSON.stringify(e).includes(stored.passwordResetHash)));
 

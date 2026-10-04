@@ -116,9 +116,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 </div>
 
 <script>
-const API = ['localhost', '127.0.0.1'].includes(location.hostname)
-  ? 'http://localhost:5000/api'
-  : 'https://fintech-loan-app-production.up.railway.app/api';
+const API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
 const token = localStorage.getItem('admin_token');
 if (!token) location.href = 'admin-config.html';
 

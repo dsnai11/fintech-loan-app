@@ -44,10 +44,16 @@ const userSchema = new mongoose.Schema(
     loanHistory: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Loan' }],
     creditScore: { type: Number, min: 0, max: 900 },
     phoneVerified: { type: Boolean, default: false },
-    passwordResetHash: String,
-    passwordResetExpires: Date,
+    // Never returned by a normal query. Ask for them with .select('+field') when needed.
+    passwordResetHash: { type: String, select: false },
+    passwordResetExpires: { type: Date, select: false },
     passwordResetRequestedAt: Date,
     passwordChangedAt: Date,
+    twoFactorEnabled: { type: Boolean, default: false },
+    twoFactorSecret: { type: String, select: false },
+    twoFactorPendingSecret: { type: String, select: false },
+    twoFactorRecovery: { type: [String], select: false },
+    twoFactorLastStep: { type: Number, select: false },
     status: { type: String, enum: ['active', 'inactive', 'blocked'], default: 'active' },
   },
   { timestamps: true }

@@ -4,6 +4,8 @@ import User from '../models/User.js';
 
 // A token is only good while its account exists, is active, and the password has not changed since it was issued.
 async function accountProblem(decoded) {
+  // A two-factor challenge token only proves the password was right. It is never a session.
+  if (decoded.purpose) return { status: 401, error: 'Invalid token' };
   if (!mongoose.isValidObjectId(decoded.userId)) return { status: 401, error: 'Invalid token' };
   const account = await User.findById(decoded.userId).select('status passwordChangedAt');
   if (!account) return { status: 401, error: 'Account not found' };
@@ -34,6 +36,7 @@ export const adminMiddleware = async (req, res, next) => {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) return res.status(401).json({ error: 'No token provided' });
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (decoded.purpose) return res.status(401).json({ error: 'Invalid token' });
     const adminEmail = (process.env.ADMIN_EMAIL || 'admin@lifc.in').toLowerCase();
     if (String(decoded.email).toLowerCase() !== adminEmail && !decoded.isAdmin) {
       return res.status(403).json({ error: 'Admin access required' });
@@ -49,6 +52,6 @@ export const adminMiddleware = async (req, res, next) => {
 
 export const generateToken = (userId, email, isAdmin = false) => {
   return jwt.sign({ userId, email, isAdmin }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRE || '7d',
+    expiresIn: isAdmin ? process.env.ADMIN_JWT_EXPIRE || '12h' : process.env.JWT_EXPIRE || '7d',
   });
 };

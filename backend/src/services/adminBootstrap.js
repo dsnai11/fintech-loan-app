@@ -1,8 +1,10 @@
 import User from '../models/User.js';
+import LoginAttempt from '../models/LoginAttempt.js';
 import { audit } from './auditService.js';
 
 // If ADMIN_RESET_PASSWORD is set, the admin account (ADMIN_EMAIL) is created, or its password is
-// set to that value, when the server starts. It exists so you can get into a fresh deployment
+// set to that value, when the server starts. This also lifts any sign-in lockout and turns two-factor off,
+// which is the way back in if the authenticator phone is lost. It exists so you can get into a fresh deployment
 // without shell access. Set it in the Railway dashboard, sign in, then delete the variable.
 export async function ensureAdmin() {
   const password = process.env.ADMIN_RESET_PASSWORD;
@@ -28,8 +30,11 @@ export async function ensureAdmin() {
     } else {
       admin.password = password;
       admin.status = 'active';
+      admin.twoFactorEnabled = false;
     }
     await admin.save();
+    if (!created) await User.updateOne({ _id: admin._id }, { $unset: { twoFactorSecret: '', twoFactorPendingSecret: '', twoFactorRecovery: '', twoFactorLastStep: '' } });
+    await LoginAttempt.deleteOne({ key: email });
     await audit('system', created ? 'ADMIN_CREATED' : 'ADMIN_PASSWORD_RESET', { type: 'User', id: admin._id }, { via: 'ADMIN_RESET_PASSWORD' });
     console.warn(`Admin account ${email} was ${created ? 'created' : 'updated'} from ADMIN_RESET_PASSWORD. Remove that variable now.`);
   } catch (e) {

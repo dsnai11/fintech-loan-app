@@ -21,6 +21,7 @@ import reportRoutes from './routes/reports.js';
 import collectionsRoutes from './routes/collections.js';
 import complianceRoutes from './routes/compliance.js';
 import adminComplianceRoutes from './routes/adminCompliance.js';
+import twoFactorRoutes from './routes/twoFactor.js';
 import { startScheduler } from './services/notificationService.js';
 import { ensureAdmin } from './services/adminBootstrap.js';
 import { loadAllConfig } from './services/configService.js';
@@ -35,7 +36,26 @@ const app = express();
 // proxy, so all users would share one rate limit and every logged IP would be the proxy's.
 app.set('trust proxy', 1);
 
-app.use(helmet({ contentSecurityPolicy: false })); // admin portal pages use inline scripts/styles
+// The portal pages use inline scripts and handlers, so those stay allowed. Everything else is locked
+// down: no other origins for scripts, styles or connections, no plugins, no framing, no <base> tricks.
+app.use(helmet({
+  contentSecurityPolicy: {
+    useDefaults: false,
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrcAttr: ["'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:'],
+      fontSrc: ["'self'"],
+      connectSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+      frameAncestors: ["'none'"],
+    },
+  },
+}));
 app.use(cors({
   origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -69,6 +89,7 @@ mongoose.connect(mongoUrl)
   })
   .catch(err => console.log('MongoDB connection error:', err));
 
+app.use('/api/auth/2fa', twoFactorRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/loans', loanRoutes);
 app.use('/api/users', userRoutes);

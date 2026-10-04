@@ -1,5 +1,6 @@
 import { check, section, connect, disconnect, startServer, finish, client } from '../lib.mjs';
 import AuditLog from '../../src/models/AuditLog.js';
+import User from '../../src/models/User.js';
 
 const DB = 'fintech-test-bootstrap';
 await connect(DB);
@@ -38,6 +39,17 @@ call = await boot({ ADMIN_RESET_PASSWORD: 'short' });
 check('server warns that it was ignored', /ignored/.test(srv.logs()));
 check('the existing password is untouched', (await login(call, 'Second-Admin-Pass-2')).s === 200);
 check('the short value is not a password', (await login(call, 'short')).s === 400);
+
+section('RESET ALSO LIFTS A LOCKOUT AND TURNS TWO-FACTOR OFF');
+call = await boot({});
+for (let i = 0; i < 5; i++) await login(call, 'wrong-wrong-1');
+check('five wrong passwords lock the admin out (even a right password is refused)', (await login(call, 'Second-Admin-Pass-2')).s === 429);
+await User.updateOne({ email: 'admin@lifc.in' }, { twoFactorEnabled: true, twoFactorSecret: 'planted' });
+call = await boot({ ADMIN_RESET_PASSWORD: 'Fourth-Admin-Pass-4' });
+const back = await login(call, 'Fourth-Admin-Pass-4');
+check('the reset gets the admin back in, with no code asked for', back.s === 200 && !!back.d.token && !back.d.twoFactorRequired, JSON.stringify(back.d));
+const adm = await User.findOne({ email: 'admin@lifc.in' }).select('+twoFactorSecret');
+check('two-factor is switched off and its secret removed', adm.twoFactorEnabled === false && !adm.twoFactorSecret);
 
 section('AUDIT TRAIL');
 const actions = (await AuditLog.find().sort({ seq: 1 })).map(e => e.action);

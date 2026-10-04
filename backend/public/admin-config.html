@@ -210,6 +210,10 @@ input[type="checkbox"] {
         <label>Password</label>
         <input type="password" id="passwordInput" placeholder="Enter password">
       </div>
+      <div class="form-group" id="codeRow" style="display: none;">
+        <label>Authenticator code or recovery code</label>
+        <input type="text" id="codeInput" placeholder="123456" autocomplete="one-time-code" inputmode="numeric">
+      </div>
       <button class="primary" onclick="adminLogin()" style="width: 100%; padding: 12px;">Login</button>
       <div id="loginError" style="margin-top: 15px;"></div>
       <p style="margin-top: 12px; font-size: 13px;"><a href="forgot-password.html">Forgot your password?</a></p>
@@ -385,28 +389,41 @@ input[type="checkbox"] {
 </div>
 
 <script>
-const API_URL = ['localhost', '127.0.0.1'].includes(location.hostname)
-  ? 'http://localhost:5000/api'
-  : 'https://fintech-loan-app-production.up.railway.app/api';
+const API_URL = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
 let token = localStorage.getItem('admin_token');
 let currentUser = localStorage.getItem('admin_user');
 
-async function adminLogin() {
-  const email = document.getElementById('emailInput').value;
-  const password = document.getElementById('passwordInput').value;
+let challengeToken = null;
 
-  if (!email || !password) return alert('Enter email and password');
+async function adminLogin() {
+  const email = document.getElementById('emailInput').value.trim();
+  const password = document.getElementById('passwordInput').value;
+  const code = document.getElementById('codeInput').value.trim();
+
+  if (!challengeToken && (!email || !password)) return alert('Enter email and password');
+  if (challengeToken && !code) return showLoginError('Enter the code from your authenticator app');
 
   try {
-    const res = await fetch(`${API_URL}/auth/login`, {
+    const res = await fetch(`${API_URL}${challengeToken ? '/auth/2fa/verify' : '/auth/login'}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
+      body: JSON.stringify(challengeToken ? { challengeToken, code } : { email, password })
     });
-
-    if (!res.ok) throw new Error('Login failed - invalid credentials');
-
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (res.status === 401 && challengeToken) {
+        challengeToken = null;
+        document.getElementById('codeRow').style.display = 'none';
+      }
+      throw new Error(data.error || 'Login failed - invalid credentials');
+    }
+    if (data.twoFactorRequired) {
+      challengeToken = data.challengeToken;
+      document.getElementById('codeRow').style.display = 'block';
+      document.getElementById('codeInput').focus();
+      showLoginError('Enter the 6-digit code from your authenticator app, or a recovery code.');
+      return;
+    }
     const user = data.user;
 
     // Check if user is admin

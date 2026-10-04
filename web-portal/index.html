@@ -250,6 +250,7 @@ tr:hover { background: var(--light); }
     <p class="sub">Sign in with the email and password you use in the LIFC app.</p>
     <div class="form-group"><label for="loginEmail">Email</label><input type="email" id="loginEmail" autocomplete="username" required></div>
     <div class="form-group"><label for="loginPassword">Password</label><input type="password" id="loginPassword" autocomplete="current-password" required></div>
+    <div class="form-group" id="codeRow" style="display: none;"><label for="loginCode">Authenticator code or recovery code</label><input type="text" id="loginCode" autocomplete="one-time-code" inputmode="numeric"></div>
     <div id="loginMsg" role="alert"></div>
     <button type="submit" class="primary" id="loginBtn">Sign in</button>
     <p class="sub" style="margin: 12px 0 0; text-align: center;"><a href="forgot-password.html" style="color: var(--green);">Forgot your password?</a></p>
@@ -470,10 +471,9 @@ tr:hover { background: var(--light); }
 </div>
 
 <script>
-const API_URL = ['localhost', '127.0.0.1'].includes(location.hostname)
-  ? 'http://localhost:5000/api'
-  : 'https://fintech-loan-app-production.up.railway.app/api';
+const API_URL = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
 let token = localStorage.getItem('lifc_token');
+let pendingChallenge = null;
 
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -497,13 +497,27 @@ async function login(e) {
   btn.disabled = true;
   document.getElementById('loginMsg').textContent = '';
   try {
-    const res = await fetch(`${API_URL}/auth/login`, {
+    const code = document.getElementById('loginCode').value.trim();
+    const res = await fetch(`${API_URL}${pendingChallenge ? '/auth/2fa/verify' : '/auth/login'}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
+      body: JSON.stringify(pendingChallenge ? { challengeToken: pendingChallenge, code } : { email, password })
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || (res.status === 429 ? 'Too many attempts. Try again in a few minutes.' : 'Sign in failed'));
+    if (!res.ok) {
+      if (res.status === 401 && pendingChallenge) {
+        pendingChallenge = null;
+        document.getElementById('codeRow').style.display = 'none';
+      }
+      throw new Error(data.error || (res.status === 429 ? 'Too many attempts. Try again in a few minutes.' : 'Sign in failed'));
+    }
+    if (data.twoFactorRequired) {
+      pendingChallenge = data.challengeToken;
+      document.getElementById('codeRow').style.display = 'block';
+      document.getElementById('loginCode').focus();
+      document.getElementById('loginMsg').textContent = 'Enter the 6-digit code from your authenticator app, or a recovery code.';
+      return;
+    }
 
     token = data.token;
     localStorage.setItem('lifc_token', token);
