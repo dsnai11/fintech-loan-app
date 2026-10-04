@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%92%B0%3C/text%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Staff - LIFC Admin</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f5f7fa; --surface: #fcfcfb; --border: #e5e7eb;
+  --text: #0b0b0b; --text-2: #52514e; --muted: #6b7280;
+  --accent: #2a78d6; --header: linear-gradient(135deg, #1e40af 0%, #7c3aed 100%);
+  --good: #047857; --bad: #b91c1c; --warn: #b45309;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --bg: #111110; --surface: #1a1a19; --border: #2f2f2d;
+    --text: #fff; --text-2: #c3c2b7; --muted: #9a998f; --accent: #3987e5;
+    --good: #34d399; --bad: #f87171; --warn: #fbbf24;
+  }
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); }
+.container { max-width: 1100px; margin: 0 auto; padding: 20px 16px 60px; }
+.header { background: var(--header); color: #fff; padding: 24px; border-radius: 12px; margin-bottom: 18px; display: flex; flex-wrap: wrap; gap: 14px; justify-content: space-between; align-items: center; }
+.header h1 { font-size: 26px; } .header p { font-size: 13px; opacity: .9; margin-top: 4px; }
+.nav { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+.nav a { color: #fff; text-decoration: none; font-size: 14px; font-weight: 500; } .nav a:hover { text-decoration: underline; }
+.btn { padding: 7px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-weight: 600; font-size: 12px; cursor: pointer; }
+.btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); padding: 9px 16px; font-size: 13px; }
+.alert { display: none; padding: 12px 16px; border-radius: 8px; margin-bottom: 14px; white-space: pre-line; }
+.alert.show { display: block; } .alert.err { background: #fee2e2; color: #991b1b; } .alert.ok { background: #d1fae5; color: #065f46; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px; margin-bottom: 16px; }
+.card h2 { font-size: 15px; margin-bottom: 4px; } .sub { font-size: 12px; color: var(--muted); margin-bottom: 14px; line-height: 1.5; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; align-items: end; }
+label { display: block; font-size: 12px; font-weight: 600; color: var(--text-2); margin-bottom: 4px; }
+input, select { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; font-size: 14px; }
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 760px; }
+th { text-align: left; font-size: 11px; text-transform: uppercase; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--border); }
+td { padding: 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.pill { display: inline-block; padding: 1px 9px; border-radius: 99px; font-size: 11px; font-weight: 700; background: var(--border); }
+.pill.good { background: rgba(4, 120, 87, .15); color: var(--good); } .pill.bad { background: rgba(185, 28, 28, .15); color: var(--bad); } .pill.warn { background: rgba(180, 83, 9, .15); color: var(--warn); }
+.acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.link { background: var(--bg); border: 1px dashed var(--border); border-radius: 8px; padding: 10px; font-size: 12px; word-break: break-all; margin-top: 10px; }
+.roles { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+.roles div { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 12px; color: var(--text-2); line-height: 1.5; }
+.roles b { display: block; color: var(--text); font-size: 13px; margin-bottom: 2px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div><h1>Staff</h1><p>Who can sign in to the back office, and what each person may do</p></div>
+    <div class="nav">
+      <a href="loan-management.html">Loan Management</a>
+      <a href="customers.html">Customers</a>
+      <a href="collections.html">Collections</a>
+      <a href="compliance.html">Compliance</a>
+      <a href="pricing.html">Pricing</a>
+      <a href="admin-config.html">Configuration</a>
+    </div>
+  </div>
+
+  <div id="alert" class="alert" role="alert"></div>
+
+  <div class="card">
+    <h2>Add a staff member</h2>
+    <div class="sub">They get a one-time link (valid 24 hours) to choose their own password, and must turn on two-factor sign-in before they can work. Send the link to them privately.</div>
+    <form class="grid" onsubmit="addStaff(event)">
+      <div><label for="n-first">First name</label><input id="n-first" required></div>
+      <div><label for="n-last">Last name</label><input id="n-last" required></div>
+      <div><label for="n-email">Work email</label><input id="n-email" type="email" required></div>
+      <div><label for="n-phone">Phone</label><input id="n-phone" required></div>
+      <div><label for="n-role">Role</label><select id="n-role"></select></div>
+      <div><label for="n-branch">Branch (optional)</label><input id="n-branch"></div>
+      <div><button class="btn primary" type="submit">Add staff member</button></div>
+    </form>
+    <div id="newlink" class="link" style="display:none"></div>
+  </div>
+
+  <div class="card">
+    <h2>Everyone with access</h2>
+    <div class="scroll"><table>
+      <thead><tr><th>Name</th><th>Role</th><th>Branch</th><th>2FA</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <h2>What each role can do</h2>
+    <div class="sub">Anything not listed for a role is blocked for it. New back-office features start as super-admin only.</div>
+    <div class="roles" id="roles"></div>
+  </div>
+</div>
+
+<script>
+const API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
+const token = localStorage.getItem('admin_token');
+if (!token) location.href = 'admin-config.html';
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+let ROLES = [];
+
+function msg(text, kind) {
+  const a = $('alert'); a.textContent = text; a.className = 'alert show ' + kind;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+async function api(path, method = 'GET', body) {
+  const r = await fetch(API + path, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || 'Something went wrong');
+  return data;
+}
+
+async function load() {
+  try {
+    const [r, s] = await Promise.all([api('/admin/staff/roles'), api('/admin/staff')]);
+    ROLES = r.roles;
+    $('n-role').innerHTML = ROLES.map(x => `<option value="${esc(x.key)}">${esc(x.label)}</option>`).join('');
+    $('roles').innerHTML = ROLES.map(x => `<div><b>${esc(x.label)}</b>${esc(x.can.join(', ').replace(/\./g, ' '))}</div>`).join('');
+    $('rows').innerHTML = s.staff.map(p => {
+      const main = p.role === 'super_admin';
+      const roleCell = main ? esc(p.roleLabel) : `<select onchange="setRole('${esc(p.id)}', this.value)" aria-label="Role for ${esc(p.name)}">${ROLES.map(x => `<option value="${esc(x.key)}" ${x.key === p.role ? 'selected' : ''}>${esc(x.label)}</option>`).join('')}</select>`;
+      const acts = main ? '<span class="pill">main admin</span>' : `<div class="acts">
+        <button class="btn" onclick="setStatus('${esc(p.id)}', '${p.status === 'active' ? 'inactive' : 'active'}')">${p.status === 'active' ? 'Deactivate' : 'Reactivate'}</button>
+        <button class="btn" onclick="act('${esc(p.id)}', 'revoke-sessions', 'Signed out everywhere.')">Sign out everywhere</button>
+        <button class="btn" onclick="act('${esc(p.id)}', 'reset-2fa', 'Two-factor reset. They must set it up again.')">Reset 2FA</button>
+        <button class="btn" onclick="resetLink('${esc(p.id)}')">New password link</button></div>`;
+      return `<tr><td><b>${esc(p.name)}</b><div style="color:var(--muted);font-size:12px">${esc(p.email)}<br>${esc(p.phone)}</div></td><td>${roleCell}</td><td>${esc(p.branch)}</td>
+        <td><span class="pill ${p.twoFactorEnabled ? 'good' : 'warn'}">${p.twoFactorEnabled ? 'On' : 'Not set up'}</span></td>
+        <td><span class="pill ${p.status === 'active' ? 'good' : 'bad'}">${esc(p.status)}</span></td><td>${acts}</td></tr>`;
+    }).join('');
+  } catch (e) { msg(e.message, 'err'); }
+}
+
+function showLink(label, link, expires) {
+  const box = $('newlink');
+  box.style.display = 'block';
+  box.innerHTML = `<b>${esc(label)}</b><br>Link (works once, until ${new Date(expires).toLocaleString('en-IN')}):<br><span id="the-link">${esc(link)}</span><br><button class="btn" style="margin-top:8px" onclick="copyLink()">Copy link</button>`;
+  box.scrollIntoView({ behavior: 'smooth' });
+}
+function copyLink() {
+  const t = $('the-link').textContent;
+  (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => msg('Link copied.', 'ok'), () => { const r = document.createRange(); r.selectNodeContents($('the-link')); getSelection().removeAllRanges(); getSelection().addRange(r); });
+}
+
+async function addStaff(e) {
+  e.preventDefault();
+  try {
+    const d = await api('/admin/staff', 'POST', { firstName: $('n-first').value, lastName: $('n-last').value, email: $('n-email').value, phone: $('n-phone').value, role: $('n-role').value, branch: $('n-branch').value });
+    msg(`${d.staff.name} added as ${d.staff.roleLabel}. Send them the link below.`, 'ok');
+    showLink(`Sign-up link for ${d.staff.name}`, d.link, d.expires);
+    e.target.reset();
+    load();
+  } catch (err) { msg(err.message, 'err'); }
+}
+async function setRole(id, role) {
+  try { await api('/admin/staff/' + id, 'PUT', { role }); msg('Role changed. They have been signed out and must sign in again.', 'ok'); load(); } catch (e) { msg(e.message, 'err'); load(); }
+}
+async function setStatus(id, status) {
+  try { await api('/admin/staff/' + id, 'PUT', { status }); msg(status === 'inactive' ? 'Deactivated and signed out.' : 'Reactivated.', 'ok'); load(); } catch (e) { msg(e.message, 'err'); }
+}
+async function act(id, what, done) {
+  try { await api(`/admin/staff/${id}/${what}`, 'POST', {}); msg(done, 'ok'); load(); } catch (e) { msg(e.message, 'err'); }
+}
+async function resetLink(id) {
+  try { const d = await api(`/admin/staff/${id}/reset-link`, 'POST', {}); showLink('New password link', d.link, d.expires); } catch (e) { msg(e.message, 'err'); }
+}
+load();
+</script>
+</body>
+</html>

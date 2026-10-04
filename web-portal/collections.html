@@ -98,9 +98,13 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   </div>
 
   <div id="view-queue">
+    <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px; flex-wrap:wrap;">
+      <label for="owner-filter" style="font-size:12px;font-weight:600">Show</label>
+      <select id="owner-filter" onchange="ownerFilter = this.value; loadQueue().catch(e => msg(e.message, 'err'))"><option value="">All cases</option><option value="mine">My cases</option><option value="unassigned">Unassigned</option></select>
+    </div>
     <div class="tiles" id="tiles"></div>
     <div class="card scroll"><table>
-      <thead><tr><th>Customer</th><th>Stage</th><th class="num">Days overdue</th><th class="num">EMIs</th><th class="num">Amount due</th><th>Promise to pay</th><th>Last action</th></tr></thead>
+      <thead><tr><th>Customer</th><th>Stage</th><th class="num">Days overdue</th><th class="num">EMIs</th><th class="num">Amount due</th><th>Promise to pay</th><th>Last action</th><th>Owner</th></tr></thead>
       <tbody id="rows"></tbody>
     </table><div id="queue-empty" class="empty" style="display:none">No loans in this stage.</div></div>
   </div>
@@ -142,6 +146,7 @@ const STAGES = {
 };
 const ACTION = { NOTE: 'Note', CALL: 'Call', PROMISE_TO_PAY: 'Promise to pay', LETTER: 'Letter', ESCALATION: 'Escalated', DEFAULTED: 'Defaulted', WRITE_OFF: 'Written off', RECOVERY: 'Recovery' };
 
+let ownerFilter = '';
 let stageFilter = '';
 let current = null;
 
@@ -156,7 +161,8 @@ async function api(path, method = 'GET', body) {
     headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) },
     body: body ? JSON.stringify(body) : undefined,
   });
-  if (r.status === 401 || r.status === 403) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  if (r.status === 401) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  if (r.status === 403) { const m = (await r.clone().json().catch(() => ({}))).error; throw new Error(m || 'You do not have permission to do this'); }
   return r;
 }
 async function json(path, method, body) {
@@ -169,7 +175,8 @@ async function json(path, method, body) {
 function badge(stage) { const [l, c] = STAGES[stage] || [stage, 'var(--muted)']; return `<span class="badge"><i class="dot" style="background:${c}"></i>${esc(l)}</span>`; }
 
 async function loadQueue() {
-  const d = await json('/admin/collections/queue' + (stageFilter ? '?stage=' + stageFilter : ''));
+  const qs = [stageFilter && 'stage=' + stageFilter, ownerFilter === 'mine' && 'mine=1', ownerFilter === 'unassigned' && 'unassigned=1'].filter(Boolean).join('&');
+  const d = await json('/admin/collections/queue' + (qs ? '?' + qs : ''));
   $('tiles').innerHTML =
     `<button class="tile ${stageFilter === '' ? 'active' : ''}" onclick="setStage('')"><div class="l">All overdue</div><div class="v">${d.total}</div><div class="s">${money(d.totalAmount)}</div></button>` +
     Object.entries(d.stats).map(([k, s]) =>
@@ -179,7 +186,7 @@ async function loadQueue() {
     const promise = p ? `${date(p.date)}${p.amount ? ' · ' + money(p.amount) : ''}${p.broken ? ' <span class="warn">broken?</span>' : ''}` : '—';
     const last = i.lastAction ? `${ACTION[i.lastAction.type] || i.lastAction.type} · ${dateTime(i.lastAction.at)}` : '—';
     return `<tr class="row" onclick="openCase('${esc(i.loanId)}')"><td><b>${esc(i.customer)}</b><div class="s" style="color:var(--muted);font-size:12px">${esc(i.phone || '')}</div></td>` +
-      `<td>${badge(i.stage)}</td><td class="num">${i.daysOverdue}</td><td class="num">${i.overdueEmis}</td><td class="num"><b>${money(i.amountDue)}</b></td><td>${promise}</td><td>${last}</td></tr>`;
+      `<td>${badge(i.stage)}</td><td class="num">${i.daysOverdue}</td><td class="num">${i.overdueEmis}</td><td class="num"><b>${money(i.amountDue)}</b></td><td>${promise}</td><td>${last}</td><td>${i.assignedTo ? esc(i.assignedTo) : '<span style="color:var(--muted)">Unassigned</span>'}</td></tr>`;
   }).join('');
   $('queue-empty').style.display = d.items.length ? 'none' : 'block';
 }
@@ -235,6 +242,14 @@ async function openCase(loanId) {
     $('modal').classList.add('open');
   } catch (e) { msg(e.message, 'err'); }
 }
+async function caseAction(what) {
+  try { await json(`/admin/collections/${current.loanId}/${what}`, 'POST', {}); await openCase(current.loanId); refresh(); } catch (e) { msg(e.message, 'err'); }
+}
+async function assignCase() {
+  const to = prompt('Email of the collections person to give this case to (leave empty to clear):');
+  if (to === null) return;
+  try { await json(`/admin/collections/${current.loanId}/assign`, 'POST', { to: to.trim() || null }); await openCase(current.loanId); refresh(); } catch (e) { msg(e.message, 'err'); }
+}
 function closeModal() { $('modal').classList.remove('open'); current = null; }
 
 function renderCase() {
@@ -251,6 +266,10 @@ function renderCase() {
     <h2>${esc(c.customer)}</h2>
     <div class="sub">${esc(c.phone || '')}${c.email ? ' · ' + esc(c.email) : ''} · loan ${esc(c.loanId.slice(-8))} · ${money(c.loanAmount)}</div>
     <div>${badge(c.stage)}</div>
+    <div class="sub" style="margin:8px 0">Owner: <b>${c.assignedTo ? esc(c.assignedTo) : 'nobody yet'}</b>
+      <button class="btn" onclick="caseAction('claim')">Take this case</button>
+      <button class="btn" onclick="caseAction('release')">Release</button>
+      <button class="btn" onclick="assignCase()">Assign to...</button></div>
     <div class="kv">
       <div><span>AMOUNT DUE</span><b>${money(c.amountDue)}</b></div>
       <div><span>DAYS OVERDUE</span><b>${c.daysOverdue}</b></div>

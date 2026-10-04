@@ -55,6 +55,9 @@ const userSchema = new mongoose.Schema(
     twoFactorRecovery: { type: [String], select: false },
     twoFactorLastStep: { type: Number, select: false },
     status: { type: String, enum: ['active', 'inactive', 'blocked'], default: 'active' },
+    // Staff accounts have a role from services/permissions.js; customers are 'customer'.
+    role: { type: String, default: 'customer' },
+    branch: { type: String, default: '', maxlength: 80 },
   },
   { timestamps: true }
 );

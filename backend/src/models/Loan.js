@@ -30,6 +30,8 @@ const loanSchema = new mongoose.Schema(
     ],
     approvalNotes: String,
     approvedBy: String,
+    assignedTo: String, // staff email working this collections case
+    assignedAt: Date,
     rejectedBy: String,
     rejectionNotes: String,
     disbursedBy: String,

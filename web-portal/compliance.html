@@ -63,6 +63,7 @@ code { font-size: 11px; color: var(--text-2); word-break: break-all; }
     <div class="nav">
       <a href="loan-management.html">Loan Management</a>
       <a href="customers.html">Customers</a>
+      <a href="staff.html">Staff</a>
       <a href="collections.html">Collections</a>
       <a href="analytics.html">Analytics</a>
       <a href="pricing.html">Pricing</a>
@@ -195,7 +196,8 @@ function msg(text, kind) {
 }
 async function api(path, method = 'GET', body) {
   const r = await fetch(API + path, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
-  if (r.status === 401 || r.status === 403) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  if (r.status === 401) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  if (r.status === 403) { const m = (await r.clone().json().catch(() => ({}))).error; throw new Error(m || 'You do not have permission to do this'); }
   return r;
 }
 async function json(path, method, body) {

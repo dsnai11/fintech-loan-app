@@ -25,6 +25,8 @@ export const DEFAULTS = {
   coolingOffDays: 3, // days after disbursal in which the customer may cancel (set by the NBFC)
   maxAprPercent: null, // optional ceiling: pricing that would exceed it cannot be saved
   // Higher limit for customers who have repaid before. Off until the NBFC switches it on.
+  // Internal controls. With four-eyes on, the person who approved a loan cannot also release its payout.
+  controls: { fourEyesDisbursal: false },
   repeat: { enabled: false, maxLoanAmount: 100000, stepUpPercent: 25, minClosedLoans: 1 },
   institution: {
     lenderName: 'Laxmi India Finance Ltd.',
@@ -106,6 +108,7 @@ export function validatePolicy(candidate) {
   p.foreclosureFeePercent = num(p.foreclosureFeePercent, 0, 10, 'Early closure fee', errors);
   p.coolingOffDays = num(p.coolingOffDays, 0, 30, 'Cooling-off days', errors, { int: true });
   p.maxAprPercent = num(p.maxAprPercent, 1, 200, 'Maximum APR', errors, { allowNull: true });
+  p.controls.fourEyesDisbursal = p.controls.fourEyesDisbursal === true || p.controls.fourEyesDisbursal === 'true';
   p.repeat.enabled = p.repeat.enabled === true || p.repeat.enabled === 'true';
   p.repeat.maxLoanAmount = num(p.repeat.maxLoanAmount, 100, 10000000, 'Repeat-customer largest loan', errors, { int: true });
   p.repeat.stepUpPercent = num(p.repeat.stepUpPercent, 0, 500, 'Repeat-customer step-up', errors);

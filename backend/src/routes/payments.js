@@ -27,6 +27,12 @@ router.post('/disburse/:loanId', adminMiddleware, async (req, res) => {
       });
     }
 
+    {
+      const { getPolicy: gp } = await import('../services/pricingPolicy.js');
+      if (gp().controls.fourEyesDisbursal && loan.approvedBy && loan.approvedBy === req.user.email) {
+        return res.status(403).json({ error: 'Four-eyes rule: a different person must release this payout. You approved this loan.', code: 'FOUR_EYES' });
+      }
+    }
     const result = await PaymentService.initiateTransfer(loanId, loan, req.user.email);
 
     res.json({

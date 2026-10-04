@@ -7,11 +7,16 @@ import { adminMiddleware } from '../middleware/auth.js';
 import { buildQueue, renderLetter, runEscalations, STAGES, STAGE_LABEL } from '../services/collectionsService.js';
 import { notify } from '../services/notificationService.js';
 import { audit } from '../services/auditService.js';
+import User from '../models/User.js';
+import { can } from '../services/permissions.js';
 
 const router = express.Router();
 router.use(adminMiddleware);
 
-const publicItem = ({ loan, rows, ...rest }) => rest;
+const publicItem = ({ loan, rows, ...rest }) => ({ ...rest, assignedTo: loan?.assignedTo || null });
+const isManager = req => can(req.user.role, 'collections.manage');
+// One person works a case at a time. Managers can step in.
+const lockedByOther = (loan, req) => (loan.assignedTo && loan.assignedTo !== req.user.email && !isManager(req) ? `This case is assigned to ${loan.assignedTo}. Ask a collections manager to reassign it.` : null);
 const isId = id => mongoose.isValidObjectId(id);
 const bad = (res, status, error) => res.status(status).json({ error });
 
@@ -36,7 +41,10 @@ router.get('/queue', async (req, res) => {
       stats[i.stage].cases++;
       stats[i.stage].amount += i.amountDue;
     }
-    const items = (stage ? all.filter(i => i.stage === stage) : all).map(publicItem);
+    let list = stage ? all.filter(i => i.stage === stage) : all;
+    if (req.query.mine === '1') list = list.filter(i => i.loan?.assignedTo === req.user.email);
+    if (req.query.unassigned === '1') list = list.filter(i => !i.loan?.assignedTo);
+    const items = list.map(publicItem);
     res.json({ total: all.length, totalAmount: all.reduce((a, i) => a + i.amountDue, 0), stats, items });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -132,8 +140,65 @@ router.post('/:loanId/notes', async (req, res) => {
 
     const loan = await Loan.findById(req.params.loanId);
     if (!loan) return bad(res, 404, 'Loan not found');
+    const locked = lockedByOther(loan, req);
+    if (locked) return bad(res, 409, locked);
     const note = await addNote(loan, fields, req.user);
     res.json({ note });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Take an unassigned case for yourself
+router.post('/:loanId/claim', async (req, res) => {
+  try {
+    if (!isId(req.params.loanId)) return bad(res, 400, 'Invalid loan id');
+    const taken = await Loan.findOneAndUpdate(
+      { _id: req.params.loanId, $or: [{ assignedTo: null }, { assignedTo: '' }, { assignedTo: { $exists: false } }, { assignedTo: req.user.email }] },
+      { assignedTo: req.user.email, assignedAt: new Date() }, { new: true });
+    if (!taken) {
+      const loan = await Loan.findById(req.params.loanId).select('assignedTo');
+      return loan ? bad(res, 409, `This case is already assigned to ${loan.assignedTo}`) : bad(res, 404, 'Loan not found');
+    }
+    await audit(req.user, 'COLLECTION_CASE_CLAIMED', { type: 'Loan', id: taken._id }, {}, req);
+    res.json({ assignedTo: taken.assignedTo });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Give the case back (the person holding it, or a manager)
+router.post('/:loanId/release', async (req, res) => {
+  try {
+    if (!isId(req.params.loanId)) return bad(res, 400, 'Invalid loan id');
+    const loan = await Loan.findById(req.params.loanId);
+    if (!loan) return bad(res, 404, 'Loan not found');
+    if (loan.assignedTo && loan.assignedTo !== req.user.email && !isManager(req)) return bad(res, 403, 'Only the person holding this case or a manager can release it');
+    await Loan.updateOne({ _id: loan._id }, { $unset: { assignedTo: '', assignedAt: '' } });
+    await audit(req.user, 'COLLECTION_CASE_RELEASED', { type: 'Loan', id: loan._id }, { was: loan.assignedTo || null }, req);
+    res.json({ assignedTo: null });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Managers hand a case to a named person, or pass `to: null` to clear it
+router.post('/:loanId/assign', async (req, res) => {
+  try {
+    if (!isId(req.params.loanId)) return bad(res, 400, 'Invalid loan id');
+    const loan = await Loan.findById(req.params.loanId);
+    if (!loan) return bad(res, 404, 'Loan not found');
+    const to = req.body?.to ? String(req.body.to).trim().toLowerCase() : null;
+    if (to) {
+      const person = await User.findOne({ email: to, status: 'active' }).select('role email');
+      const ok = person && (can(person.role, 'collections.act') || String(person.email).toLowerCase() === (process.env.ADMIN_EMAIL || 'admin@lifc.in').toLowerCase());
+      if (!ok) return bad(res, 400, 'That person is not an active collections user');
+      await Loan.updateOne({ _id: loan._id }, { assignedTo: to, assignedAt: new Date() });
+    } else {
+      await Loan.updateOne({ _id: loan._id }, { $unset: { assignedTo: '', assignedAt: '' } });
+    }
+    await audit(req.user, 'COLLECTION_CASE_ASSIGNED', { type: 'Loan', id: loan._id }, { from: loan.assignedTo || null, to }, req);
+    res.json({ assignedTo: to });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -144,6 +209,8 @@ router.get('/:loanId/letter', async (req, res) => {
     if (!isId(req.params.loanId)) return bad(res, 400, 'Invalid loan id');
     const item = await getCase(req.params.loanId);
     if (!item) return bad(res, 404, 'This loan has no overdue EMIs');
+    const locked = lockedByOther(item.loan, req);
+    if (locked) return bad(res, 409, locked);
     await addNote(item.loan, { type: 'LETTER', stage: item.stage, text: `Generated "${STAGE_LABEL[item.stage]}" letter` }, req.user);
     await audit(req.user, 'COLLECTION_LETTER_GENERATED', { type: 'Loan', id: item.loan._id }, { stage: item.stage }, req);
     res.setHeader('Content-Type', 'text/html; charset=utf-8');

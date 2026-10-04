@@ -101,7 +101,7 @@ const ok = await call('POST', '/auth/2fa/verify', null, { challengeToken: step1.
 check('the right code gives a session', ok.s === 200 && !!ok.d.token, JSON.stringify(ok.d));
 adminTok = ok.d.token;
 check('and that session works on admin routes', (await call('GET', '/admin/compliance/audit', adminTok)).s === 200);
-check('admin session lasts 12 hours, not 7 days', claims(adminTok).exp - claims(adminTok).iat === 12 * 3600, String(claims(adminTok).exp - claims(adminTok).iat));
+check('admin session lasts 8 hours, not 7 days', claims(adminTok).exp - claims(adminTok).iat === 8 * 3600, String(claims(adminTok).exp - claims(adminTok).iat));
 check('an ordinary customer session still lasts 7 days', claims((await login('other@x.in', 'Right-Password-1')).d.token).exp - claims(custToken).iat >= 7 * 24 * 3600 - 5);
 
 const step2 = await login('admin@lifc.in', 'AdminPass123');

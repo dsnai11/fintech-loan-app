@@ -59,6 +59,7 @@ table.pv th:first-child, table.pv td:first-child { text-align: left; }
     <div class="nav">
       <a href="loan-management.html">Loan Management</a>
       <a href="customers.html">Customers</a>
+      <a href="staff.html">Staff</a>
       <a href="collections.html">Collections</a>
       <a href="analytics.html">Analytics</a>
       <a href="compliance.html">Compliance</a>
@@ -130,7 +131,8 @@ function msg(text, kind) {
 }
 async function api(path, method = 'GET', body) {
   const r = await fetch(API + path, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
-  if (r.status === 401 || r.status === 403) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  if (r.status === 401) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  if (r.status === 403) { const m = (await r.clone().json().catch(() => ({}))).error; throw new Error(m || 'You do not have permission to do this'); }
   return r;
 }
 
@@ -140,6 +142,7 @@ function render() {
     html += `<div class="card"><h2>${esc(g.title)}</h2><div class="sub">${esc(g.sub)}</div><div class="grid">` +
       g.items.map(([p, label]) => `<div><label for="f-${p}">${esc(label)}</label><input type="number" step="any" id="f-${p}" value="${esc(getPath(policy, p) ?? '')}"></div>`).join('') + '</div></div>';
   }
+  html += `<div class="card"><h2>Internal controls</h2><div class="sub">With this on, the person who approved a loan cannot also release its payout. Switch it on once at least two people can approve and release (Staff page), otherwise nobody will be able to pay out.</div><label style="display:flex;gap:8px;align-items:center;margin:0"><input type="checkbox" id="four-eyes" ${policy.controls.fourEyesDisbursal ? 'checked' : ''}> Four-eyes rule for payouts</label></div>`;
   html += `<div class="card"><label style="display:flex;gap:8px;align-items:center;margin:0"><input type="checkbox" id="repeat-enabled" ${policy.repeat.enabled ? 'checked' : ''}> Offer a higher limit to repeat customers</label></div>`;
   html += `<div class="card"><h2>Repayment plans</h2><div class="sub">Flat interest means a fixed percentage of the loan is added and split evenly over the months. Switch a plan off to stop offering it.</div>
     <div class="scroll"><table class="plans"><thead><tr><th>Offer</th><th>Name shown to customers</th><th>Months</th><th>Flat interest (%)</th></tr></thead><tbody>` +
@@ -160,6 +163,7 @@ function collect() {
     setPath(out, p, v === '' ? (p === 'maxAprPercent' ? null : v) : Number(v));
   }
   out.repeat.enabled = $('repeat-enabled').checked;
+  out.controls.fourEyesDisbursal = $('four-eyes').checked;
   for (const k of Object.keys(out.plans)) {
     out.plans[k].enabled = $(`p-${k}-enabled`).checked;
     out.plans[k].label = $(`p-${k}-label`).value;

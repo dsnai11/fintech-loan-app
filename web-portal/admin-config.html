@@ -188,6 +188,7 @@ input[type="checkbox"] {
       <a onclick="window.location.href='emi-analytics.html'" style="cursor: pointer; text-decoration: none; color: white;">💳 EMI Collections</a>
       <a onclick="window.location.href='analytics.html'" style="cursor: pointer; text-decoration: none; color: white;">📊 Analytics</a>
       <a onclick="window.location.href='customers.html'" style="cursor: pointer; text-decoration: none; color: white;">👤 Customers</a>
+      <a onclick="window.location.href='staff.html'" style="cursor: pointer; text-decoration: none; color: white;">🛡️ Staff</a>
       <a onclick="window.location.href='collections.html'" style="cursor: pointer; text-decoration: none; color: white;">📞 Collections</a>
       <a onclick="window.location.href='compliance.html'" style="cursor: pointer; text-decoration: none; color: white;">🛡️ Compliance</a>
       <a onclick="window.location.href='pricing.html'" style="cursor: pointer; text-decoration: none; color: white;">💲 Pricing</a>
@@ -430,7 +431,7 @@ async function adminLogin() {
 
     // Check if user is admin
     if (user.email !== 'admin@lifc.in' && !user.isAdmin) {
-      showLoginError('Only admins can access this panel');
+      showLoginError('This sign-in is for staff only');
       return;
     }
 
@@ -439,6 +440,11 @@ async function adminLogin() {
     currentUser = user.email;
     localStorage.setItem('admin_token', token);
     localStorage.setItem('admin_user', currentUser);
+    localStorage.setItem('admin_role', user.role || 'super_admin');
+
+    // Everyone except the super admin lands on the page for their job
+    const LANDING = { credit_officer: 'loan-management.html', finance: 'loan-management.html', kyc_reviewer: 'compliance.html', compliance_officer: 'compliance.html', auditor: 'compliance.html', collections_agent: 'collections.html', collections_manager: 'collections.html' };
+    if (user.role && user.role !== 'super_admin') { location.href = LANDING[user.role] || 'customers.html'; return; }
 
     // Show main content
     document.getElementById('loginForm').style.display = 'none';

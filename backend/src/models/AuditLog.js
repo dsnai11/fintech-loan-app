@@ -7,7 +7,7 @@ const auditLogSchema = new mongoose.Schema(
     hash: { type: String, required: true },
     at: { type: String, required: true },
     actor: { type: String, required: true },
-    role: { type: String, enum: ['admin', 'customer', 'system'], required: true },
+    role: { type: String, required: true }, // admin, customer, system, or a staff role name
     action: { type: String, required: true, index: true },
     entityType: { type: String, default: '' },
     entityId: { type: String, default: '' },

@@ -5,6 +5,7 @@ import QRCode from 'qrcode';
 import User from '../models/User.js';
 import { authMiddleware, generateToken } from '../middleware/auth.js';
 import { audit } from '../services/auditService.js';
+import { isStaffRole } from '../services/permissions.js';
 import { lockedSeconds, recordFailure, recordSuccess, lockMessage } from '../services/loginGuard.js';
 import { generateSecret, verifyTotp, otpauthUrl, encryptSecret, decryptSecret } from '../services/otp.js';
 
@@ -14,7 +15,8 @@ const router = express.Router();
 
 const sha = t => crypto.createHash('sha256').update(t).digest('hex');
 const adminEmail = () => (process.env.ADMIN_EMAIL || 'admin@lifc.in').toLowerCase();
-const isAdminUser = u => String(u.email).toLowerCase() === adminEmail();
+// Two-factor is for the admin and every staff account; customers do not use it.
+const isAdminUser = u => String(u.email).toLowerCase() === adminEmail() || isStaffRole(u.role);
 const bad = (res, status, error) => res.status(status).json({ error });
 
 function newRecoveryCodes() {
@@ -141,11 +143,11 @@ router.post('/verify', async (req, res) => {
 
     await recordSuccess(user.email);
     const token = generateToken(user._id, user.email, isAdminUser(user));
-    await audit({ email: user.email, role: 'admin' }, 'ADMIN_LOGIN', { type: 'User', id: user._id }, { method: second.method }, req);
+    await audit({ email: user.email, role: String(user.email).toLowerCase() === adminEmail() ? 'super_admin' : user.role }, 'ADMIN_LOGIN', { type: 'User', id: user._id }, { method: second.method }, req);
     res.json({
       message: 'Login successful',
       token,
-      user: { id: user._id, firstName: user.firstName, lastName: user.lastName, email: user.email, phone: user.phone },
+      user: { id: user._id, firstName: user.firstName, lastName: user.lastName, email: user.email, phone: user.phone, isAdmin: true, role: String(user.email).toLowerCase() === adminEmail() ? 'super_admin' : user.role },
     });
   } catch (e) {
     res.status(500).json({ error: 'Something went wrong. Please try again.' });

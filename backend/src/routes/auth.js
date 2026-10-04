@@ -7,6 +7,7 @@ import { audit } from '../services/auditService.js';
 import { issueResetToken, consumeResetToken } from '../services/passwordReset.js';
 import { sendPlainEmail } from '../services/notificationService.js';
 import { lockedSeconds, recordFailure, recordSuccess, lockMessage } from '../services/loginGuard.js';
+import { isStaffRole } from '../services/permissions.js';
 
 // Checked against when the email is unknown, so a wrong email and a wrong password take the same time.
 const DUMMY_HASH = bcrypt.hashSync('not-a-real-password', 10);
@@ -94,9 +95,10 @@ router.post('/login', async (req, res) => {
     await recordSuccess(email);
 
     const adminEmail = (process.env.ADMIN_EMAIL || 'admin@lifc.in').toLowerCase();
-    const isAdmin = user.email === adminEmail;
+    const isAdmin = user.email === adminEmail || isStaffRole(user.role);
+    const role = user.email === adminEmail ? 'super_admin' : isStaffRole(user.role) ? user.role : 'customer';
     const token = generateToken(user._id, user.email, isAdmin);
-    if (isAdmin) await audit({ email: user.email, role: 'admin' }, 'ADMIN_LOGIN', { type: 'User', id: user._id }, {}, req);
+    if (isAdmin) await audit({ email: user.email, role: user.email === adminEmail ? 'super_admin' : user.role }, 'ADMIN_LOGIN', { type: 'User', id: user._id }, {}, req);
 
     res.json({
       message: 'Login successful',
@@ -107,6 +109,8 @@ router.post('/login', async (req, res) => {
         lastName: user.lastName,
         email: user.email,
         phone: user.phone,
+        isAdmin,
+        role,
       },
     });
   } catch (error) {

@@ -111,6 +111,7 @@ th { color: var(--text-muted); font-size: 11px; text-transform: uppercase; }
       <a href="loan-management.html">Loan Management</a>
       <a href="emi-analytics.html">EMI Collections</a>
       <a href="customers.html">Customers</a>
+      <a href="staff.html">Staff</a>
       <a href="collections.html">Collections</a>
       <a href="compliance.html">Compliance</a>
       <a href="pricing.html">Pricing</a>
@@ -202,11 +203,12 @@ function showError(msg) { const a = $('alert'); a.textContent = msg; a.classList
 
 async function api(path) {
   const r = await fetch(API + path, { headers: { Authorization: 'Bearer ' + token } });
-  if (r.status === 401 || r.status === 403) {
+  if (r.status === 401) {
     localStorage.removeItem('admin_token');
     location.href = 'admin-config.html';
     throw new Error('Session expired');
   }
+  if (r.status === 403) { const m = (await r.clone().json().catch(() => ({}))).error; throw new Error(m || 'You do not have permission to do this'); }
   return r;
 }
 

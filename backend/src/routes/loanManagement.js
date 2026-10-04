@@ -17,9 +17,13 @@ router.get('/', adminMiddleware, async (req, res) => {
   try {
     const { status, sortBy = '-createdAt' } = req.query;
     const filter = status ? { status } : {};
+    const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 200));
+    const page = Math.max(1, Number(req.query.page) || 1);
 
     const loans = await Loan.find(filter)
       .sort(sortBy)
+      .skip((page - 1) * limit)
+      .limit(limit)
       .populate('userId', 'firstName lastName email phone panNumber')
       .select('-bankDetails.accountNumber'); // Hide sensitive info
 
@@ -38,6 +42,8 @@ router.get('/', adminMiddleware, async (req, res) => {
     res.json({
       loans: transformedLoans,
       total,
+      page,
+      pages: Math.ceil(total / limit),
       stats: { approved, rejected, underReview, disbursed },
     });
   } catch (e) {
@@ -178,6 +184,12 @@ router.post('/:loanId/disburse', adminMiddleware, async (req, res) => {
       });
     }
 
+    {
+      const { getPolicy: gp } = await import('../services/pricingPolicy.js');
+      if (gp().controls.fourEyesDisbursal && loan.approvedBy && loan.approvedBy === req.user.email) {
+        return res.status(403).json({ error: 'Four-eyes rule: a different person must release this payout. You approved this loan.', code: 'FOUR_EYES' });
+      }
+    }
     const result = await PaymentService.initiateTransfer(loan._id, loan, req.user.email);
 
     res.json({

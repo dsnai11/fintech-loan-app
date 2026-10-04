@@ -28,15 +28,17 @@ router.get('/users', adminMiddleware, async (req, res) => {
 // GET /api/admin/loans
 router.get('/loans', adminMiddleware, async (req, res) => {
   try {
-    const { status, page = 1, limit = 50 } = req.query;
+    const status = req.query.status;
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
+    const page = Math.max(1, parseInt(req.query.page) || 1);
     const filter = status ? { status } : {};
     const loans = await Loan.find(filter)
       .populate('userId', 'firstName lastName email phone panNumber kycStatus')
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
-      .limit(parseInt(limit));
+      .limit(limit);
     const total = await Loan.countDocuments(filter);
-    res.json({ loans, total });
+    res.json({ loans, total, page, pages: Math.ceil(total / limit) });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
