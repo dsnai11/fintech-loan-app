@@ -5,7 +5,7 @@ import QRCode from 'qrcode';
 import User from '../models/User.js';
 import { authMiddleware, generateToken } from '../middleware/auth.js';
 import { audit } from '../services/auditService.js';
-import { isStaffRole } from '../services/permissions.js';
+import { isStaffRole, permissionsOf } from '../services/permissions.js';
 import { lockedSeconds, recordFailure, recordSuccess, lockMessage } from '../services/loginGuard.js';
 import { generateSecret, verifyTotp, otpauthUrl, encryptSecret, decryptSecret } from '../services/otp.js';
 
@@ -147,7 +147,7 @@ router.post('/verify', async (req, res) => {
     res.json({
       message: 'Login successful',
       token,
-      user: { id: user._id, firstName: user.firstName, lastName: user.lastName, email: user.email, phone: user.phone, isAdmin: true, role: String(user.email).toLowerCase() === adminEmail() ? 'super_admin' : user.role },
+      user: { id: user._id, firstName: user.firstName, lastName: user.lastName, email: user.email, phone: user.phone, isAdmin: true, role: String(user.email).toLowerCase() === adminEmail() ? 'super_admin' : user.role, permissions: permissionsOf(String(user.email).toLowerCase() === adminEmail() ? 'super_admin' : user.role) },
     });
   } catch (e) {
     res.status(500).json({ error: 'Something went wrong. Please try again.' });

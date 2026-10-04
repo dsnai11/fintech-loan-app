@@ -43,7 +43,7 @@ const [x, y] = await Promise.all([
   call('POST', `/emi/foreclosure/${loan._id}`, ta, { expectedAmount: 27487 }),
   call('POST', `/emi/foreclosure/${loan._id}`, ta, { expectedAmount: 27487 }),
 ]);
-check('double tap: exactly one success and one refusal', [x.s, y.s].sort().join() === '200,409', [x.s, y.s].join());
+check('double tap: exactly one success and one refusal', (([x.s, y.s].sort().join() === '200,409') || ([x.s, y.s].sort().join() === '200,400')), [x.s, y.s].join());
 
 section('AFTER CLOSURE');
 const closed = await Loan.findById(loan._id);

@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%92%B0%3C/text%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Roles and permissions - LIFC Admin</title>
+<style>
+* { box-sizing: border-box; }
+.layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+.card { padding: 16px; margin-bottom: 14px; }
+.card h2 { margin: 0 0 4px; }
+.sub { font-size: 12px; color: var(--e-muted); margin-bottom: 12px; line-height: 1.5; }
+.alert { display: none; padding: 12px 16px; margin-bottom: 14px; white-space: pre-line; }
+.alert.show { display: block; }
+.rolelist { display: flex; flex-direction: column; gap: 6px; }
+.rolebtn { text-align: left; width: 100%; padding: 10px 12px; border: 1px solid var(--e-border); border-radius: 8px; background: var(--e-surface); cursor: pointer; font: inherit; color: var(--e-text); }
+.rolebtn:hover { border-color: var(--e-muted); }
+.rolebtn.on { border-color: var(--e-primary); background: var(--e-primary-soft); }
+.rolebtn b { display: block; font-size: 13.5px; }
+.rolebtn span { font-size: 11.5px; color: var(--e-muted); }
+.tag { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; padding: 1px 7px; border-radius: 99px; background: var(--e-surface-2); border: 1px solid var(--e-border); color: var(--e-muted); margin-left: 6px; vertical-align: 1px; }
+.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-bottom: 14px; }
+.fields input { width: 100%; }
+.grp { margin-bottom: 14px; }
+.grp h3 { margin: 0 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--e-muted); }
+.perm { display: flex; gap: 10px; align-items: flex-start; padding: 7px 8px; border-radius: 6px; cursor: pointer; }
+.perm:hover { background: var(--e-surface-2); }
+.perm input { margin-top: 3px; }
+.perm b { display: block; font-size: 13px; font-weight: 600; color: var(--e-text); }
+.perm span { font-size: 12px; color: var(--e-muted); }
+.bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 6px; }
+.note { font-size: 12px; color: var(--e-muted); }
+</style>
+<link rel="stylesheet" href="assets/portal.css">
+</head>
+<body data-shell="app" data-title="Roles and permissions" data-sub="Decide exactly what each role can see and do. Changes apply within seconds.">
+<div class="container">
+  <div id="alert" class="alert" role="alert"></div>
+
+  <div class="layout">
+    <div>
+      <div class="card">
+        <h2>Roles</h2>
+        <div class="sub">Pick a role to edit it. Built-in roles can be changed or reset. Add your own for jobs that do not fit.</div>
+        <div id="list" class="rolelist"></div>
+        <div class="bar"><button class="btn primary" onclick="newRole()">Add a role</button></div>
+      </div>
+    </div>
+
+    <div id="editor" class="card"></div>
+  </div>
+</div>
+
+<script>
+const API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
+const token = localStorage.getItem('admin_token');
+if (!token) location.href = 'admin-config.html';
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+let data = null;       // { permissions, roles }
+let selected = null;   // role key, or '__new'
+
+function msg(text, kind) {
+  const a = $('alert'); a.textContent = text; a.className = 'alert show ' + kind;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+async function api(path, method = 'GET', body) {
+  const r = await fetch(API + path, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || 'Something went wrong');
+  return d;
+}
+
+async function load(keep) {
+  try {
+    data = await api('/admin/roles');
+    if (!selected || !data.roles.some(r => r.key === selected) && selected !== '__new') selected = (data.roles.find(r => r.key !== 'super_admin') || data.roles[0]).key;
+    if (keep) selected = keep;
+    render();
+  } catch (e) { msg(e.message, 'err'); }
+}
+
+function render() {
+  $('list').innerHTML = data.roles.map(r => `<button class="rolebtn ${r.key === selected ? 'on' : ''}" onclick="pick('${esc(r.key)}')">
+      <b>${esc(r.label)}${r.builtin ? '<span class="tag">built in</span>' : '<span class="tag">custom</span>'}</b>
+      <span>${r.locked ? 'Everything' : r.permissions.length + ' permission' + (r.permissions.length === 1 ? '' : 's')} · ${r.people} ${r.people === 1 ? 'person' : 'people'}</span></button>`).join('');
+
+  const isNew = selected === '__new';
+  const r = isNew ? { key: '', label: '', description: '', permissions: [], builtin: false, people: 0, locked: false } : data.roles.find(x => x.key === selected);
+  const groups = {};
+  data.permissions.forEach(p => (groups[p.group] = groups[p.group] || []).push(p));
+  const locked = r.locked;
+  $('editor').innerHTML = `
+    <h2>${isNew ? 'New role' : esc(r.label)}</h2>
+    <div class="sub">${locked ? 'The super admin can do everything and cannot be changed.' : 'Tick what this role is allowed to do. Anything left unticked is blocked.'}</div>
+    <div class="fields">
+      <div><label for="r-label">Name</label><input id="r-label" value="${esc(r.label)}" ${locked ? 'disabled' : ''} maxlength="60"></div>
+      <div><label for="r-desc">What they do (optional)</label><input id="r-desc" value="${esc(r.description)}" ${locked ? 'disabled' : ''} maxlength="300"></div>
+    </div>
+    ${Object.entries(groups).map(([g, items]) => `<div class="grp"><h3>${esc(g)}</h3>${items.map(p => `
+      <label class="perm"><input type="checkbox" data-perm="${esc(p.key)}" ${locked || r.permissions.includes(p.key) ? 'checked' : ''} ${locked ? 'disabled' : ''}>
+        <div><b>${esc(p.label)}</b><span>${esc(p.key)}</span></div></label>`).join('')}</div>`).join('')}
+    ${locked ? '' : `<div class="bar">
+      <button class="btn primary" onclick="save()">${isNew ? 'Create role' : 'Save changes'}</button>
+      ${!isNew && r.builtin ? '<button class="btn" onclick="resetRole()">Reset to original</button>' : ''}
+      ${!isNew && !r.builtin ? '<button class="btn danger" onclick="removeRole()">Delete role</button>' : ''}
+      <span class="note">${isNew ? '' : r.people + ' ' + (r.people === 1 ? 'person has' : 'people have') + ' this role. Changes reach them within seconds, with no new sign-in.'}</span></div>`}`;
+}
+
+function pick(k) { selected = k; render(); }
+function newRole() { selected = '__new'; render(); $('r-label').focus(); }
+function ticked() { return [...document.querySelectorAll('[data-perm]')].filter(c => c.checked).map(c => c.dataset.perm); }
+
+async function save() {
+  const body = { label: $('r-label').value, description: $('r-desc').value, permissions: ticked() };
+  try {
+    if (selected === '__new') {
+      const d = await api('/admin/roles', 'POST', body);
+      msg('Role created. You can give it to staff on the Staff page.', 'ok');
+      await load(d.role.key);
+    } else {
+      await api('/admin/roles/' + encodeURIComponent(selected), 'PUT', body);
+      msg('Saved. The change applies within seconds.', 'ok');
+      await load(selected);
+    }
+  } catch (e) { msg(e.message, 'err'); }
+}
+async function resetRole() {
+  if (!confirm('Put this role back to its original permissions?')) return;
+  try { await api(`/admin/roles/${encodeURIComponent(selected)}/reset`, 'POST', {}); msg('Role reset.', 'ok'); await load(selected); } catch (e) { msg(e.message, 'err'); }
+}
+async function removeRole() {
+  if (!confirm('Delete this role? This cannot be undone.')) return;
+  try { await api('/admin/roles/' + encodeURIComponent(selected), 'DELETE'); msg('Role deleted.', 'ok'); selected = null; await load(); } catch (e) { msg(e.message, 'err'); }
+}
+load();
+</script>
+<script src="assets/portal.js"></script>
+</body>
+</html>

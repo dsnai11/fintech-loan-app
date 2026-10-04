@@ -442,10 +442,10 @@ async function adminLogin() {
     localStorage.setItem('admin_token', token);
     localStorage.setItem('admin_user', currentUser);
     localStorage.setItem('admin_role', user.role || 'super_admin');
+    localStorage.setItem('admin_perms', JSON.stringify(user.permissions || []));
 
-    // Everyone except the super admin lands on the page for their job
-    const LANDING = { credit_officer: 'loan-management.html', finance: 'loan-management.html', kyc_reviewer: 'compliance.html', compliance_officer: 'compliance.html', auditor: 'compliance.html', collections_agent: 'collections.html', collections_manager: 'collections.html' };
-    if (user.role && user.role !== 'super_admin') { location.href = LANDING[user.role] || 'customers.html'; return; }
+    // People who cannot change configuration land on the first page their role opens
+    if (user.role && user.role !== 'super_admin' && !(user.permissions || []).includes('config.manage') && !(user.permissions || []).includes('*')) { location.href = PortalShell.landing(user.permissions); return; }
 
     if (window.PortalShell) PortalShell.refresh();
 

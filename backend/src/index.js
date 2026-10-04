@@ -26,6 +26,9 @@ import pricingRoutes from './routes/pricing.js';
 import adminPricingRoutes from './routes/adminPricing.js';
 import adminCustomersRoutes from './routes/adminCustomers.js';
 import adminStaffRoutes from './routes/adminStaff.js';
+import adminRolesRoutes from './routes/adminRoles.js';
+import adminMeRoutes from './routes/adminMe.js';
+import { ensureRoles } from './services/permissions.js';
 import { startScheduler } from './services/notificationService.js';
 import { ensureAdmin } from './services/adminBootstrap.js';
 import { loadAllConfig } from './services/configService.js';
@@ -89,10 +92,12 @@ mongoose.connect(mongoUrl)
     console.log('MongoDB connected');
     await loadAllConfig(); // load API keys from DB into memory
     await ensureAdmin();
+    await ensureRoles(true);
     if (process.env.DISABLE_SCHEDULER !== '1') startScheduler();
   })
   .catch(err => console.log('MongoDB connection error:', err));
 
+app.use('/api', (req, res, next) => ensureRoles().then(() => next(), next));
 app.use('/api/pricing', pricingRoutes);
 app.use('/api/auth/2fa', twoFactorRoutes);
 app.use('/api/auth', authRoutes);
@@ -103,6 +108,8 @@ app.use('/api/admin/reports', reportRoutes);
 app.use('/api/admin/pricing', adminPricingRoutes);
 app.use('/api/admin/customers', adminCustomersRoutes);
 app.use('/api/admin/staff', adminStaffRoutes);
+app.use('/api/admin/roles', adminRolesRoutes);
+app.use('/api/admin/me', adminMeRoutes);
 app.use('/api/admin/collections', collectionsRoutes);
 app.use('/api/admin/compliance', adminComplianceRoutes);
 app.use('/api/compliance', complianceRoutes);

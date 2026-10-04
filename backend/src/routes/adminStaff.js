@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import mongoose from 'mongoose';
 import User from '../models/User.js';
 import { adminMiddleware } from '../middleware/auth.js';
-import { ROLES, STAFF_ROLES, isStaffRole } from '../services/permissions.js';
+import { getRole, listRoles, isStaffRole, isSubset } from '../services/permissions.js';
 import { issueResetToken } from '../services/passwordReset.js';
 import { audit } from '../services/auditService.js';
 
@@ -21,21 +21,23 @@ const view = u => ({
   email: u.email,
   phone: u.phone,
   role: String(u.email).toLowerCase() === adminEmail() ? 'super_admin' : u.role,
-  roleLabel: ROLES[String(u.email).toLowerCase() === adminEmail() ? 'super_admin' : u.role]?.label || u.role,
+  roleLabel: getRole(String(u.email).toLowerCase() === adminEmail() ? 'super_admin' : u.role)?.label || u.role,
   branch: u.branch || '',
   status: u.status,
   twoFactorEnabled: !!u.twoFactorEnabled,
   created: u.createdAt,
 });
 
-// The roles and what each can do, for the "add staff" form.
+// The roles this person is allowed to hand out: never more than they can do themselves.
+const assignable = req => listRoles().filter(r => r.key !== 'super_admin' && isSubset(r.key, req.user.role));
+
 router.get('/roles', (req, res) => {
-  res.json({ roles: STAFF_ROLES.filter(r => r !== 'super_admin').map(r => ({ key: r, label: ROLES[r].label, can: ROLES[r].can })) });
+  res.json({ roles: assignable(req).map(r => ({ key: r.key, label: r.label, can: r.permissions })) });
 });
 
 router.get('/', async (req, res) => {
   try {
-    const staff = await User.find({ $or: [{ role: { $in: STAFF_ROLES } }, { email: adminEmail() }] }).select('-password').sort({ createdAt: 1 }).limit(2000);
+    const staff = await User.find({ $or: [{ role: { $in: listRoles().map(r => r.key) } }, { email: adminEmail() }] }).select('-password').sort({ createdAt: 1 }).limit(2000);
     res.json({ staff: staff.map(view) });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -56,6 +58,7 @@ router.post('/', async (req, res) => {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return bad(res, 400, 'Enter a valid email address');
     if (!/^[0-9+()\-\s]{5,20}$/.test(phone)) return bad(res, 400, 'Enter a valid phone number');
     if (!isStaffRole(role) || role === 'super_admin') return bad(res, 400, 'Choose a role from the list');
+    if (!assignable(req).some(r => r.key === role)) return bad(res, 403, 'You cannot give someone more access than you have yourself');
     if (await User.exists({ $or: [{ email }, { phone }] })) return bad(res, 409, 'Someone already has that email or phone number');
 
     const user = await User.create({ firstName, lastName, email, phone, role, branch, password: crypto.randomBytes(24).toString('hex'), kycStatus: 'approved' });
@@ -73,6 +76,7 @@ async function target(req, res) {
   if (!u || !(isStaffRole(u.role) || String(u.email).toLowerCase() === adminEmail())) { bad(res, 404, 'Staff member not found'); return null; }
   if (String(u.email).toLowerCase() === adminEmail()) { bad(res, 403, 'The main admin account is managed from the server settings'); return null; }
   if (String(u._id) === String(req.user.userId)) { bad(res, 403, 'You cannot change your own access'); return null; }
+  if (!isSubset(u.role, req.user.role)) { bad(res, 403, 'This person has more access than you, so you cannot change their account'); return null; }
   return u;
 }
 
@@ -87,6 +91,7 @@ router.put('/:id', async (req, res) => {
     if (req.body?.role !== undefined) {
       const role = clean(req.body.role, 40);
       if (!isStaffRole(role) || role === 'super_admin') return bad(res, 400, 'Choose a role from the list');
+      if (!assignable(req).some(r => r.key === role)) return bad(res, 403, 'You cannot give someone more access than you have yourself');
       changes.role = role;
     }
     if (req.body?.status !== undefined) {

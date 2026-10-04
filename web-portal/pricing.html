@@ -148,6 +148,13 @@ function render() {
   html += `<div class="card"><h2>Lender details</h2><div class="sub">Shown to customers in the loan agreement, the closure letter and the app's Help screen. Leave a field empty and it is simply left out.</div><div class="grid">` +
     INSTITUTION.map(([k, label]) => `<div><label for="i-${k}">${esc(label)}</label><input type="text" id="i-${k}" value="${esc(policy.institution[k])}"></div>`).join('') + '</div></div>';
   $('form').innerHTML = html;
+  // People who may only view pricing, or may change prices but not controls, get the rest read-only.
+  if (window.PortalShell) {
+    const canEdit = PortalShell.can('pricing.edit'), canCtl = PortalShell.can('controls.edit');
+    document.querySelectorAll('#form input').forEach(el => { const ctl = el.id === 'four-eyes' || el.id === 'repeat-enabled' || el.id.startsWith('f-repeat.'); el.disabled = ctl ? !canCtl : !canEdit; });
+    $('save').disabled = !(canEdit || canCtl);
+    if (!canEdit && !canCtl) $('saved').textContent = 'Your role can view pricing but not change it.';
+  }
 }
 
 function collect() {

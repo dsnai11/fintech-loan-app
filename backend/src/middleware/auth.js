@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
 import User from '../models/User.js';
-import { allowed, isStaffRole } from '../services/permissions.js';
+import { allowed, isStaffRole, ensureRoles, permissionsOf } from '../services/permissions.js';
 
 const adminEmail = () => (process.env.ADMIN_EMAIL || 'admin@lifc.in').toLowerCase();
 
@@ -46,6 +46,7 @@ export const adminMiddleware = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const { problem, account } = await check(decoded);
     if (problem) return res.status(problem.status).json({ error: problem.error });
+    await ensureRoles();
     const role = roleOf(account);
     if (!role) return res.status(403).json({ error: 'Staff access required' });
 
@@ -57,7 +58,7 @@ export const adminMiddleware = async (req, res, next) => {
     const verdict = allowed(role, req.method, req.baseUrl + req.path);
     if (!verdict.ok) return res.status(403).json({ error: 'Your role does not allow this action.', code: 'NOT_PERMITTED', needs: verdict.need });
 
-    req.user = { ...decoded, isAdmin: true, role };
+    req.user = { ...decoded, isAdmin: true, role, permissions: permissionsOf(role) };
     next();
   } catch (error) {
     res.status(401).json({ error: 'Your session has expired. Please sign in again.' });

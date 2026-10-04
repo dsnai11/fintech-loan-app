@@ -1,4 +1,4 @@
-// Standard back-office shell: sidebar, top bar, role-aware menu, sign out and idle timeout.
+// Standard back-office shell: sidebar, top bar, permission-aware menu, sign out and idle timeout.
 // A page opts in with <body data-shell="app">. Pages marked data-shell="lite" only get the shared look.
 (function () {
   var body = document.body;
@@ -6,16 +6,7 @@
   if (mode === 'lite') { body.classList.add('ent-lite'); return; }
 
   var IDLE_MINUTES = 20;
-  var ROLE_LABEL = {
-    super_admin: 'Super admin', credit_officer: 'Credit officer', kyc_reviewer: 'KYC reviewer', collections_agent: 'Collections agent',
-    collections_manager: 'Collections manager', finance: 'Finance', compliance_officer: 'Compliance officer', auditor: 'Auditor'
-  };
-  var LANDING = {
-    credit_officer: 'loan-management.html', finance: 'loan-management.html', kyc_reviewer: 'compliance.html', compliance_officer: 'compliance.html',
-    auditor: 'compliance.html', collections_agent: 'collections.html', collections_manager: 'collections.html'
-  };
-  var ALL = ['super_admin', 'credit_officer', 'kyc_reviewer', 'collections_agent', 'collections_manager', 'finance', 'compliance_officer', 'auditor'];
-  var REPORTS = ['super_admin', 'credit_officer', 'collections_manager', 'finance', 'compliance_officer', 'auditor'];
+  var API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
   var I = {
     loans: '<path d="M3 7h18v12H3z"/><path d="M8 7V5h8v2"/><path d="M3 13h18"/>',
     emi: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/>',
@@ -25,33 +16,54 @@
     chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
     tag: '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.2"/>',
     staff: '<circle cx="12" cy="8" r="3.5"/><path d="M5 21c0-4 3-6.5 7-6.5s7 2.5 7 6.5"/><path d="M17.5 3.5l1.2 1.2 2.3-2.3"/>',
+    key: '<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M16 7l3 3M14 9l2 2"/>',
     gear: '<circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2.3.9a7 7 0 0 0-2-1.2L14.2 3h-4l-.4 2.6a7 7 0 0 0-2 1.2l-2.3-.9-2 3.4 2 1.5A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.5 2 3.4 2.3-.9a7 7 0 0 0 2 1.2l.4 2.6h4l.4-2.6a7 7 0 0 0 2-1.2l2.3.9 2-3.4-2-1.5c.1-.4.1-.8.1-1.2z"/>'
   };
+  // `any` lists the permissions that unlock a page (one is enough). 'super' means the super admin only.
   var NAV = [
     { group: 'Lending' },
-    { href: 'loan-management.html', label: 'Loan management', icon: 'loans', roles: ['super_admin', 'credit_officer', 'finance', 'auditor'] },
-    { href: 'emi-analytics.html', label: 'EMI collections', icon: 'emi', roles: REPORTS },
-    { href: 'customers.html', label: 'Customers', icon: 'users', roles: ALL },
+    { href: 'loan-management.html', label: 'Loan management', icon: 'loans', any: ['loans.view'] },
+    { href: 'emi-analytics.html', label: 'EMI collections', icon: 'emi', any: ['reports.view'] },
+    { href: 'customers.html', label: 'Customers', icon: 'users', any: ['customers.view'] },
     { group: 'Recovery' },
-    { href: 'collections.html', label: 'Collections', icon: 'phone', roles: ['super_admin', 'collections_agent', 'collections_manager', 'auditor'] },
+    { href: 'collections.html', label: 'Collections', icon: 'phone', any: ['collections.view'] },
     { group: 'Risk and reporting' },
-    { href: 'compliance.html', label: 'Compliance', icon: 'shield', roles: ['super_admin', 'kyc_reviewer', 'compliance_officer', 'auditor'] },
-    { href: 'analytics.html', label: 'Analytics', icon: 'chart', roles: REPORTS },
+    { href: 'compliance.html', label: 'Compliance', icon: 'shield', any: ['kyc.view', 'aml.view', 'audit.view', 'requests.process'] },
+    { href: 'analytics.html', label: 'Analytics', icon: 'chart', any: ['reports.view'] },
     { group: 'Administration' },
-    { href: 'pricing.html', label: 'Pricing and controls', icon: 'tag', roles: ['super_admin', 'credit_officer', 'finance', 'auditor'] },
-    { href: 'staff.html', label: 'Staff', icon: 'staff', roles: ['super_admin'] },
-    { href: 'admin-config.html', label: 'Configuration', icon: 'gear', roles: ['super_admin'] }
+    { href: 'pricing.html', label: 'Pricing and controls', icon: 'tag', any: ['pricing.view'] },
+    { href: 'staff.html', label: 'Staff', icon: 'staff', any: ['staff.manage'] },
+    { href: 'roles.html', label: 'Roles and permissions', icon: 'key', any: ['super'] },
+    { href: 'admin-config.html', label: 'Configuration', icon: 'gear', any: ['config.manage'] }
   ];
+  var ROLE_FALLBACK = { super_admin: 'Super admin' };
 
   function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   var here = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
 
-  function signOut() {
-    try { ['admin_token', 'admin_user', 'admin_role'].forEach(function (k) { localStorage.removeItem(k); }); } catch (e) {}
-    location.href = 'admin-config.html';
+  function perms() { try { return JSON.parse(store('admin_perms') || '[]'); } catch (e) { return []; } }
+  function role() { return store('admin_role') || 'super_admin'; }
+  function has(list) {
+    if (role() === 'super_admin') return true;
+    var mine = perms();
+    if (mine.indexOf('*') >= 0) return true;
+    return list.some(function (p) { return p !== 'super' && mine.indexOf(p) >= 0; });
+  }
+  function landing(p) {
+    var mine = p || perms();
+    if (mine.indexOf('*') >= 0) return 'admin-config.html';
+    for (var i = 0; i < NAV.length; i++) {
+      var n = NAV[i];
+      if (n.href && n.any.indexOf('super') < 0 && n.href !== 'admin-config.html' && n.any.some(function (x) { return mine.indexOf(x) >= 0; })) return n.href;
+    }
+    return 'compliance.html'; // everyone can reach "My security" there
   }
 
+  function signOut() {
+    try { ['admin_token', 'admin_user', 'admin_role', 'admin_perms', 'admin_role_label'].forEach(function (k) { localStorage.removeItem(k); }); } catch (e) {}
+    location.href = 'admin-config.html';
+  }
   function signedIn() { return !!store('admin_token'); }
 
   // Pull the page's own title (and any real action buttons) out of its old header before the shell replaces it.
@@ -73,10 +85,7 @@
     old.style.display = 'none';
   }
   var oldHeader = document.querySelector('body > header, header');
-  if (oldHeader && !old) {
-    if (!title) title = body.getAttribute('data-title') || document.title.replace(/\s*[-|].*$/, '');
-    oldHeader.style.display = 'none';
-  }
+  if (oldHeader && !old) oldHeader.style.display = 'none';
   if (!title) title = document.title.replace(/\s*[-|].*$/, '');
 
   var app = document.createElement('div');
@@ -93,20 +102,25 @@
   content.id = 'ent-content';
 
   function build() {
-    var role = store('admin_role') || 'super_admin';
     var html = '<div class="ent-brand"><b>Laxmi India Finance</b><span>Back office</span></div><nav class="ent-nav">';
-    var pending = null;
+    var pending = null; var shown = 0;
     NAV.forEach(function (n) {
       if (n.group) { pending = n.group; return; }
-      if (n.roles.indexOf(role) < 0) return;
+      var ok = n.any.indexOf('super') >= 0 ? role() === 'super_admin' : has(n.any);
+      if (!ok) return;
       if (pending) { html += '<div class="grp">' + esc(pending) + '</div>'; pending = null; }
       html += '<a href="' + n.href + '"' + (n.href === here ? ' class="on" aria-current="page"' : '') + '><svg viewBox="0 0 24 24" aria-hidden="true">' + I[n.icon] + '</svg>' + esc(n.label) + '</a>';
+      shown++;
     });
+    // Everyone can reach their own security settings (two-factor sign-in).
+    if (!has(['kyc.view', 'aml.view', 'audit.view', 'requests.process'])) {
+      html += '<div class="grp">Account</div><a href="compliance.html"' + ('compliance.html' === here ? ' class="on"' : '') + '><svg viewBox="0 0 24 24" aria-hidden="true">' + I.shield + '</svg>My security</a>';
+    }
     side.innerHTML = html + '</nav>';
 
     top.innerHTML = '<button class="ent-burger" aria-label="Open menu" id="ent-burger">&#9776;</button>' +
       '<div class="ent-title"><h1>' + esc(title) + '</h1>' + (sub ? '<p>' + esc(sub) + '</p>' : '') + '</div><div class="ent-actions" id="ent-actions"></div>' +
-      '<div class="ent-user"><div class="who"><b>' + esc(store('admin_user') || '') + '</b><span class="ent-role">' + esc(ROLE_LABEL[role] || role) + '</span></div>' +
+      '<div class="ent-user"><div class="who"><b>' + esc(store('admin_user') || '') + '</b><span class="ent-role">' + esc(store('admin_role_label') || ROLE_FALLBACK[role()] || role().replace(/_/g, ' ')) + '</span></div>' +
       '<button class="btn" id="ent-signout" type="button">Sign out</button></div>';
     var box = top.querySelector('#ent-actions');
     actions.forEach(function (b) { b.classList.add('btn'); box.appendChild(b); });
@@ -130,9 +144,20 @@
 
   content.addEventListener('click', function () { body.classList.remove('ent-open'); });
 
-  // Staff who are not super admin never need the configuration page.
-  var role0 = store('admin_role');
-  if (here === 'admin-config.html' && signedIn() && role0 && role0 !== 'super_admin') location.replace(LANDING[role0] || 'customers.html');
+  // Pages a person's role cannot use send them to the first one it can.
+  if (here === 'admin-config.html' && signedIn() && role() !== 'super_admin' && !has(['config.manage'])) location.replace(landing());
+
+  // Ask the server who I am now, so a change to my role shows up without signing in again.
+  if (signedIn()) {
+    fetch(API + '/admin/me', { headers: { Authorization: 'Bearer ' + store('admin_token') } }).then(function (r) {
+      if (r.status === 401) { signOut(); return null; }
+      return r.ok ? r.json() : null;
+    }).then(function (me) {
+      if (!me) return;
+      store('admin_role', me.role); store('admin_perms', JSON.stringify(me.permissions || [])); store('admin_role_label', me.roleLabel || '');
+      build();
+    }).catch(function () {});
+  }
 
   // Idle timeout: sign out after IDLE_MINUTES without activity.
   var last = Date.now();
@@ -146,5 +171,5 @@
     }
   }, 30000);
 
-  window.PortalShell = { refresh: build };
+  window.PortalShell = { refresh: build, landing: landing, can: function (perm) { return has([perm]); } };
 })();

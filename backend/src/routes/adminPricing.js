@@ -1,6 +1,7 @@
 import express from 'express';
 import { adminMiddleware } from '../middleware/auth.js';
 import { audit } from '../services/auditService.js';
+import { can } from '../services/permissions.js';
 import { getPolicy, savePolicy, sampleQuotes, missingInstitutionDetails, PLAN_KEYS } from '../services/pricingPolicy.js';
 
 const router = express.Router();
@@ -29,6 +30,14 @@ router.put('/', async (req, res) => {
       }
     };
     merge(candidate, body);
+
+    // Prices and the internal controls are separate permissions.
+    const same = k => JSON.stringify(before[k]) === JSON.stringify(candidate[k]);
+    const controlsChanged = !same('controls') || !same('repeat');
+    const pricesChanged = Object.keys(before).some(k => k !== 'controls' && k !== 'repeat' && !same(k));
+    if (pricesChanged && !can(req.user.role, 'pricing.edit')) return res.status(403).json({ error: 'Your role can view pricing but not change it.', code: 'NOT_PERMITTED', needs: 'pricing.edit' });
+    if (controlsChanged && !can(req.user.role, 'controls.edit')) return res.status(403).json({ error: 'Your role cannot change internal controls.', code: 'NOT_PERMITTED', needs: 'controls.edit' });
+    if (!pricesChanged && !controlsChanged) return res.json({ message: 'Nothing to change.', ...view(before) });
 
     const result = await savePolicy(candidate, req.user.email);
     if (!result.ok) return res.status(result.status).json({ error: result.errors[0], errors: result.errors });
