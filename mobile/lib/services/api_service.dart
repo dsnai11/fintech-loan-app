@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'selected_product.dart';
 
 class ApiService {
   late Dio _dio;
@@ -227,9 +228,39 @@ class ApiService {
     }
   }
 
-  Future<Map<String, dynamic>> getPricing() async {
+  // What the web portal controls in the app (products, notice, switches, maintenance). No sign-in needed.
+  Future<Map<String, dynamic>> getAppSettings() async {
     try {
-      final response = await _dio.get('/pricing');
+      final response = await _dio.get('/app-settings');
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  // Messages with the support team
+  Future<Map<String, dynamic>?> getSupportThread() async {
+    try {
+      final response = await _dio.get('/support/thread');
+      final t = response.data['thread'];
+      return t == null ? null : Map<String, dynamic>.from(t);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<void> sendSupportMessage(String text) async {
+    try {
+      await _dio.post('/support/messages', data: {'text': text});
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  // `product` is the home-screen choice inside the loan flow; elsewhere the main product is meant.
+  Future<Map<String, dynamic>> getPricing({String product = 'personal'}) async {
+    try {
+      final response = await _dio.get('/pricing', queryParameters: {'product': product});
       return Map<String, dynamic>.from(response.data['policy']);
     } on DioException catch (e) {
       throw _handleError(e);
@@ -238,7 +269,7 @@ class ApiService {
 
   Future<List<Map<String, dynamic>>> getQuotes(int amount) async {
     try {
-      final response = await _dio.get('/pricing/quotes', queryParameters: {'amount': amount});
+      final response = await _dio.get('/pricing/quotes', queryParameters: {'amount': amount, 'product': SelectedProduct.key});
       return List<Map<String, dynamic>>.from(response.data['quotes']);
     } on DioException catch (e) {
       throw _handleError(e);
@@ -249,6 +280,7 @@ class ApiService {
     try {
       final response = await _dio.get('/pricing/quote', queryParameters: {
         'amount': amount,
+        'product': SelectedProduct.key,
         if (plan != null) 'plan': plan,
         if (tenure != null) 'tenure': tenure,
       });
@@ -370,6 +402,7 @@ class ApiService {
           'purpose': purpose,
           'loanType': loanType,
           'planType': planType,
+          'productKey': SelectedProduct.key,
           if (bankDetails != null) 'bankDetails': bankDetails,
           if (personalDetails != null) 'personalDetails': personalDetails,
         },

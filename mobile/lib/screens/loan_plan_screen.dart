@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../main.dart';
 import '../models/loan_application_state.dart';
 import '../services/api_service.dart';
+import '../services/selected_product.dart';
 import '../utils/error_utils.dart';
 import '../utils/format.dart';
 import 'loan_flow_scaffold.dart';
@@ -36,7 +37,7 @@ class _LoanPlanScreenState extends State<LoanPlanScreen> {
     });
     try {
       final api = context.read<ApiService>();
-      final policy = await api.getPricing();
+      final policy = await api.getPricing(product: SelectedProduct.key);
       final amount = asNum(policy['offerAmount']).toInt();
       final quotes = await api.getQuotes(amount);
       if (!mounted) return;

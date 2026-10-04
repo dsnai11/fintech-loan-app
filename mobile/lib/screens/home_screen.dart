@@ -10,6 +10,9 @@ import 'profile_screen.dart';
 import 'notifications_screen.dart';
 import 'help_screen.dart';
 import 'emi_calculator_screen.dart';
+import 'support_screen.dart';
+import '../services/app_settings.dart';
+import '../services/selected_product.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -28,6 +31,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final settings = context.watch<AppSettings>();
     return Scaffold(
       backgroundColor: kNavy,
       body: Column(
@@ -207,6 +211,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    if (settings.banner != null) _banner(settings.banner!),
                     const Text(
                       'Quick Actions',
                       style: TextStyle(
@@ -230,10 +235,12 @@ class _HomeScreenState extends State<HomeScreen> {
                           icon: Icons.description_rounded,
                           label: 'Apply for\nLoan',
                           color: kNavy,
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                                builder: (_) => const PanVerifyScreen()),
-                          ),
+                          onTap: () {
+                            SelectedProduct.reset();
+                            Navigator.of(context).push(
+                              MaterialPageRoute(builder: (_) => const PanVerifyScreen()),
+                            );
+                          },
                         ),
                         _actionCard(
                           icon: Icons.history_rounded,
@@ -243,6 +250,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             MaterialPageRoute(builder: (_) => const LoanHistoryScreen()),
                           ),
                         ),
+                        if (settings.emiCalculator)
                         _actionCard(
                           icon: Icons.calculate_rounded,
                           label: 'EMI\nCalculator',
@@ -259,6 +267,15 @@ class _HomeScreenState extends State<HomeScreen> {
                             MaterialPageRoute(builder: (_) => const ProfileScreen()),
                           ),
                         ),
+                        if (settings.support)
+                        _actionCard(
+                          icon: Icons.chat_bubble_rounded,
+                          label: 'Message\nUs',
+                          color: const Color(0xFF059669),
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => const SupportScreen()),
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 24),
@@ -273,19 +290,32 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    _offerCard(
-                      title: 'Personal Loan',
-                      subtitle: _pricing == null
-                          ? 'Instant personal loan'
-                          : _repeatMax != null
-                              ? 'Welcome back! Up to ${formatMoney(_repeatMax!)} for you • exact charges shown before you apply'
-                              : 'Up to ${formatMoney(asNum(_pricing!['maxAmount']))} • exact charges shown before you apply',
-                      icon: Icons.person_pin_rounded,
-                      color: kNavy,
-                      onApply: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const PanVerifyScreen()),
+                    if (settings.products.isEmpty)
+                      _offerCard(
+                        title: 'Personal Loan',
+                        subtitle: _pricing == null
+                            ? 'Instant personal loan'
+                            : _repeatMax != null
+                                ? 'Welcome back! Up to ${formatMoney(_repeatMax!)} for you • exact charges shown before you apply'
+                                : 'Up to ${formatMoney(asNum(_pricing!['maxAmount']))} • exact charges shown before you apply',
+                        icon: Icons.person_pin_rounded,
+                        color: kNavy,
+                        onApply: () {
+                          SelectedProduct.reset();
+                          Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PanVerifyScreen()));
+                        },
                       ),
-                    ),
+                    for (final p in settings.products)
+                      _offerCard(
+                        title: (p['name'] ?? '').toString(),
+                        subtitle: _productLine(p),
+                        icon: Icons.person_pin_rounded,
+                        color: kNavy,
+                        onApply: () {
+                          SelectedProduct.choose((p['key'] ?? 'personal').toString(), (p['name'] ?? 'Personal Loan').toString());
+                          Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PanVerifyScreen()));
+                        },
+                      ),
                   ],
                 ),
               ),
@@ -346,6 +376,39 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Map<String, dynamic>? _pricing;
   num? _repeatMax;
+
+  // One line under a product: the largest loan, the rate, and a reminder that charges are shown first.
+  String _productLine(Map<String, dynamic> p) {
+    final isMain = (p['key'] ?? '') == 'personal';
+    final max = (isMain && _repeatMax != null) ? _repeatMax! : asNum(p['maxAmount']);
+    final prefix = (isMain && _repeatMax != null) ? 'Welcome back! Up to ${formatMoney(max)} for you' : 'Up to ${formatMoney(max)}';
+    final desc = (p['description'] ?? '').toString();
+    return '$prefix • exact charges shown before you apply${desc.isEmpty ? '' : '\n$desc'}';
+  }
+
+  // The company's notice from the web portal
+  Widget _banner(Map<String, dynamic> b) {
+    final warn = b['level'] == 'warning';
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: warn ? const Color(0xFFFEF3C7) : const Color(0xFFE0ECFF),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(warn ? Icons.warning_amber_rounded : Icons.info_outline_rounded, size: 20, color: warn ? const Color(0xFFB45309) : const Color(0xFF1D4ED8)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text((b['text'] ?? '').toString(), style: TextStyle(fontSize: 13, height: 1.4, color: warn ? const Color(0xFF92400E) : const Color(0xFF1E3A8A))),
+          ),
+        ],
+      ),
+    );
+  }
 
   Future<void> _loadPricing() async {
     try {

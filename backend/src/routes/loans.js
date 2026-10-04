@@ -6,6 +6,7 @@ import { authMiddleware } from '../middleware/auth.js';
 import { audit } from '../services/auditService.js';
 import { screenLoan } from '../services/amlService.js';
 import { getPolicy, computeQuote, checkRequest } from '../services/pricingPolicy.js';
+import { policyFor } from '../services/appSettings.js';
 import { renderClosureLetter } from '../services/closureLetter.js';
 import { renderStatement } from '../services/loanStatement.js';
 import { repeatEligibility, maxAmountFor } from '../services/repeatLoan.js';
@@ -34,7 +35,8 @@ router.post('/apply-full', authMiddleware, async (req, res) => {
     }
     if (!PURPOSES.includes(purpose)) return res.status(400).json({ error: `Purpose must be one of: ${PURPOSES.join(', ')}` });
 
-    const policy = getPolicy();
+    const policy = policyFor(req.body.productKey ? String(req.body.productKey) : undefined);
+    if (!policy) return res.status(400).json({ error: 'That loan product is not available' });
     const request = { amount: Number(loanAmount), planType: planType || undefined, tenureMonths: tenure === undefined ? undefined : Number(tenure) };
     const problem = checkRequest(policy, request, await maxAmountFor(req.user.userId, policy));
     if (problem) return res.status(400).json({ error: problem });
@@ -83,12 +85,13 @@ router.post('/apply-full', authMiddleware, async (req, res) => {
       tenure: actualTenure,
       purpose,
       loanType: loanType || 'Personal Loan',
+      productKey: policy.productKey || 'personal',
       interestRate: quote.interestRatePercent,
       monthlyEMI,
       totalAmount: quote.totalRepayable,
       status: 'submitted',
       planType: quote.planType !== 'standard' ? quote.planType : undefined,
-      kfs: quote,
+      kfs: { ...quote, productKey: policy.productKey || 'personal', productName: policy.productName || 'Personal Loan' },
       disbursalDetails: {
         accountNumber: bankDetails?.accountNumber || '',
         bankName: _inferBankName(bankDetails?.ifscCode),
@@ -118,7 +121,7 @@ router.post('/apply-full', authMiddleware, async (req, res) => {
         gst,
         gstPercent: quote.gstPercent,
         aprPercent: quote.aprPercent,
-        kfs: quote,
+        kfs: { ...quote, productKey: policy.productKey || 'personal', productName: policy.productName || 'Personal Loan' },
         repaymentSchedule: repaymentHistory.map((r) => ({
           month: r.month,
           dueDate: r.dueDate,
@@ -142,7 +145,8 @@ router.post('/apply', authMiddleware, async (req, res) => {
     }
     if (!PURPOSES.includes(purpose)) return res.status(400).json({ error: `Purpose must be one of: ${PURPOSES.join(', ')}` });
 
-    const policy = getPolicy();
+    const policy = policyFor(req.body.productKey ? String(req.body.productKey) : undefined);
+    if (!policy) return res.status(400).json({ error: 'That loan product is not available' });
     const request = { amount: Number(loanAmount), planType: 'standard', tenureMonths: Number(tenure) };
     const problem = checkRequest(policy, request, await maxAmountFor(req.user.userId, policy));
     if (problem) return res.status(400).json({ error: problem });
@@ -157,10 +161,11 @@ router.post('/apply', authMiddleware, async (req, res) => {
       tenure: quote.tenureMonths,
       purpose,
       loanType: loanType || 'Personal Loan',
+      productKey: policy.productKey || 'personal',
       interestRate: quote.interestRatePercent,
       monthlyEMI: quote.emi,
       totalAmount: quote.totalRepayable,
-      kfs: quote,
+      kfs: { ...quote, productKey: policy.productKey || 'personal', productName: policy.productName || 'Personal Loan' },
       disbursalDetails: { disbursedAmount: quote.netDisbursed },
     });
 
@@ -185,7 +190,7 @@ router.post('/apply', authMiddleware, async (req, res) => {
         gst: quote.gst,
         gstPercent: quote.gstPercent,
         aprPercent: quote.aprPercent,
-        kfs: quote,
+        kfs: { ...quote, productKey: policy.productKey || 'personal', productName: policy.productName || 'Personal Loan' },
       },
     });
   } catch (error) {

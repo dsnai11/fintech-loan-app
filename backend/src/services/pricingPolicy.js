@@ -231,6 +231,8 @@ export function computeQuote(policy, { amount, planType, tenureMonths }) {
 // What customers (and the unauthenticated app) are allowed to see.
 export function publicPolicy(policy) {
   return {
+    productKey: policy.productKey || 'personal',
+    productName: policy.productName || 'Personal Loan',
     minAmount: policy.minAmount,
     maxAmount: policy.maxAmount,
     offerAmount: policy.offerAmount,

@@ -1,0 +1,137 @@
+import { check, section, connect, disconnect, startServer, finish, makeAdmin, tokenFor, client, day } from '../lib.mjs';
+import User from '../../src/models/User.js';
+import Loan from '../../src/models/Loan.js';
+import EMIPayment from '../../src/models/EMIPayment.js';
+import Notification from '../../src/models/Notification.js';
+import SupportThread from '../../src/models/SupportThread.js';
+
+const DB = 'fintech-test-connect';
+await connect(DB);
+const srv = await startServer(DB, { REQUIRE_KYC_FOR_APPROVAL: 'false', REQUIRE_LOAN_AGREEMENT: 'false' });
+const call = client(srv.base);
+const { token: admin } = await makeAdmin();
+
+const bank = n => ({ accountHolder: 'C', accountNumber: `7770000${n}`, ifscCode: 'SBIN0001234' });
+const cust = (first, n) => User.create({ firstName: first, lastName: 'C', email: `c${n}@x.in`, phone: `95000000${10 + n}`, password: 'x12345678', kycStatus: 'approved' });
+const asha = await cust('Asha', 1), ravi = await cust('Ravi', 2), mina = await cust('Mina', 3);
+const [ta, tr] = await Promise.all([tokenFor(asha), tokenFor(ravi)]);
+
+section('APP SETTINGS: PUBLIC VIEW');
+const pub = await call('GET', '/app-settings', null);
+check('the app can read settings without signing in', pub.s === 200 && pub.d.features.support === true && pub.d.maintenance.enabled === false && pub.d.products.length === 1 && pub.d.products[0].key === 'personal', JSON.stringify(pub.d).slice(0, 200));
+check('the main product follows the pricing policy', pub.d.products[0].maxAmount === 500000 && pub.d.products[0].annualRatePercent === 15);
+check('internal fields are not exposed', !JSON.stringify(pub.d).includes('overrides') && !('baseProduct' in pub.d));
+check('customers cannot edit settings (403)', (await call('PUT', '/app-settings/admin', ta, { banner: { enabled: true, text: 'x' } })).s === 403);
+check('no login -> 401', (await call('PUT', '/app-settings/admin', null, {})).s === 401);
+
+section('APP SETTINGS: STAFF EDIT');
+check('banner on without text is refused (400)', (await call('PUT', '/app-settings/admin', admin, { banner: { enabled: true, level: 'info', text: '' } })).s === 400);
+check('bad version refused (400)', (await call('PUT', '/app-settings/admin', admin, { minAppVersion: 'new' })).s === 400);
+const on = await call('PUT', '/app-settings/admin', admin, { banner: { enabled: true, level: 'warning', text: 'Office closed on Sunday' }, features: { emiCalculator: false, eligibilityCheck: true, support: true }, minAppVersion: '1.2.0' });
+check('banner, switches and minimum version saved', on.s === 200, JSON.stringify(on.d));
+const pub2 = (await call('GET', '/app-settings', null)).d;
+check('the app sees the new banner, switch and version', pub2.banner.enabled && pub2.banner.text === 'Office closed on Sunday' && pub2.features.emiCalculator === false && pub2.minAppVersion === '1.2.0', JSON.stringify(pub2));
+
+section('LOAN PRODUCTS');
+const bad = await call('PUT', '/app-settings/admin', admin, { products: [{ name: 'Tiny', overrides: { maxAmount: 50, minAmount: 100 } }] });
+check('a product with limits that make no sense is refused (400)', bad.s === 400);
+const add = await call('PUT', '/app-settings/admin', admin, { products: [{ name: 'Festival Loan', description: 'Small and quick', enabled: true, overrides: { minAmount: 2000, maxAmount: 20000, annualRatePercent: 12, processingFeePercent: 1, plans: { '6_emi': false } } }] });
+check('a new product is saved', add.s === 200 && add.d.settings.products[0].key === 'festival_loan', JSON.stringify(add.d));
+const pub3 = (await call('GET', '/app-settings', null)).d;
+const fest = pub3.products.find(p => p.key === 'festival_loan');
+check('customers see it, with its own limits and rate', pub3.products.length === 2 && fest.maxAmount === 20000 && fest.annualRatePercent === 12 && fest.processingFeePercent === 1, JSON.stringify(pub3.products));
+const fp = (await call('GET', '/pricing?product=festival_loan', null)).d.policy;
+check('the pricing the app loads follows the product', fp.maxAmount === 20000 && fp.productName === 'Festival Loan' && !fp.plans['6_emi'] && !!fp.plans['3_emi'], JSON.stringify(fp));
+const q = await call('GET', '/pricing/quote?product=festival_loan&amount=10000&plan=3_emi', null);
+check('quotes use the product fee (1% not 2.5%)', q.s === 200 && q.d.quote.processingFee === 100, JSON.stringify(q.d));
+check('the product limit is enforced (400)', (await call('GET', '/pricing/quote?product=festival_loan&amount=30000&plan=3_emi', null)).s === 400);
+check('a plan switched off for the product is refused (400)', (await call('GET', '/pricing/quote?product=festival_loan&amount=10000&plan=6_emi', null)).s === 400);
+check('unknown product (404)', (await call('GET', '/pricing?product=nope', null)).s === 404);
+check('the main product is unchanged', (await call('GET', '/pricing', null)).d.policy.maxAmount === 500000);
+
+const apply = (tok, body, n) => call('POST', '/loans/apply-full', tok, { purpose: 'Personal', bankDetails: bank(n), ...body });
+const a1 = await apply(ta, { loanAmount: 10000, planType: '3_emi', productKey: 'festival_loan' }, 1);
+check('applying for the product works and records it', a1.s === 201 && a1.d.loan.kfs.productKey === 'festival_loan' && a1.d.loan.kfs.processingFee === 100, JSON.stringify(a1.d).slice(0, 300));
+const stored = await Loan.findOne({ userId: asha._id });
+check('the loan keeps the product name and key', stored.productKey === 'festival_loan' && stored.kfs.productName === 'Festival Loan');
+check('over the product limit is refused (400)', (await apply(tr, { loanAmount: 30000, planType: '3_emi', productKey: 'festival_loan' }, 2)).s === 400);
+check('unknown product on apply is refused (400)', (await apply(tr, { loanAmount: 5000, planType: '3_emi', productKey: 'ghost' }, 2)).s === 400);
+const a2 = await apply(tr, { loanAmount: 30000, planType: '3_emi' }, 2);
+check('no product means the main one', a2.s === 201 && (await Loan.findOne({ userId: ravi._id })).productKey === 'personal');
+await call('PUT', '/app-settings/admin', admin, { products: [{ ...add.d.settings.products[0], enabled: false }] });
+check('switching a product off hides it', (await call('GET', '/app-settings', null)).d.products.length === 1 && (await call('GET', '/pricing?product=festival_loan', null)).s === 404);
+check('its existing loan keeps its terms', (await Loan.findOne({ userId: asha._id })).kfs.processingFee === 100);
+
+section('MESSAGES: CUSTOMER TO STAFF AND BACK');
+check('no thread to begin with', (await call('GET', '/support/thread', ta)).d.thread === null);
+check('empty message refused (400)', (await call('POST', '/support/messages', ta, { text: '   ' })).s === 400);
+check('too long refused (400)', (await call('POST', '/support/messages', ta, { text: 'x'.repeat(2001) })).s === 400);
+check('no login -> 401', (await call('POST', '/support/messages', null, { text: 'hi' })).s === 401);
+const m1 = await call('POST', '/support/messages', ta, { text: 'When will my loan be approved?' });
+check('customer sends a message', m1.s === 201 && m1.d.thread.messages.length === 1 && m1.d.thread.messages[0].from === 'customer', JSON.stringify(m1.d));
+await call('POST', '/support/messages', ta, { text: 'Please reply soon' });
+check('a second message joins the same thread', (await SupportThread.countDocuments({ userId: asha._id })) === 1);
+
+const hire = async (role, n) => (await call('POST', '/admin/staff', admin, { firstName: role, lastName: 'S', email: `${role}${n}@lifc.in`, phone: `96000000${n}`, role })).d.staff;
+const sup = await hire('support_agent', 1);
+const coll = await hire('collections_agent', 2);
+await User.updateMany({ role: { $nin: [null, 'customer'] } }, { twoFactorEnabled: true });
+const [tSup, tColl] = await Promise.all([sup, coll].map(async s => tokenFor(await User.findById(s.id), true)));
+check('a collections agent cannot read the inbox (403)', (await call('GET', '/admin/support', tColl)).s === 403);
+const inbox = await call('GET', '/admin/support', tSup);
+check('support sees it unread, with the customer', inbox.s === 200 && inbox.d.threads.length === 1 && inbox.d.threads[0].unread === 2 && inbox.d.threads[0].customer.name === 'Asha C' && inbox.d.counts.waiting === 1, JSON.stringify(inbox.d));
+const tid = inbox.d.threads[0].id;
+const one = await call('GET', `/admin/support/${tid}`, tSup);
+check('opening it shows every message and clears unread', one.d.messages.length === 2 && (await call('GET', '/admin/support', tSup)).d.threads[0].unread === 0);
+check('an empty reply is refused (400)', (await call('POST', `/admin/support/${tid}/reply`, tSup, { text: '' })).s === 400);
+check('support replies', (await call('POST', `/admin/support/${tid}/reply`, tSup, { text: 'Your loan is being reviewed today.' })).s === 200);
+const back = await call('GET', '/support/thread', ta);
+check('the customer sees the reply, from support', back.d.thread.messages.length === 3 && back.d.thread.messages[2].from === 'staff' && back.d.thread.messages[2].text.includes('reviewed today'), JSON.stringify(back.d));
+const note = await Notification.findOne({ userId: asha._id, type: 'SUPPORT_REPLY' });
+check('and gets a notification', !!note && note.message.includes('reviewed today'));
+check('the reply took the conversation for that person', (await SupportThread.findById(tid)).assignedTo === 'support_agent1@lifc.in');
+check('the unread badge counts then clears', true);
+const t2 = await call('GET', '/support/thread', ta);
+check('reading it clears the customer unread count', (await call('GET', '/support/unread', ta)).d.count === 0 && t2.s === 200);
+check("another customer sees none of it", (await call('GET', '/support/thread', tr)).d.thread === null);
+check('support closes it', (await call('POST', `/admin/support/${tid}/close`, tSup)).s === 200 && (await call('GET', '/admin/support?view=open', tSup)).d.threads.length === 0 && (await call('GET', '/admin/support?view=closed', tSup)).d.threads.length === 1);
+await call('POST', '/support/messages', ta, { text: 'One more question' });
+check('a new customer message after closing starts a fresh conversation', (await SupportThread.countDocuments({ userId: asha._id })) === 2);
+check('staff can start a conversation with a customer', (await call('POST', '/admin/support/start', tSup, { userId: String(mina._id), text: 'Hello Mina, we need one more document.' })).s === 201 && (await call('GET', '/support/thread', await tokenFor(mina))).d.thread.messages[0].from === 'staff');
+check('a conversation can be handed to someone', (await call('POST', `/admin/support/${(await SupportThread.findOne({ userId: mina._id }))._id}/assign`, tSup, { to: 'support_agent1@lifc.in' })).s === 200);
+check('not to a customer (400)', (await call('POST', `/admin/support/${tid}/assign`, tSup, { to: 'c2@x.in' })).s === 400);
+
+section('MESSAGES CAN BE SWITCHED OFF');
+await call('PUT', '/app-settings/admin', admin, { features: { emiCalculator: true, eligibilityCheck: true, support: false } });
+check('with messaging off the app is told so (403)', (await call('POST', '/support/messages', tr, { text: 'hello' })).s === 403);
+await call('PUT', '/app-settings/admin', admin, { features: { emiCalculator: true, eligibilityCheck: true, support: true } });
+
+section('MESSAGES: RATE LIMIT');
+let last;
+for (let i = 0; i < 22; i++) last = await call('POST', '/support/messages', tr, { text: `msg ${i}` });
+check('after 20 messages in an hour the customer is slowed down (429)', last.s === 429);
+
+section('ANNOUNCEMENTS');
+await Loan.updateOne({ userId: ravi._id }, { status: 'disbursed' });
+await EMIPayment.create({ loanId: (await Loan.findOne({ userId: ravi._id }))._id, userId: ravi._id, emiNumber: 1, dueDate: day(-5), amount: 1000, principalAmount: 1000, status: 'OVERDUE' });
+check('support cannot send announcements (403)', (await call('POST', '/admin/announcements', tSup, { title: 'x', message: 'y', audience: 'all', expectedCount: 1 })).s === 403);
+const all = await call('GET', '/admin/announcements/count?audience=all', admin);
+check('the group size is shown first (3 customers, not staff or admin)', all.d.count === 3, JSON.stringify(all.d));
+check('overdue group has one person', (await call('GET', '/admin/announcements/count?audience=overdue', admin)).d.count === 1);
+check('no-loan group has one person (Mina)', (await call('GET', '/admin/announcements/count?audience=no_loans', admin)).d.count === 1);
+check('unknown group refused (400)', (await call('GET', '/admin/announcements/count?audience=everyone', admin)).s === 400);
+check('a stale count is refused (409)', (await call('POST', '/admin/announcements', admin, { title: 'Notice', message: 'Please pay your overdue instalment', audience: 'overdue', expectedCount: 5 })).s === 409);
+check('title and message are required (400)', (await call('POST', '/admin/announcements', admin, { title: '', message: 'm', audience: 'all', expectedCount: 3 })).s === 400);
+const sent = await call('POST', '/admin/announcements', admin, { title: 'Notice', message: 'Please pay your overdue instalment', audience: 'overdue', expectedCount: 1 });
+check('it is sent to the overdue group only', sent.s === 201 && sent.d.recipients === 1 && (await Notification.countDocuments({ type: 'ANNOUNCEMENT', userId: ravi._id })) === 1 && (await Notification.countDocuments({ type: 'ANNOUNCEMENT', userId: asha._id })) === 0);
+const inboxR = await call('GET', '/notifications', tr);
+check('the customer sees it in the app inbox', JSON.stringify(inboxR.d).includes('Please pay your overdue instalment'));
+const hist = await call('GET', '/admin/announcements', admin);
+check('the history says who sent what to whom', hist.d.announcements[0].sentBy === 'admin@lifc.in' && hist.d.announcements[0].recipients === 1);
+const log = await call('GET', '/admin/compliance/audit?limit=200', admin);
+const acts = log.d.entries.map(e => e.action);
+check('settings, replies and announcements are all in the audit log', ['APP_SETTINGS_UPDATED', 'SUPPORT_REPLY', 'ANNOUNCEMENT_SENT'].every(a => acts.includes(a)));
+
+await srv.stop();
+await disconnect();
+finish();

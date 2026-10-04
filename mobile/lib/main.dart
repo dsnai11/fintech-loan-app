@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'services/api_service.dart';
 import 'services/auth_service.dart';
+import 'services/app_settings.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
@@ -29,6 +30,7 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         Provider<ApiService>(create: (_) => ApiService()),
+        ChangeNotifierProvider<AppSettings>(create: (context) => AppSettings(context.read<ApiService>())),
         ProxyProvider<ApiService, AuthService>(
           update: (_, apiService, authService) =>
               authService ?? AuthService(apiService),

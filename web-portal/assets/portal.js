@@ -16,6 +16,8 @@
     chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
     tag: '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.2"/>',
     staff: '<circle cx="12" cy="8" r="3.5"/><path d="M5 21c0-4 3-6.5 7-6.5s7 2.5 7 6.5"/><path d="M17.5 3.5l1.2 1.2 2.3-2.3"/>',
+    chat: '<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/>',
+    phoneapp: '<rect x="7" y="3" width="10" height="18" rx="2"/><path d="M11 18h2"/>',
     key: '<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M16 7l3 3M14 9l2 2"/>',
     gear: '<circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2.3.9a7 7 0 0 0-2-1.2L14.2 3h-4l-.4 2.6a7 7 0 0 0-2 1.2l-2.3-.9-2 3.4 2 1.5A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.5 2 3.4 2.3-.9a7 7 0 0 0 2 1.2l.4 2.6h4l.4-2.6a7 7 0 0 0 2-1.2l2.3.9 2-3.4-2-1.5c.1-.4.1-.8.1-1.2z"/>'
   };
@@ -25,6 +27,8 @@
     { href: 'loan-management.html', label: 'Loan management', icon: 'loans', any: ['loans.view'] },
     { href: 'emi-analytics.html', label: 'EMI collections', icon: 'emi', any: ['reports.view'] },
     { href: 'customers.html', label: 'Customers', icon: 'users', any: ['customers.view'] },
+    { group: 'Customer care' },
+    { href: 'support.html', label: 'Messages', icon: 'chat', any: ['support.view', 'announcements.send'] },
     { group: 'Recovery' },
     { href: 'collections.html', label: 'Collections', icon: 'phone', any: ['collections.view'] },
     { group: 'Risk and reporting' },
@@ -32,6 +36,7 @@
     { href: 'analytics.html', label: 'Analytics', icon: 'chart', any: ['reports.view'] },
     { group: 'Administration' },
     { href: 'pricing.html', label: 'Pricing and controls', icon: 'tag', any: ['pricing.view'] },
+    { href: 'app-settings.html', label: 'Customer app', icon: 'phoneapp', any: ['appsettings.edit'] },
     { href: 'staff.html', label: 'Staff', icon: 'staff', any: ['staff.manage'] },
     { href: 'roles.html', label: 'Roles and permissions', icon: 'key', any: ['super'] },
     { href: 'admin-config.html', label: 'Configuration', icon: 'gear', any: ['config.manage'] }

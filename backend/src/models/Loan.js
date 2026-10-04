@@ -7,6 +7,7 @@ const loanSchema = new mongoose.Schema(
     tenure: { type: Number, required: true, min: 1, max: 60 },
     purpose: { type: String, enum: ['Personal', 'Business', 'Education', 'Medical', 'Other'] },
     planType: { type: String, enum: ['one_time', '3_emi', '6_emi'] },
+    productKey: { type: String, default: 'personal' },
     // The Key Fact Statement the customer was shown when they applied. Later price changes never alter it.
     kfs: mongoose.Schema.Types.Mixed,
     closureType: { type: String, enum: ['repaid', 'foreclosure', 'cooling_off'] },

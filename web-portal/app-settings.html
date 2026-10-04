@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%92%B0%3C/text%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Customer app - LIFC Admin</title>
+<style>
+* { box-sizing: border-box; }
+.card { padding: 16px; margin-bottom: 14px; }
+.card h2 { margin: 0 0 4px; }
+.sub { font-size: 12px; color: var(--e-muted); margin-bottom: 12px; line-height: 1.5; }
+.alert { display: none; padding: 12px 16px; margin-bottom: 14px; white-space: pre-line; }
+.alert.show { display: block; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; align-items: end; }
+.grid input, .grid select, .full { width: 100%; }
+.switch { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid var(--e-border); }
+.switch:last-child { border-bottom: 0; }
+.switch b { display: block; font-size: 13.5px; }
+.switch span { font-size: 12px; color: var(--e-muted); }
+.prod { border: 1px solid var(--e-border); border-radius: 10px; padding: 14px; margin-bottom: 12px; background: var(--e-surface-2); }
+.prod h3 { margin: 0 0 8px; font-size: 14px; display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.plans { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; font-size: 13px; }
+.plans label { display: flex; gap: 6px; align-items: center; font-weight: 500; color: var(--e-text); }
+.bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; position: sticky; bottom: 0; background: var(--e-bg); padding: 12px 0; }
+.note { font-size: 12px; color: var(--e-muted); }
+.preview { border-radius: 8px; padding: 10px 14px; font-size: 13px; margin-top: 10px; }
+.preview.info { background: var(--e-primary-soft); color: var(--e-primary); }
+.preview.warning { background: var(--e-warn-soft); color: var(--e-warn); }
+</style>
+<link rel="stylesheet" href="assets/portal.css">
+</head>
+<body data-shell="app" data-title="Customer app" data-sub="What customers see in the mobile app: products, notices, switches and maintenance.">
+<div class="container">
+  <div id="alert" class="alert" role="alert"></div>
+  <div id="form"></div>
+  <div class="bar"><button class="btn primary" id="save" onclick="save()">Save changes</button><span class="note" id="saved">The apps pick up changes the next time they open.</span></div>
+</div>
+
+<script>
+const API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
+const token = localStorage.getItem('admin_token');
+if (!token) location.href = 'admin-config.html';
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+let S = null;
+let PLANS = [];
+
+const FEATURES = [
+  ['emiCalculator', 'EMI calculator', 'Show the EMI calculator tile on the home screen.'],
+  ['eligibilityCheck', 'Eligibility check', 'Show the eligibility check tile on the home screen.'],
+  ['support', 'Messages to support', 'Let customers send you messages from the app. Switch off if nobody is answering.'],
+];
+const NUM = [['minAmount', 'Smallest loan (Rs)'], ['maxAmount', 'Largest loan (Rs)'], ['annualRatePercent', 'Interest rate (% a year)'], ['processingFeePercent', 'Processing fee (%)'], ['minTenureMonths', 'Shortest tenure (months)'], ['maxTenureMonths', 'Longest tenure (months)']];
+
+function msg(text, kind) {
+  const a = $('alert'); a.textContent = text; a.className = 'alert show ' + (kind === 'ok' ? 'ok' : 'err');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+async function api(path, method = 'GET', body) {
+  const r = await fetch(API + path, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) { const e = new Error(d.errors ? d.errors.join('\n') : d.error || 'Something went wrong'); throw e; }
+  return d;
+}
+
+async function load() {
+  try {
+    const [d, p] = await Promise.all([api('/app-settings/admin'), fetch(API + '/pricing').then(r => r.json())]);
+    S = d.settings;
+    PLANS = Object.entries(p.policy.plans).map(([k, v]) => [k, v.label]);
+    render();
+  } catch (e) { msg(e.message, 'err'); }
+}
+
+function prodCard(p, i) {
+  const o = p.overrides || {};
+  return `<div class="prod" data-i="${i}">
+    <h3><span>Product ${i + 1}</span><button class="btn danger" onclick="removeProduct(${i})">Remove</button></h3>
+    <div class="grid">
+      <div><label for="p${i}-name">Name customers see</label><input id="p${i}-name" value="${esc(p.name)}" maxlength="60"></div>
+      <div><label for="p${i}-desc">Short description</label><input id="p${i}-desc" value="${esc(p.description)}" maxlength="200"></div>
+      <div><label style="display:flex;gap:8px;align-items:center;margin:0"><input type="checkbox" id="p${i}-on" ${p.enabled ? 'checked' : ''}> Show in the app</label></div>
+    </div>
+    <div class="sub" style="margin:10px 0 6px">Leave a number empty to use the standard pricing from the Pricing page.</div>
+    <div class="grid">${NUM.map(([k, label]) => `<div><label for="p${i}-${k}">${esc(label)}</label><input type="number" step="any" id="p${i}-${k}" value="${esc(o[k] ?? '')}" placeholder="standard"></div>`).join('')}</div>
+    <div class="plans"><span class="note">Repayment plans offered:</span>${PLANS.map(([k, label]) => `<label><input type="checkbox" id="p${i}-plan-${k}" ${o.plans?.[k] === false ? '' : 'checked'}> ${esc(label)}</label>`).join('')}</div>
+  </div>`;
+}
+
+function render() {
+  const b = S.banner, m = S.maintenance;
+  $('form').innerHTML = `
+  <div class="card"><h2>Loan products</h2>
+    <div class="sub">Every product appears as a card on the customer's home screen. Each one can change the limits, rate, fee and plans; everything else comes from the Pricing page. A loan keeps the terms of the product it was taken under.</div>
+    <div class="prod"><h3><span>Main product (always shown)</span></h3>
+      <div class="grid">
+        <div><label for="bp-name">Name customers see</label><input id="bp-name" value="${esc(S.baseProduct.name)}" maxlength="60"></div>
+        <div><label for="bp-desc">Short description</label><input id="bp-desc" value="${esc(S.baseProduct.description)}" maxlength="200"></div>
+      </div><div class="sub" style="margin:8px 0 0">Uses the standard pricing exactly as set on the Pricing page.</div></div>
+    <div id="products">${S.products.map(prodCard).join('')}</div>
+    <button class="btn" onclick="addProduct()">Add a product</button>
+  </div>
+
+  <div class="card"><h2>Notice on the home screen</h2>
+    <div class="sub">A banner at the top of the app's home screen, for things like holidays or changed support hours.</div>
+    <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="b-on" ${b.enabled ? 'checked' : ''} onchange="preview()"> Show the notice</label>
+    <div class="grid" style="margin-top:10px">
+      <div><label for="b-level">Style</label><select id="b-level" onchange="preview()"><option value="info" ${b.level === 'info' ? 'selected' : ''}>Information</option><option value="warning" ${b.level === 'warning' ? 'selected' : ''}>Warning</option></select></div>
+      <div style="grid-column: span 2"><label for="b-text">Text (up to 240 characters)</label><input id="b-text" class="full" maxlength="240" value="${esc(b.text)}" oninput="preview()"></div>
+    </div>
+    <div id="b-preview"></div>
+  </div>
+
+  <div class="card"><h2>Features</h2><div class="sub">Switch parts of the app on or off.</div>
+    ${FEATURES.map(([k, t, d]) => `<label class="switch"><input type="checkbox" id="f-${k}" ${S.features[k] ? 'checked' : ''}><div><b>${esc(t)}</b><span>${esc(d)}</span></div></label>`).join('')}
+  </div>
+
+  <div class="card"><h2>Maintenance and updates</h2>
+    <div class="sub">Maintenance locks every customer out of the app behind your message. Use it only when you really must. A minimum version asks people on older builds to update.</div>
+    <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="m-on" ${m.enabled ? 'checked' : ''}> Lock the app for maintenance</label>
+    <div class="grid" style="margin-top:10px">
+      <div style="grid-column: span 2"><label for="m-text">Message shown while locked</label><input id="m-text" class="full" maxlength="240" value="${esc(m.message)}"></div>
+      <div><label for="min-v">Minimum app version (optional, like 1.2.0)</label><input id="min-v" value="${esc(S.minAppVersion)}" placeholder="no minimum"></div>
+    </div>
+  </div>`;
+  preview();
+}
+
+function preview() {
+  const on = $('b-on').checked, text = $('b-text').value.trim();
+  $('b-preview').innerHTML = on && text ? `<div class="preview ${esc($('b-level').value)}">${esc(text)}</div>` : '';
+}
+function addProduct() { S = collect(); S.products.push({ key: '', name: '', description: '', enabled: true, overrides: { plans: {} } }); render(); }
+function removeProduct(i) { S = collect(); S.products.splice(i, 1); render(); }
+
+function collect() {
+  const out = JSON.parse(JSON.stringify(S));
+  out.baseProduct = { name: $('bp-name').value, description: $('bp-desc').value };
+  out.products = S.products.map((p, i) => {
+    const o = { plans: {} };
+    for (const [k] of NUM) { const v = $(`p${i}-${k}`).value.trim(); if (v !== '') o[k] = Number(v); }
+    for (const [k] of PLANS) o.plans[k] = $(`p${i}-plan-${k}`).checked;
+    return { key: p.key, name: $(`p${i}-name`).value, description: $(`p${i}-desc`).value, enabled: $(`p${i}-on`).checked, overrides: o };
+  });
+  out.banner = { enabled: $('b-on').checked, level: $('b-level').value, text: $('b-text').value };
+  out.features = Object.fromEntries(FEATURES.map(([k]) => [k, $('f-' + k).checked]));
+  out.maintenance = { enabled: $('m-on').checked, message: $('m-text').value };
+  out.minAppVersion = $('min-v').value.trim();
+  return out;
+}
+
+async function save() {
+  const body = collect();
+  if (body.maintenance.enabled && !confirm('This will lock every customer out of the app until you switch it off. Continue?')) return;
+  $('save').disabled = true;
+  try {
+    const d = await api('/app-settings/admin', 'PUT', body);
+    S = d.settings; render();
+    msg(d.message, 'ok');
+    $('saved').textContent = 'Saved ' + new Date().toLocaleTimeString('en-IN');
+  } catch (e) { msg(e.message, 'err'); }
+  $('save').disabled = false;
+}
+load();
+</script>
+<script src="assets/portal.js"></script>
+</body>
+</html>

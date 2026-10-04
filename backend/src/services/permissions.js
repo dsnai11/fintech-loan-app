@@ -26,6 +26,10 @@ export const PERMISSIONS = [
   { key: 'pricing.view', group: 'Pricing and controls', label: 'See rates, fees and lender details' },
   { key: 'pricing.edit', group: 'Pricing and controls', label: 'Change rates, fees, limits, plans and lender details' },
   { key: 'controls.edit', group: 'Pricing and controls', label: 'Change internal controls (four-eyes, repeat-customer limits)' },
+  { key: 'support.view', group: 'Customer messages', label: 'Read customer messages' },
+  { key: 'support.reply', group: 'Customer messages', label: 'Reply to customers, start conversations, close and hand over' },
+  { key: 'announcements.send', group: 'Customer messages', label: 'Send announcements to groups of customers' },
+  { key: 'appsettings.edit', group: 'Administration', label: 'Change what the customer apps show (products, banner, switches, maintenance)' },
   { key: 'staff.manage', group: 'Administration', label: 'Add staff and change their access (only up to your own level)' },
   { key: 'config.manage', group: 'Administration', label: 'Change app configuration and integrations' },
 ];
@@ -43,6 +47,7 @@ export const DEFAULT_ROLES = {
   collections_manager: { label: 'Collections manager', description: 'Runs the collections team.', permissions: ['collections.view', 'collections.act', 'collections.manage', 'customers.view', 'loans.view', 'reports.view'] },
   finance: { label: 'Finance', description: 'Releases approved payouts.', permissions: ['loans.view', 'loans.disburse', 'customers.view', 'reports.view', 'pricing.view'] },
   compliance_officer: { label: 'Compliance officer', description: 'AML, audit and data requests.', permissions: ['kyc.view', 'aml.view', 'aml.review', 'audit.view', 'requests.process', 'customers.view', 'customers.reset', 'reports.view'] },
+  support_agent: { label: 'Customer support', description: 'Answers customer messages.', permissions: ['support.view', 'support.reply', 'customers.view', 'loans.view'] },
   auditor: { label: 'Auditor (read only)', description: 'Can look, cannot change.', permissions: ['loans.view', 'customers.view', 'audit.view', 'reports.view', 'pricing.view', 'aml.view', 'kyc.view', 'collections.view'] },
 };
 
@@ -101,6 +106,9 @@ const RULES = [
   [/^\/api\/admin\/me(\/|$)/, ANY, ANY],
   [/^\/api\/admin\/roles(\/|$)/, SUPER, SUPER],
   [/^\/api\/admin\/staff(\/|$)/, 'staff.manage', 'staff.manage'],
+  [/^\/api\/admin\/support(\/|$)/, 'support.view', 'support.reply'],
+  [/^\/api\/admin\/announcements(\/|$)/, 'announcements.send', 'announcements.send'],
+  [/^\/api\/app-settings\/admin(\/|$)/, 'appsettings.edit', 'appsettings.edit'],
   [/^\/api\/admin\/config(\/|$)/, 'config.manage', 'config.manage'],
   [/^\/api\/app-config\/admin(\/|$)/, 'config.manage', 'config.manage'],
   [/^\/api\/admin\/builds(\/|$)/, 'config.manage', 'config.manage'],

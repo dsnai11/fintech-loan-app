@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import '../services/selected_product.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/api_service.dart';
@@ -61,7 +62,7 @@ class _LoanApplicationScreenState extends State<LoanApplicationScreen> {
 
   Future<void> _loadPricing() async {
     try {
-      final p = await context.read<ApiService>().getPricing();
+      final p = await context.read<ApiService>().getPricing(product: SelectedProduct.key);
       if (!mounted) return;
       setState(() {
         _rate = asNum(p['annualRatePercent']).toDouble();

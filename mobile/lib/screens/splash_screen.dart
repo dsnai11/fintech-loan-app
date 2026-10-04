@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
+import '../services/app_settings.dart';
+import 'app_gate_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({Key? key}) : super(key: key);
@@ -17,9 +19,29 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _checkAuth() async {
-    await Future.delayed(const Duration(seconds: 2));
+    final settings = context.read<AppSettings>();
+    await Future.wait([Future.delayed(const Duration(seconds: 2)), settings.load()]);
 
     if (!mounted) return;
+
+    // The company can lock the app for maintenance, or ask for a newer version, from the web portal.
+    if (settings.maintenance) {
+      Navigator.of(context).pushReplacement(MaterialPageRoute(
+        builder: (_) => AppGateScreen(icon: Icons.build_circle_outlined, title: 'Back soon', message: settings.maintenanceMessage),
+      ));
+      return;
+    }
+    if (settings.updateRequired) {
+      Navigator.of(context).pushReplacement(MaterialPageRoute(
+        builder: (_) => const AppGateScreen(
+          icon: Icons.system_update_alt_rounded,
+          title: 'Please update the app',
+          message: 'A newer version of the app is needed to keep your loan account safe. Install the latest version and open it again.',
+          canRetry: false,
+        ),
+      ));
+      return;
+    }
 
     final authService = context.read<AuthService>();
 

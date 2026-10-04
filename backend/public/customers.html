@@ -112,6 +112,7 @@ async function openCustomer(id) {
     const d = await r.json();
     if (!r.ok) return fail(d.error || 'Could not load the customer');
     const c = d.customer, s = d.summary;
+    const canMsg = !window.PortalShell || PortalShell.can('support.reply');
     $('detail').innerHTML = `
       <div class="card"><h2>${esc(c.name)} ${pill(c.kycStatus)} ${pill(c.status)}</h2>
         <div class="kv">
@@ -119,6 +120,7 @@ async function openCustomer(id) {
           <div><b>Bank account</b>${c.bankAccount ? esc(c.bankAccount.holder + ', ' + c.bankAccount.number + ', ' + c.bankAccount.ifsc) : '-'}</div>
           <div><b>Joined</b>${date(c.joined)}</div><div><b>Admin 2FA</b>${c.twoFactorEnabled ? 'On' : 'Off'}</div>
         </div></div>
+      ${canMsg ? `<div class="card"><h2>Send a message</h2><div class="muted" style="margin-bottom:8px">${esc(c.name)} sees it in the app and gets a notification. Replies come to the Messages inbox.</div><div class="row"><input type="text" id="dm" maxlength="2000" placeholder="Write a message"><button class="btn primary" onclick="sendMessage('${esc(c.id)}')">Send</button></div></div>` : ''}
       <div class="card"><h2>Summary</h2><div class="kv">
         <div><b>Loans</b>${s.totalLoans}</div><div><b>Active</b>${s.activeLoans}</div><div><b>Total borrowed</b>${inr(s.totalBorrowed)}</div><div><b>Open AML alerts</b>${s.openAlerts}</div></div></div>
       <div class="card"><h2>Loans</h2>${table(['Amount', 'Tenure', 'EMI', 'Status', 'Applied', 'Paid out', ''], d.loans.map(l =>
@@ -132,6 +134,22 @@ async function openCustomer(id) {
     $('detail').scrollIntoView({ behavior: 'smooth' });
   } catch (err) { fail(err.message); }
 }
+
+async function sendMessage(userId) {
+  const text = $('dm').value.trim();
+  if (!text) return;
+  try {
+    const r = await fetch(API + '/admin/support/start', { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, text }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) return fail(d.error || 'Could not send');
+    $('dm').value = '';
+    $('alert').textContent = 'Message sent. Replies will appear in Messages.'; $('alert').className = 'alert show ok';
+  } catch (err) { fail(err.message); }
+}
+
+// open straight from the Messages inbox
+const pre = (() => { try { const v = localStorage.getItem('find_customer'); localStorage.removeItem('find_customer'); return v; } catch (e) { return null; } })();
+if (pre) { document.addEventListener('DOMContentLoaded', () => { $('q').value = pre; search(new Event('submit')); }); }
 
 // cells are already escaped or built from escaped parts above
 function table(heads, rows) {

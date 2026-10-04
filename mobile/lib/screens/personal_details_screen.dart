@@ -5,6 +5,8 @@ import '../models/loan_application_state.dart';
 import '../services/api_service.dart';
 import 'loan_flow_scaffold.dart';
 import 'eligibility_check_screen.dart';
+import 'loan_plan_screen.dart';
+import '../services/app_settings.dart';
 import '../utils/error_utils.dart';
 import '../widgets/form_inputs.dart';
 import '../data/indian_data.dart';
@@ -102,8 +104,11 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
       );
 
       if (mounted) {
-        Navigator.push(context,
-            MaterialPageRoute(builder: (_) => EligibilityCheckScreen(appState: appState)));
+        final skip = !context.read<AppSettings>().eligibilityCheck;
+        Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => skip ? LoanPlanScreen(appState: appState) : EligibilityCheckScreen(appState: appState)));
       }
     } catch (e) {
       setState(() { _error = friendlyError(e); _isSaving = false; });

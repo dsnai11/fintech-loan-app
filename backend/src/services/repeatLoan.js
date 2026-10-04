@@ -40,6 +40,7 @@ export async function repeatEligibility(userId, policy) {
 // The most this customer may borrow right now.
 export async function maxAmountFor(userId, policy) {
   if (!policy.repeat.enabled || !userId) return policy.maxAmount;
+  if (policy.productKey && policy.productKey !== 'personal') return policy.maxAmount; // other products keep their own limit
   return (await repeatEligibility(userId, policy)).maxAmount;
 }
 

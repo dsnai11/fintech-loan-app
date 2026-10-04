@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../main.dart';
 import '../services/api_service.dart';
 import '../utils/error_utils.dart';
+import '../services/app_settings.dart';
+import 'support_screen.dart';
 
 // Who the lender is and how to reach them, including the grievance officer. The details are set by the
 // lender in the admin portal, and anything left empty there is simply not shown.
@@ -109,6 +111,15 @@ class _HelpScreenState extends State<HelpScreen> {
               : ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
+                    if (context.watch<AppSettings>().support)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: ElevatedButton.icon(
+                          onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SupportScreen())),
+                          icon: const Icon(Icons.chat_bubble_rounded, size: 18),
+                          label: const Text('Message our support team'),
+                        ),
+                      ),
                     _card('Your lender', [
                       _line('Name', _v('lenderName')),
                       _line('Registration number', _v('registrationNumber')),
