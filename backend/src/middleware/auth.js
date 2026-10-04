@@ -14,7 +14,10 @@ async function check(decoded) {
   const account = await User.findById(decoded.userId).select('email status passwordChangedAt role twoFactorEnabled');
   if (!account) return { problem: { status: 401, error: 'Account not found' } };
   if (account.status && account.status !== 'active') return { problem: { status: 403, error: 'Your account is not active. Please contact support.' } };
-  if (account.passwordChangedAt && decoded.iat < Math.floor(account.passwordChangedAt.getTime() / 1000)) {
+  // `iatMs` is the exact moment the token was made. The standard `iat` is whole seconds, so a token made in the
+  // same second as a password change or a "sign out everywhere" would otherwise survive it.
+  const issuedMs = decoded.iatMs || decoded.iat * 1000;
+  if (account.passwordChangedAt && issuedMs < account.passwordChangedAt.getTime()) {
     return { problem: { status: 401, error: 'Your password was changed. Please sign in again.' } };
   }
   return { account };
@@ -66,7 +69,7 @@ export const adminMiddleware = async (req, res, next) => {
 };
 
 export const generateToken = (userId, email, isAdmin = false) => {
-  return jwt.sign({ userId, email, isAdmin }, process.env.JWT_SECRET, {
+  return jwt.sign({ userId, email, isAdmin, iatMs: Date.now() }, process.env.JWT_SECRET, {
     expiresIn: isAdmin ? process.env.ADMIN_JWT_EXPIRE || '8h' : process.env.JWT_EXPIRE || '7d',
   });
 };

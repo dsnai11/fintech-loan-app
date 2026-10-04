@@ -163,6 +163,15 @@ const api = await fetch(`${srv.base}/health`);
 check('API responses also carry the headers', (api.headers.get('content-security-policy') || '').includes("frame-ancestors 'none'") && api.headers.get('x-content-type-options') === 'nosniff');
 check('HSTS tells browsers to always use HTTPS', /max-age=\d+/.test(api.headers.get('strict-transport-security') || ''));
 
+section('SIGN OUT EVERYWHERE WORKS EVEN WITHIN THE SAME SECOND');
+const quick = await User.create({ firstName: 'Q', lastName: 'K', email: 'quick@x.in', phone: '9777777777', password: 'x12345678' });
+const qTok = await tokenFor(quick);
+check('a fresh session works', (await call('GET', '/notifications', qTok)).s === 200);
+await User.updateOne({ _id: quick._id }, { passwordChangedAt: new Date() });
+check('the same token, revoked in the same second, is refused (401)', (await call('GET', '/notifications', qTok)).s === 401);
+await new Promise(r => setTimeout(r, 5));
+check('a token made after the change works', (await call('GET', '/notifications', await tokenFor(quick))).s === 200);
+
 await srv.stop();
 await disconnect();
 finish();
