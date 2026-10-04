@@ -73,8 +73,8 @@ The portal connects to these endpoints:
 
 ## Troubleshooting
 
-**"No token provided" error**
-- Make sure you pasted a valid JWT token from your mobile app
+**"Please sign in to continue" message**
+- Sign in again with your admin email and password
 
 **API returns 404**
 - Verify the backend URL is correct

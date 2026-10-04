@@ -5,8 +5,8 @@ import User from '../models/User.js';
 // A token is only good while its account exists, is active, and the password has not changed since it was issued.
 async function accountProblem(decoded) {
   // A two-factor challenge token only proves the password was right. It is never a session.
-  if (decoded.purpose) return { status: 401, error: 'Invalid token' };
-  if (!mongoose.isValidObjectId(decoded.userId)) return { status: 401, error: 'Invalid token' };
+  if (decoded.purpose) return { status: 401, error: 'Your session has expired. Please sign in again.' };
+  if (!mongoose.isValidObjectId(decoded.userId)) return { status: 401, error: 'Your session has expired. Please sign in again.' };
   const account = await User.findById(decoded.userId).select('status passwordChangedAt');
   if (!account) return { status: 401, error: 'Account not found' };
   if (account.status && account.status !== 'active') return { status: 403, error: 'Your account is not active. Please contact support.' };
@@ -19,7 +19,7 @@ async function accountProblem(decoded) {
 export const authMiddleware = async (req, res, next) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
-    if (!token) return res.status(401).json({ error: 'No token provided' });
+    if (!token) return res.status(401).json({ error: 'Please sign in to continue' });
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const problem = await accountProblem(decoded);
@@ -27,16 +27,16 @@ export const authMiddleware = async (req, res, next) => {
     req.user = decoded;
     next();
   } catch (error) {
-    res.status(401).json({ error: 'Invalid token' });
+    res.status(401).json({ error: 'Your session has expired. Please sign in again.' });
   }
 };
 
 export const adminMiddleware = async (req, res, next) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
-    if (!token) return res.status(401).json({ error: 'No token provided' });
+    if (!token) return res.status(401).json({ error: 'Please sign in to continue' });
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    if (decoded.purpose) return res.status(401).json({ error: 'Invalid token' });
+    if (decoded.purpose) return res.status(401).json({ error: 'Your session has expired. Please sign in again.' });
     const adminEmail = (process.env.ADMIN_EMAIL || 'admin@lifc.in').toLowerCase();
     if (String(decoded.email).toLowerCase() !== adminEmail && !decoded.isAdmin) {
       return res.status(403).json({ error: 'Admin access required' });
@@ -46,7 +46,7 @@ export const adminMiddleware = async (req, res, next) => {
     req.user = decoded;
     next();
   } catch (error) {
-    res.status(401).json({ error: 'Invalid token' });
+    res.status(401).json({ error: 'Your session has expired. Please sign in again.' });
   }
 };
 
