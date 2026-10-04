@@ -1,6 +1,7 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import QRCode from 'qrcode';
 import User from '../models/User.js';
 import { authMiddleware, generateToken } from '../middleware/auth.js';
 import { audit } from '../services/auditService.js';
@@ -64,7 +65,9 @@ router.post('/setup', authMiddleware, async (req, res) => {
     if (user.twoFactorEnabled) return bad(res, 409, 'Two-factor sign-in is already on');
     const secret = generateSecret();
     await User.updateOne({ _id: user._id }, { twoFactorPendingSecret: encryptSecret(secret) });
-    res.json({ secret, otpauthUrl: otpauthUrl(user.email, secret) });
+    const url = otpauthUrl(user.email, secret);
+    const qrSvg = await QRCode.toString(url, { type: 'svg', margin: 1, width: 200 });
+    res.json({ secret, otpauthUrl: url, qrSvg });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

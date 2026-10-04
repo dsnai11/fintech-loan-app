@@ -132,7 +132,9 @@ code { font-size: 11px; color: var(--text-2); word-break: break-all; }
       <div id="s-off" style="display:none">
         <button class="btn primary" onclick="startSetup()">Set up two-factor sign-in</button>
         <div id="s-setup" style="display:none; margin-top: 14px;">
-          <p class="muted" style="margin-bottom: 8px;">1. In your authenticator app choose "Add account" and "Enter a setup key". Account name: LIFC. Key:</p>
+          <p class="muted" style="margin-bottom: 8px;">1. In your authenticator app tap "+", then "Scan a QR code", and scan this:</p>
+          <div id="s-qr" style="width:200px; height:200px; background:#fff; padding:4px; border-radius:8px;"></div>
+          <p class="muted" style="margin: 10px 0 8px;">Cannot scan? Choose "Enter a setup key", account name LIFC, key (letters and the digits 2 to 7 only, no zero or one):</p>
           <input id="s-secret" readonly style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; background:var(--surface); color:var(--text); font-family: monospace;">
           <p class="muted" style="margin: 8px 0;">On a phone you can also <a id="s-link" href="#" style="color: var(--accent);">open the setup link</a> to add it automatically.</p>
           <p class="muted" style="margin-bottom: 8px;">2. Type the 6-digit code the app now shows:</p>
@@ -333,6 +335,7 @@ function startSetup() {
   run(async () => {
     const d = await json('/auth/2fa/setup', 'POST', {});
     $('s-secret').value = d.secret;
+    $('s-qr').innerHTML = d.qrSvg || '';
     $('s-link').href = d.otpauthUrl;
     $('s-code').value = '';
     $('s-setup').style.display = 'block';
