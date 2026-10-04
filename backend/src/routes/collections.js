@@ -64,6 +64,35 @@ router.get('/written-off', async (req, res) => {
   }
 });
 
+// Promises to pay, each marked kept, broken, due today or upcoming. A promise is judged by whether every
+// instalment that fell due on or before the promised date has been paid.
+router.get('/promises/list', async (req, res) => {
+  try {
+    const notes = await CollectionNote.find({ type: 'PROMISE_TO_PAY', promiseDate: { $ne: null } }).sort({ createdAt: -1 }).limit(300);
+    const latest = new Map();
+    for (const n of notes) if (!latest.has(String(n.loanId))) latest.set(String(n.loanId), n);
+    const startToday = new Date(); startToday.setHours(0, 0, 0, 0);
+    const endToday = new Date(startToday.getTime() + 86400000);
+    const items = [];
+    for (const n of latest.values()) {
+      const loan = await Loan.findById(n.loanId).populate('userId', 'firstName lastName phone');
+      if (!loan) continue;
+      const unpaid = await EMIPayment.countDocuments({ loanId: n.loanId, dueDate: { $lte: n.promiseDate }, status: { $nin: ['PAID', 'WAIVED'] } });
+      const d = new Date(n.promiseDate);
+      const status = unpaid === 0 ? 'KEPT' : d < startToday ? 'BROKEN' : d < endToday ? 'DUE_TODAY' : 'UPCOMING';
+      items.push({
+        loanId: String(n.loanId), customer: loan.userId ? `${loan.userId.firstName} ${loan.userId.lastName}` : '', phone: loan.userId?.phone || '',
+        promiseDate: n.promiseDate, promiseAmount: n.promiseAmount || null, madeBy: n.createdBy, madeAt: n.createdAt, status,
+      });
+    }
+    const order = { BROKEN: 0, DUE_TODAY: 1, UPCOMING: 2, KEPT: 3 };
+    items.sort((a, b) => order[a.status] - order[b.status] || new Date(a.promiseDate) - new Date(b.promiseDate));
+    res.json({ promises: items, counts: items.reduce((c, i) => ({ ...c, [i.status]: (c[i.status] || 0) + 1 }), {}) });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 router.get('/:loanId', async (req, res) => {
   try {
     if (!isId(req.params.loanId)) return bad(res, 400, 'Invalid loan id');

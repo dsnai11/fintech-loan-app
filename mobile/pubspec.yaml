@@ -19,6 +19,7 @@ dependencies:
   email_validator: ^2.1.17
   font_awesome_flutter: ^10.6.0
   image_picker: ^1.0.5
+  url_launcher: ^6.2.5
 
 dev_dependencies:
   flutter_test:

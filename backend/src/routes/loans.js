@@ -1,4 +1,5 @@
 import express from 'express';
+import jwt from 'jsonwebtoken';
 import Loan from '../models/Loan.js';
 import User from '../models/User.js';
 import { authMiddleware } from '../middleware/auth.js';
@@ -206,18 +207,51 @@ router.get('/:loanId/closure-letter', authMiddleware, async (req, res) => {
   }
 });
 
+async function statementHtml(loan) {
+  const [user, emis] = await Promise.all([User.findById(loan.userId), EMIPayment.find({ loanId: loan._id }).sort({ emiNumber: 1 })]);
+  return renderStatement(loan, user, emis);
+}
+const statementReady = loan => ['disbursed', 'closed'].includes(loan.status);
+const isAdminReq = req => req.user.isAdmin || String(req.user.email).toLowerCase() === (process.env.ADMIN_EMAIL || 'admin@lifc.in').toLowerCase();
+
 // Account statement: payout, every instalment, late fees and what is still owed
 router.get('/:loanId/statement', authMiddleware, async (req, res) => {
   try {
     const loan = await Loan.findById(req.params.loanId).catch(() => null);
-    const isAdmin = req.user.isAdmin || String(req.user.email).toLowerCase() === (process.env.ADMIN_EMAIL || 'admin@lifc.in').toLowerCase();
-    if (!loan || (!isAdmin && String(loan.userId) !== String(req.user.userId))) return res.status(404).json({ error: 'Loan not found' });
-    if (!['disbursed', 'closed'].includes(loan.status)) return res.status(400).json({ error: 'A statement is available once the loan has been paid out' });
-    const [user, emis] = await Promise.all([User.findById(loan.userId), EMIPayment.find({ loanId: loan._id }).sort({ emiNumber: 1 })]);
+    if (!loan || (!isAdminReq(req) && String(loan.userId) !== String(req.user.userId))) return res.status(404).json({ error: 'Loan not found' });
+    if (!statementReady(loan)) return res.status(400).json({ error: 'A statement is available once the loan has been paid out' });
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.send(renderStatement(loan, user, emis));
+    res.send(await statementHtml(loan));
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+// The mobile app cannot attach a login header to a browser tab, so it asks for a link that works for
+// 5 minutes and for this one statement only.
+router.post('/:loanId/statement-link', authMiddleware, async (req, res) => {
+  try {
+    const loan = await Loan.findById(req.params.loanId).catch(() => null);
+    if (!loan || String(loan.userId) !== String(req.user.userId)) return res.status(404).json({ error: 'Loan not found' });
+    if (!statementReady(loan)) return res.status(400).json({ error: 'A statement is available once the loan has been paid out' });
+    const t = jwt.sign({ purpose: 'statement', loanId: String(loan._id), userId: String(loan.userId) }, process.env.JWT_SECRET, { expiresIn: '5m' });
+    res.json({ path: `/api/loans/statement-view?t=${t}`, expiresInSeconds: 300 });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/statement-view', async (req, res) => {
+  try {
+    const d = jwt.verify(String(req.query.t || ''), process.env.JWT_SECRET);
+    if (d.purpose !== 'statement') throw new Error('wrong purpose');
+    const loan = await Loan.findById(d.loanId).catch(() => null);
+    if (!loan || String(loan.userId) !== d.userId || !statementReady(loan)) return res.status(404).send('Statement not found');
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-store');
+    res.send(await statementHtml(loan));
+  } catch {
+    res.status(401).send('This link has expired. Open the statement again from the app.');
   }
 });
 

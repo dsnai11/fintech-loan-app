@@ -157,6 +157,17 @@ class ApiService {
     }
   }
 
+  // A 5-minute link to the loan statement page, to open in the phone's browser
+  Future<String> getStatementUrl(String loanId) async {
+    try {
+      final response = await _dio.post('/loans/$loanId/statement-link');
+      final path = response.data['path'].toString();
+      return baseUrl.replaceFirst(RegExp(r'/api$'), '') + path;
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   // EMI endpoints
   Future<Map<String, dynamic>> getEmiSchedule(String loanId) async {
     try {

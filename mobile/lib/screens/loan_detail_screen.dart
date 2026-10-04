@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../main.dart';
 import '../services/api_service.dart';
 import '../utils/error_utils.dart';
@@ -46,6 +47,17 @@ class _LoanDetailScreenState extends State<LoanDetailScreen> {
       });
     } catch (e) {
       setState(() { _error = friendlyError(e); _loading = false; });
+    }
+  }
+
+  Future<void> _openStatement() async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final url = await context.read<ApiService>().getStatementUrl(widget.loan['_id'].toString());
+      final ok = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      if (!ok) messenger.showSnackBar(const SnackBar(content: Text('Could not open the statement')));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(friendlyError(e))));
     }
   }
 
@@ -254,6 +266,14 @@ class _LoanDetailScreenState extends State<LoanDetailScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           _summaryCard(paidCount, total),
+          if (widget.loan['status'] == 'disbursed' || widget.loan['status'] == 'closed') ...[
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _openStatement,
+              icon: const Icon(Icons.description_outlined),
+              label: const Text('View loan statement'),
+            ),
+          ],
           if (_cooling != null) ...[
             const SizedBox(height: 12),
             OutlinedButton.icon(

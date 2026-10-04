@@ -93,6 +93,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 
   <div class="tabs">
     <button id="tab-queue" class="on" onclick="showTab('queue')">Overdue queue</button>
+    <button id="tab-promises" onclick="showTab('promises')">Promises to pay</button>
     <button id="tab-wo" onclick="showTab('wo')">Written off</button>
   </div>
 
@@ -102,6 +103,14 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
       <thead><tr><th>Customer</th><th>Stage</th><th class="num">Days overdue</th><th class="num">EMIs</th><th class="num">Amount due</th><th>Promise to pay</th><th>Last action</th></tr></thead>
       <tbody id="rows"></tbody>
     </table><div id="queue-empty" class="empty" style="display:none">No loans in this stage.</div></div>
+  </div>
+
+  <div id="view-promises" style="display:none">
+    <div class="tiles" id="p-tiles"></div>
+    <div class="card scroll"><table>
+      <thead><tr><th>Customer</th><th>Promised for</th><th class="num">Amount</th><th>Status</th><th>Taken by</th></tr></thead>
+      <tbody id="p-rows"></tbody>
+    </table><div id="p-empty" class="empty" style="display:none">No promises to pay have been recorded yet.</div></div>
   </div>
 
   <div id="view-wo" style="display:none">
@@ -184,14 +193,29 @@ async function loadWrittenOff() {
   $('wo-empty').style.display = d.items.length ? 'none' : 'block';
 }
 
+const P_LABEL = { BROKEN: 'Broken', DUE_TODAY: 'Due today', UPCOMING: 'Upcoming', KEPT: 'Kept' };
+const P_COLOR = { BROKEN: 'var(--bad, #b91c1c)', DUE_TODAY: 'var(--warn, #b45309)', UPCOMING: 'var(--muted)', KEPT: 'var(--good, #047857)' };
+async function loadPromises() {
+  const d = await json('/admin/collections/promises/list');
+  $('p-tiles').innerHTML = Object.keys(P_LABEL).map(k =>
+    `<div class="tile"><div class="l"><i class="dot" style="background:${P_COLOR[k]}"></i>${P_LABEL[k]}</div><div class="v">${d.counts[k] || 0}</div></div>`).join('');
+  $('p-rows').innerHTML = d.promises.map(p =>
+    `<tr class="row" onclick="openCase('${esc(p.loanId)}')"><td><b>${esc(p.customer)}</b><div style="color:var(--muted);font-size:12px">${esc(p.phone)}</div></td>` +
+    `<td>${date(p.promiseDate)}</td><td class="num">${p.promiseAmount ? money(p.promiseAmount) : '—'}</td>` +
+    `<td><span class="badge"><i class="dot" style="background:${P_COLOR[p.status]}"></i>${P_LABEL[p.status]}</span></td><td>${esc(p.madeBy || '')}</td></tr>`).join('');
+  $('p-empty').style.display = d.promises.length ? 'none' : 'block';
+}
+
 async function refresh() {
   $('alert').classList.remove('show');
-  try { await Promise.all([loadQueue(), loadWrittenOff()]); } catch (e) { msg(e.message, 'err'); }
+  try { await Promise.all([loadQueue(), loadWrittenOff(), loadPromises()]); } catch (e) { msg(e.message, 'err'); }
 }
 function setStage(s) { stageFilter = s; loadQueue().catch(e => msg(e.message, 'err')); }
 function showTab(t) {
   $('view-queue').style.display = t === 'queue' ? '' : 'none';
   $('view-wo').style.display = t === 'wo' ? '' : 'none';
+  $('view-promises').style.display = t === 'promises' ? '' : 'none';
+  $('tab-promises').classList.toggle('on', t === 'promises');
   $('tab-queue').classList.toggle('on', t === 'queue');
   $('tab-wo').classList.toggle('on', t === 'wo');
 }
