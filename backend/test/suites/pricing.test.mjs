@@ -169,6 +169,7 @@ const bobAgreement = await call('GET', `/compliance/agreement/${bobs.d.loan.id}`
 check('and their agreement leaves the cooling-off section out', approved.s === 200 && bobAgreement.s === 200 && !bobAgreement.d.text.includes('COOLING-OFF') && bobAgreement.d.text.includes('3. EARLY CLOSURE'), JSON.stringify(bobAgreement.d).slice(0, 200));
 await put({ coolingOffDays: 3 });
 
+const repaidSeed = await Loan.create({ userId: bob._id, loanAmount: 10000, tenure: 2, interestRate: 0, monthlyEMI: 5000, status: 'disbursed', disbursementDate: day(-40) });
 section('CLOSURE LETTER');
 const open = await call('GET', `/loans/${rule._id}/closure-letter`, ta);
 check('not available while the loan is open (400)', open.s === 400);
@@ -178,6 +179,18 @@ check('lender registration and grievance details are on it', html.d.includes('N-
 check("another customer cannot get it (404)", (await call('GET', `/loans/${a1.d.loan.id}/closure-letter`, tb)).s === 404);
 check('an admin can', (await call('GET', `/loans/${a1.d.loan.id}/closure-letter`, admin)).s === 200);
 check('no login -> 401', (await call('GET', `/loans/${a1.d.loan.id}/closure-letter`, null)).s === 401);
+section('ACCOUNT STATEMENT');
+const pendingLoan = await Loan.create({ userId: alice._id, loanAmount: 5000, tenure: 1, interestRate: 0, monthlyEMI: 5000, status: 'approved' });
+const open2 = await call('GET', `/loans/${pendingLoan._id}/statement`, ta);
+check('statement not available before payout (400)', open2.s === 400);
+await EMIPayment.create({ loanId: repaidSeed._id, userId: bob._id, emiNumber: 1, dueDate: day(-10), amount: 5000, principalAmount: 5000, status: 'PAID', paidDate: day(-9), paidAmount: 5000 });
+await EMIPayment.create({ loanId: repaidSeed._id, userId: bob._id, emiNumber: 2, dueDate: day(-1), amount: 5000, principalAmount: 5000, status: 'OVERDUE', penaltyApplied: 500 });
+const stmt = await call('GET', `/loans/${repaidSeed._id}/statement`, tb);
+check('owner gets a statement with paid, overdue and outstanding', stmt.s === 200 && stmt.d.includes('Loan account statement') && stmt.d.includes('Rs 5,000') && stmt.d.includes('1 overdue') && stmt.d.includes('Rs 5,500'), String(stmt.d).slice(0, 300));
+check("another customer cannot get it (404)", (await call('GET', `/loans/${repaidSeed._id}/statement`, ta)).s === 404);
+check('an admin can', (await call('GET', `/loans/${repaidSeed._id}/statement`, admin)).s === 200);
+check('no login -> 401', (await call('GET', `/loans/${repaidSeed._id}/statement`, null)).s === 401);
+
 await User.updateOne({ _id: alice._id }, { firstName: '<script>alert(1)</script>' });
 const xss = await call('GET', `/loans/${a1.d.loan.id}/closure-letter`, ta);
 check('names are escaped in the letter', !xss.d.includes('<script>alert') && xss.d.includes('&lt;script&gt;'));

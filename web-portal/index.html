@@ -553,11 +553,14 @@ function start() {
   loadDashboard();
 }
 
-async function openClosureLetter(loanId) {
+function openClosureLetter(loanId) { return openLoanDocument(loanId, 'closure-letter'); }
+function openStatement(loanId) { return openLoanDocument(loanId, 'statement'); }
+
+async function openLoanDocument(loanId, doc) {
   const w = window.open('', '_blank');
   try {
-    const res = await fetch(`${API_URL}/loans/${encodeURIComponent(loanId)}/closure-letter`, { headers: { Authorization: `Bearer ${token}` } });
-    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Could not open the letter');
+    const res = await fetch(`${API_URL}/loans/${encodeURIComponent(loanId)}/${doc}`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Could not open the document');
     const url = URL.createObjectURL(await res.blob());
     if (w) w.location = url;
   } catch (e) {
@@ -639,7 +642,7 @@ async function loadApplications() {
         <td>${esc(l.tenure)}</td>
         <td><span class="status-badge status-${esc(l.status)}">${esc(l.status)}</span></td>
         <td>₹${esc(l.monthlyEMI)}</td>
-        <td>${new Date(l.createdAt).toLocaleDateString()}${l.status === 'closed' ? ` <a href="#" onclick="openClosureLetter('${esc(l._id)}'); return false;">Closure letter</a>` : ''}</td>
+        <td>${new Date(l.createdAt).toLocaleDateString()}${['disbursed', 'closed'].includes(l.status) ? ` <a href="#" onclick="openStatement('${esc(l._id)}'); return false;">Statement</a>` : ''}${l.status === 'closed' ? ` <a href="#" onclick="openClosureLetter('${esc(l._id)}'); return false;">Closure letter</a>` : ''}</td>
       </tr>
     `).join('') || '<tr><td colspan="6">No applications</td></tr>';
 

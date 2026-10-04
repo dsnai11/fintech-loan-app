@@ -6,6 +6,8 @@ import { audit } from '../services/auditService.js';
 import { screenLoan } from '../services/amlService.js';
 import { getPolicy, computeQuote, checkRequest } from '../services/pricingPolicy.js';
 import { renderClosureLetter } from '../services/closureLetter.js';
+import { renderStatement } from '../services/loanStatement.js';
+import EMIPayment from '../models/EMIPayment.js';
 
 const PURPOSES = ['Personal', 'Business', 'Education', 'Medical', 'Other'];
 
@@ -199,6 +201,21 @@ router.get('/:loanId/closure-letter', authMiddleware, async (req, res) => {
     const user = await User.findById(loan.userId);
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(renderClosureLetter(loan, user));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Account statement: payout, every instalment, late fees and what is still owed
+router.get('/:loanId/statement', authMiddleware, async (req, res) => {
+  try {
+    const loan = await Loan.findById(req.params.loanId).catch(() => null);
+    const isAdmin = req.user.isAdmin || String(req.user.email).toLowerCase() === (process.env.ADMIN_EMAIL || 'admin@lifc.in').toLowerCase();
+    if (!loan || (!isAdmin && String(loan.userId) !== String(req.user.userId))) return res.status(404).json({ error: 'Loan not found' });
+    if (!['disbursed', 'closed'].includes(loan.status)) return res.status(400).json({ error: 'A statement is available once the loan has been paid out' });
+    const [user, emis] = await Promise.all([User.findById(loan.userId), EMIPayment.find({ loanId: loan._id }).sort({ emiNumber: 1 })]);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(renderStatement(loan, user, emis));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
