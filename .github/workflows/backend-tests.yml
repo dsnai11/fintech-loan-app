@@ -47,4 +47,10 @@ jobs:
 
       - name: Run tests
         working-directory: backend
-        run: npm test
+        run: |
+          set +e
+          npm test 2>&1 | tee test-output.log
+          code=${PIPESTATUS[0]}
+          # Show each failing check as an annotation so it is easy to find from the run summary
+          grep -E '^ +FAIL |^FAIL |Error' test-output.log | head -20 | while read -r line; do echo "::error::$line"; done
+          exit $code
