@@ -1,6 +1,9 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import '../services/api_service.dart';
+import '../utils/format.dart';
 import '../main.dart';
 import 'pan_verify_screen.dart';
 
@@ -41,6 +44,7 @@ class _EmiCalculatorScreenState extends State<EmiCalculatorScreen> {
   String? _tenureErr;
 
   List<_ScheduleRow> _rows = [];
+  bool _rateTouched = false;
 
   @override
   void initState() {
@@ -49,6 +53,20 @@ class _EmiCalculatorScreenState extends State<EmiCalculatorScreen> {
     _rateCtl = TextEditingController(text: _rate.toString());
     _tenureCtl = TextEditingController(text: _tenure.toString());
     _rows = _buildSchedule();
+    Future.microtask(_loadRate);
+  }
+
+  Future<void> _loadRate() async {
+    try {
+      final p = await context.read<ApiService>().getPricing();
+      final r = asNum(p['annualRatePercent']).toDouble();
+      if (!mounted || _rateTouched || r < _minRate || r > _maxRate) return;
+      setState(() {
+        _rate = r;
+        _rateCtl.text = r.toString();
+        _rows = _buildSchedule();
+      });
+    } catch (_) {}
   }
 
   @override
@@ -110,6 +128,7 @@ class _EmiCalculatorScreenState extends State<EmiCalculatorScreen> {
       return;
     }
     _rateErr = null;
+    _rateTouched = true;
     _rate = v;
     _recalc();
   }
@@ -246,6 +265,7 @@ class _EmiCalculatorScreenState extends State<EmiCalculatorScreen> {
             suffix: '%',
             onSlider: (v) {
               _rateErr = null;
+              _rateTouched = true;
               _rate = v;
               _rateCtl.text = v.toString();
               _recalc();

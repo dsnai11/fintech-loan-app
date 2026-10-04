@@ -101,6 +101,12 @@ export const templates = {
     message: `We received ${inr(total)} and your loan has been closed early. Remaining interest has been waived.`,
     loanId: loan._id,
   }),
+  coolingOff: (loan, total) => ({
+    type: 'LOAN_CLOSED',
+    title: 'Loan cancelled',
+    message: `We received ${inr(total)} and your loan has been cancelled within the cooling-off period.`,
+    loanId: loan._id,
+  }),
   closed: loanId => ({
     type: 'LOAN_CLOSED',
     title: 'Loan fully repaid',

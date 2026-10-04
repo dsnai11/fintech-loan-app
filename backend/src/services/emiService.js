@@ -3,6 +3,7 @@ import Loan from '../models/Loan.js';
 import User from '../models/User.js';
 import axios from 'axios';
 import { notify, templates } from './notificationService.js';
+import { getPolicy, lateFeeFor } from './pricingPolicy.js';
 
 const RAZORPAY_API = 'https://api.razorpay.com/v1';
 const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID || 'rzp_test_key';
@@ -120,8 +121,8 @@ export async function checkAndMarkOverdue() {
         daysOverdue,
       });
 
-      // Calculate penalty: 2% per month or ₹500, whichever is higher
-      const penalty = Math.max(emi.amount * 0.02 * Math.ceil(daysOverdue / 30), 500);
+      // Late fee comes from the pricing policy
+      const penalty = lateFeeFor(getPolicy(), emi.amount, Math.ceil(daysOverdue / 30));
 
       await EMIPayment.findByIdAndUpdate(emi._id, {
         penaltyApplied: penalty,
@@ -230,7 +231,7 @@ async function markEMIPaid(emi, paymentId, amountPaid) {
 
   const unpaid = await EMIPayment.countDocuments({ loanId: emi.loanId, status: { $ne: 'PAID' } });
   if (unpaid === 0) {
-    await Loan.findByIdAndUpdate(emi.loanId, { status: 'closed', closedAt: new Date() });
+    await Loan.findByIdAndUpdate(emi.loanId, { status: 'closed', closedAt: new Date(), closureType: 'repaid' });
     await notify(emi.userId, templates.closed(emi.loanId), { sms: true });
   }
 }

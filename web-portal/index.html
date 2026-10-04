@@ -283,6 +283,7 @@ tr:hover { background: var(--light); }
         <div class="sidebar-item" onclick="window.location.href='analytics.html'" style="background: #DBEAFE; color: #1E3A8A;">📊 Analytics</div>
         <div class="sidebar-item" onclick="window.location.href='collections.html'" style="background: #FEE2E2; color: #7F1D1D;">📞 Collections</div>
         <div class="sidebar-item" onclick="window.location.href='compliance.html'" style="background: #EDE9FE; color: #4C1D95;">🛡️ Compliance</div>
+        <div class="sidebar-item" onclick="window.location.href='pricing.html'" style="background: #FEF3C7; color: #854D0E;">💲 Pricing</div>
       </div>
     </div>
 
@@ -552,6 +553,19 @@ function start() {
   loadDashboard();
 }
 
+async function openClosureLetter(loanId) {
+  const w = window.open('', '_blank');
+  try {
+    const res = await fetch(`${API_URL}/loans/${encodeURIComponent(loanId)}/closure-letter`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Could not open the letter');
+    const url = URL.createObjectURL(await res.blob());
+    if (w) w.location = url;
+  } catch (e) {
+    if (w) w.close();
+    alert(e.message);
+  }
+}
+
 function showPage(pageName) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById(pageName).classList.add('active');
@@ -625,7 +639,7 @@ async function loadApplications() {
         <td>${esc(l.tenure)}</td>
         <td><span class="status-badge status-${esc(l.status)}">${esc(l.status)}</span></td>
         <td>₹${esc(l.monthlyEMI)}</td>
-        <td>${new Date(l.createdAt).toLocaleDateString()}</td>
+        <td>${new Date(l.createdAt).toLocaleDateString()}${l.status === 'closed' ? ` <a href="#" onclick="openClosureLetter('${esc(l._id)}'); return false;">Closure letter</a>` : ''}</td>
       </tr>
     `).join('') || '<tr><td colspan="6">No applications</td></tr>';
 

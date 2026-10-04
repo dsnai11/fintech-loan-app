@@ -4,6 +4,10 @@ import User from '../models/User.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { audit } from '../services/auditService.js';
 import { screenLoan } from '../services/amlService.js';
+import { getPolicy, computeQuote, checkRequest } from '../services/pricingPolicy.js';
+import { renderClosureLetter } from '../services/closureLetter.js';
+
+const PURPOSES = ['Personal', 'Business', 'Education', 'Medical', 'Other'];
 
 const router = express.Router();
 
@@ -20,9 +24,17 @@ router.post('/apply-full', authMiddleware, async (req, res) => {
       personalDetails, // { pincode, gender, address, email }
     } = req.body;
 
-    if (!loanAmount || !tenure || !purpose) {
+    const namedPlan = planType && planType !== 'standard';
+    if (!loanAmount || !purpose || (!tenure && !namedPlan)) {
       return res.status(400).json({ error: 'Loan amount, tenure, and purpose are required' });
     }
+    if (!PURPOSES.includes(purpose)) return res.status(400).json({ error: `Purpose must be one of: ${PURPOSES.join(', ')}` });
+
+    const policy = getPolicy();
+    const request = { amount: Number(loanAmount), planType: planType || undefined, tenureMonths: tenure === undefined ? undefined : Number(tenure) };
+    const problem = checkRequest(policy, request);
+    if (problem) return res.status(400).json({ error: problem });
+    const quote = computeQuote(policy, request);
 
     const user = await User.findById(req.user.userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
@@ -43,30 +55,8 @@ router.post('/apply-full', authMiddleware, async (req, res) => {
       };
     }
 
-    const processingFee = Math.round(loanAmount * 0.025); // 2.5% processing fee
-    const gst = Math.round(processingFee * 0.18);
-    const disbursedAmount = loanAmount - processingFee - gst;
-
-    // Calculate EMI based on plan
-    let monthlyEMI = 0;
-    let actualTenure = tenure;
-    const rate = 15 / 12 / 100;
-    if (planType === 'one_time') {
-      monthlyEMI = loanAmount; // full amount in one go
-      actualTenure = 1;
-    } else if (planType === '3_emi') {
-      actualTenure = 3;
-      monthlyEMI = Math.round((loanAmount * 1.05) / 3); // 5% interest
-    } else if (planType === '6_emi') {
-      actualTenure = 6;
-      monthlyEMI = Math.round((loanAmount * 1.09) / 6); // 9% interest
-    } else {
-      // standard EMI formula
-      monthlyEMI = Math.round(
-        (loanAmount * rate * Math.pow(1 + rate, actualTenure)) /
-          (Math.pow(1 + rate, actualTenure) - 1)
-      );
-    }
+    // Fees, EMI and tenure all come from the pricing policy (see services/pricingPolicy.js).
+    const { processingFee, gst, netDisbursed: disbursedAmount, emi: monthlyEMI, tenureMonths: actualTenure } = quote;
 
     // Build repayment schedule
     const repaymentHistory = [];
@@ -85,15 +75,16 @@ router.post('/apply-full', authMiddleware, async (req, res) => {
 
     const loan = new Loan({
       userId: req.user.userId,
-      loanAmount,
+      loanAmount: quote.amount,
       tenure: actualTenure,
       purpose,
       loanType: loanType || 'Personal Loan',
-      interestRate: planType === 'one_time' ? 0 : planType === '3_emi' ? 5 : planType === '6_emi' ? 9 : 15,
+      interestRate: quote.interestRatePercent,
       monthlyEMI,
-      totalAmount: monthlyEMI * actualTenure,
+      totalAmount: quote.totalRepayable,
       status: 'submitted',
-      planType: ['one_time', '3_emi', '6_emi'].includes(planType) ? planType : undefined,
+      planType: quote.planType !== 'standard' ? quote.planType : undefined,
+      kfs: quote,
       disbursalDetails: {
         accountNumber: bankDetails?.accountNumber || '',
         bankName: _inferBankName(bankDetails?.ifscCode),
@@ -121,6 +112,9 @@ router.post('/apply-full', authMiddleware, async (req, res) => {
         disbursedAmount,
         processingFee,
         gst,
+        gstPercent: quote.gstPercent,
+        aprPercent: quote.aprPercent,
+        kfs: quote,
         repaymentSchedule: repaymentHistory.map((r) => ({
           month: r.month,
           dueDate: r.dueDate,
@@ -142,21 +136,29 @@ router.post('/apply', authMiddleware, async (req, res) => {
     if (!loanAmount || !tenure || !purpose) {
       return res.status(400).json({ error: 'Loan amount, tenure, and purpose are required' });
     }
+    if (!PURPOSES.includes(purpose)) return res.status(400).json({ error: `Purpose must be one of: ${PURPOSES.join(', ')}` });
+
+    const policy = getPolicy();
+    const request = { amount: Number(loanAmount), planType: 'standard', tenureMonths: Number(tenure) };
+    const problem = checkRequest(policy, request);
+    if (problem) return res.status(400).json({ error: problem });
+    const quote = computeQuote(policy, request);
 
     const user = await User.findById(req.user.userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     const loan = new Loan({
       userId: req.user.userId,
-      loanAmount,
-      tenure,
+      loanAmount: quote.amount,
+      tenure: quote.tenureMonths,
       purpose,
       loanType: loanType || 'Personal Loan',
-      interestRate: process.env.DEFAULT_INTEREST_RATE || 15,
+      interestRate: quote.interestRatePercent,
+      monthlyEMI: quote.emi,
+      totalAmount: quote.totalRepayable,
+      kfs: quote,
+      disbursalDetails: { disbursedAmount: quote.netDisbursed },
     });
-
-    loan.monthlyEMI = loan.calculateEMI();
-    loan.totalAmount = loan.monthlyEMI * tenure;
 
     await loan.save();
     user.loanHistory.push(loan._id);
@@ -174,8 +176,29 @@ router.post('/apply', authMiddleware, async (req, res) => {
         totalAmount: loan.totalAmount,
         status: loan.status,
         interestRate: loan.interestRate,
+        disbursedAmount: quote.netDisbursed,
+        processingFee: quote.processingFee,
+        gst: quote.gst,
+        gstPercent: quote.gstPercent,
+        aprPercent: quote.aprPercent,
+        kfs: quote,
       },
     });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Loan closure letter / no-dues certificate, for the borrower (or an admin) once the loan is closed
+router.get('/:loanId/closure-letter', authMiddleware, async (req, res) => {
+  try {
+    const loan = await Loan.findById(req.params.loanId).catch(() => null);
+    const isAdmin = req.user.isAdmin || String(req.user.email).toLowerCase() === (process.env.ADMIN_EMAIL || 'admin@lifc.in').toLowerCase();
+    if (!loan || (!isAdmin && String(loan.userId) !== String(req.user.userId))) return res.status(404).json({ error: 'Loan not found' });
+    if (loan.status !== 'closed') return res.status(400).json({ error: 'A closure letter is available once the loan is closed' });
+    const user = await User.findById(loan.userId);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(renderClosureLetter(loan, user));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

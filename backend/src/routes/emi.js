@@ -5,6 +5,7 @@ import { adminMiddleware, authMiddleware } from '../middleware/auth.js';
 import EMIService from '../services/emiService.js';
 import { verifyRazorpayWebhook } from '../services/webhookSecurity.js';
 import { getForeclosureQuote, executeForeclosure } from '../services/foreclosureService.js';
+import { getCoolingOffQuote, executeCoolingOff } from '../services/coolingOffService.js';
 
 const router = express.Router();
 
@@ -81,6 +82,26 @@ router.get('/foreclosure/:loanId', authMiddleware, async (req, res) => {
     if (!(await ownsLoan(req, res))) return;
     const { quote } = await getForeclosureQuote(req.params.loanId);
     res.json(quote);
+  } catch (e) {
+    sendError(res, e);
+  }
+});
+
+router.get('/cooling-off/:loanId', authMiddleware, async (req, res) => {
+  try {
+    if (!(await ownsLoan(req, res))) return;
+    const { quote } = await getCoolingOffQuote(req.params.loanId);
+    res.json(quote);
+  } catch (e) {
+    sendError(res, e);
+  }
+});
+
+router.post('/cooling-off/:loanId', authMiddleware, async (req, res) => {
+  try {
+    if (!(await ownsLoan(req, res))) return;
+    const result = await executeCoolingOff(req.params.loanId, Number(req.body?.expectedAmount), req.user.email);
+    res.json({ message: 'Loan cancelled', ...result });
   } catch (e) {
     sendError(res, e);
   }

@@ -22,6 +22,8 @@ import collectionsRoutes from './routes/collections.js';
 import complianceRoutes from './routes/compliance.js';
 import adminComplianceRoutes from './routes/adminCompliance.js';
 import twoFactorRoutes from './routes/twoFactor.js';
+import pricingRoutes from './routes/pricing.js';
+import adminPricingRoutes from './routes/adminPricing.js';
 import { startScheduler } from './services/notificationService.js';
 import { ensureAdmin } from './services/adminBootstrap.js';
 import { loadAllConfig } from './services/configService.js';
@@ -89,12 +91,14 @@ mongoose.connect(mongoUrl)
   })
   .catch(err => console.log('MongoDB connection error:', err));
 
+app.use('/api/pricing', pricingRoutes);
 app.use('/api/auth/2fa', twoFactorRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/loans', loanRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/kyc', kycRoutes);
 app.use('/api/admin/reports', reportRoutes);
+app.use('/api/admin/pricing', adminPricingRoutes);
 app.use('/api/admin/collections', collectionsRoutes);
 app.use('/api/admin/compliance', adminComplianceRoutes);
 app.use('/api/compliance', complianceRoutes);

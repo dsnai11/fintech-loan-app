@@ -5,18 +5,15 @@ import { notify, templates } from './notificationService.js';
 import User from '../models/User.js';
 import { audit } from './auditService.js';
 import { flagEarlyClosure } from './amlService.js';
+import { getPolicy, lateFeeFor } from './pricingPolicy.js';
 
 const DAY = 24 * 60 * 60 * 1000;
-const feePct = () => {
-  const v = Number(process.env.FORECLOSURE_FEE_PCT);
-  return Number.isFinite(v) && v >= 0 ? v : 2;
-};
+const feePct = () => getPolicy().foreclosureFeePercent;
 
 const fail = (status, message, extra = {}) => Object.assign(new Error(message), { status, ...extra });
 
-// Same rule the overdue job uses: 2% of the EMI per month late, minimum Rs 500.
-export const penaltyFor = (emi, now) =>
-  Math.round(Math.max(emi.amount * 0.02 * Math.ceil((now - emi.dueDate) / DAY / 30), 500));
+// Same rule the overdue job uses: the late fee from the pricing policy, for each month or part of a month late.
+export const penaltyFor = (emi, now) => lateFeeFor(getPolicy(), emi.amount, Math.ceil((now - emi.dueDate) / DAY / 30));
 
 export async function getForeclosureQuote(loanId, now = new Date()) {
   const loan = await Loan.findById(loanId);
@@ -83,6 +80,7 @@ export async function executeForeclosure(loanId, expectedTotal, paidBy) {
     {
       status: 'closed',
       closedAt: now,
+      closureType: 'foreclosure',
       foreclosure: {
         date: now,
         amount: quote.principal + quote.accruedInterest + quote.fee,

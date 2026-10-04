@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/api_service.dart';
 import '../main.dart';
 import '../utils/error_utils.dart';
+import '../utils/format.dart';
 import '../widgets/form_inputs.dart';
 
 class LoanApplicationScreen extends StatefulWidget {
@@ -20,26 +22,69 @@ class _LoanApplicationScreenState extends State<LoanApplicationScreen> {
   String _selectedLoanType = 'Personal Loan';
   bool _isLoading = false;
   double _monthlyEMI = 0;
+  double _rate = 15;
+  double _minAmount = 1000;
+  double _maxAmount = 500000;
+  Map<String, dynamic>? _quote;
+  Timer? _quoteTimer;
 
   final _purposes = ['Personal', 'Business', 'Education', 'Medical', 'Other'];
   final _loanTypes = ['Personal Loan', 'Micro Loan', 'Business Loan'];
 
   void _calculateEMI() {
     if (_loanAmount > 0 && _tenure > 0) {
-      const double rate = 15;
-      final monthlyRate = rate / 12 / 100;
+      final monthlyRate = _rate / 12 / 100;
       final emi = (_loanAmount * monthlyRate * pow(1 + monthlyRate, _tenure)) /
           (pow(1 + monthlyRate, _tenure) - 1);
       setState(() => _monthlyEMI = emi);
     } else {
       setState(() => _monthlyEMI = 0);
     }
+    _scheduleQuote();
+  }
+
+  // The figures a customer must be shown (fees, GST, what they receive, APR) come from the server, so they
+  // are always the lender's current terms.
+  void _scheduleQuote() {
+    _quoteTimer?.cancel();
+    _quote = null;
+    _quoteTimer = Timer(const Duration(milliseconds: 350), () async {
+      if (!mounted) return;
+      try {
+        final q = await context.read<ApiService>().getQuote(amount: _loanAmount.toInt(), tenure: _tenure);
+        if (mounted) setState(() => _quote = q);
+      } catch (_) {
+        if (mounted) setState(() => _quote = null);
+      }
+    });
+  }
+
+  Future<void> _loadPricing() async {
+    try {
+      final p = await context.read<ApiService>().getPricing();
+      if (!mounted) return;
+      setState(() {
+        _rate = asNum(p['annualRatePercent']).toDouble();
+        _minAmount = asNum(p['minAmount']).toDouble();
+        _maxAmount = asNum(p['maxAmount']).toDouble();
+        if (_loanAmount > _maxAmount) _loanAmount = _maxAmount;
+        if (_loanAmount < _minAmount) _loanAmount = _minAmount;
+      });
+      _calculateEMI();
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _quoteTimer?.cancel();
+    super.dispose();
   }
 
   @override
   void initState() {
     super.initState();
     _calculateEMI();
+    Future.microtask(_loadPricing);
   }
 
   Future<void> _applyLoan() async {
@@ -200,8 +245,8 @@ class _LoanApplicationScreenState extends State<LoanApplicationScreen> {
                       ),
                       child: LoanAmountSlider(
                         label: 'LOAN AMOUNT',
-                        minAmount: 1000,
-                        maxAmount: 500000,
+                        minAmount: _minAmount,
+                        maxAmount: _maxAmount,
                         initialAmount: _loanAmount,
                         onChanged: (amount) {
                           setState(() => _loanAmount = amount);
@@ -360,21 +405,28 @@ class _LoanApplicationScreenState extends State<LoanApplicationScreen> {
                             const SizedBox(height: 16),
                             _summaryRow('Loan Amount', '₹${_loanAmount.toStringAsFixed(0)}'),
                             _summaryRow('Tenure', '$_tenure months'),
-                            _summaryRow('Interest Rate', '15% p.a.'),
+                            _summaryRow('Interest Rate', '${formatPercent(_rate)}% p.a.'),
                             const Divider(color: Colors.white24, height: 20),
                             _summaryRow(
                               'Monthly EMI',
-                              '₹${_monthlyEMI.toStringAsFixed(0)}',
+                              _quote != null ? formatMoney(asNum(_quote!['emi'])) : '₹${_monthlyEMI.toStringAsFixed(0)}',
                               highlight: true,
                             ),
                             _summaryRow(
                               'Total Payable',
-                              '₹${(_monthlyEMI * _tenure).toStringAsFixed(0)}',
+                              _quote != null ? formatMoney(asNum(_quote!['totalRepayable'])) : '₹${(_monthlyEMI * _tenure).toStringAsFixed(0)}',
                             ),
                             _summaryRow(
                               'Total Interest',
-                              '₹${(_monthlyEMI * _tenure - _loanAmount).toStringAsFixed(0)}',
+                              _quote != null ? formatMoney(asNum(_quote!['totalInterest'])) : '₹${(_monthlyEMI * _tenure - _loanAmount).toStringAsFixed(0)}',
                             ),
+                            if (_quote != null) ...[
+                              const Divider(color: Colors.white24, height: 20),
+                              _summaryRow('Processing fee (${formatPercent(asNum(_quote!['processingFeePercent']))}%)', '- ${formatMoney(asNum(_quote!['processingFee']))}'),
+                              _summaryRow('GST (${formatPercent(asNum(_quote!['gstPercent']))}%)', '- ${formatMoney(asNum(_quote!['gst']))}'),
+                              _summaryRow('You receive', formatMoney(asNum(_quote!['netDisbursed'])), highlight: true),
+                              _summaryRow('APR (all costs)', '${formatPercent(asNum(_quote!['aprPercent']))}%'),
+                            ],
                           ],
                         ),
                       ),

@@ -5,6 +5,7 @@ import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../utils/error_utils.dart';
 import 'privacy_screen.dart';
+import 'help_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -340,6 +341,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               icon: const Icon(Icons.privacy_tip_outlined, size: 18),
               label: const Text('Privacy & my data'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: kNavy,
+                side: const BorderSide(color: kNavy),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const HelpScreen()),
+              ),
+              icon: const Icon(Icons.support_agent_rounded, size: 18),
+              label: const Text('Help & grievance'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: kNavy,
                 side: const BorderSide(color: kNavy),

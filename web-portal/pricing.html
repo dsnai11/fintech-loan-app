@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%92%B0%3C/text%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pricing and lender details - LIFC Admin</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f5f7fa; --surface: #fcfcfb; --border: #e5e7eb;
+  --text: #0b0b0b; --text-2: #52514e; --muted: #6b7280;
+  --accent: #2a78d6; --header: linear-gradient(135deg, #1e40af 0%, #7c3aed 100%);
+  --good: #047857; --bad: #b91c1c; --warn: #b45309;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --bg: #111110; --surface: #1a1a19; --border: #2f2f2d;
+    --text: #fff; --text-2: #c3c2b7; --muted: #9a998f; --accent: #3987e5;
+    --good: #34d399; --bad: #f87171; --warn: #fbbf24;
+  }
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); }
+.container { max-width: 1100px; margin: 0 auto; padding: 20px 16px 60px; }
+.header { background: var(--header); color: #fff; padding: 24px; border-radius: 12px; margin-bottom: 18px; display: flex; flex-wrap: wrap; gap: 14px; justify-content: space-between; align-items: center; }
+.header h1 { font-size: 26px; } .header p { font-size: 13px; opacity: .9; margin-top: 4px; }
+.nav { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+.nav a { color: #fff; text-decoration: none; font-size: 14px; font-weight: 500; } .nav a:hover { text-decoration: underline; }
+.btn { padding: 9px 16px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-weight: 600; font-size: 13px; cursor: pointer; }
+.btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.alert { display: none; padding: 12px 16px; border-radius: 8px; margin-bottom: 14px; white-space: pre-line; }
+.alert.show { display: block; } .alert.err { background: #fee2e2; color: #991b1b; } .alert.ok { background: #d1fae5; color: #065f46; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px; margin-bottom: 16px; }
+.card h2 { font-size: 15px; margin-bottom: 4px; } .card .sub { font-size: 12px; color: var(--muted); margin-bottom: 14px; line-height: 1.5; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+label { display: block; font-size: 12px; font-weight: 600; color: var(--text-2); margin-bottom: 4px; }
+input[type=text], input[type=number], input[type=email] { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; font-size: 14px; }
+.plans { width: 100%; border-collapse: collapse; font-size: 13px; }
+.plans th { text-align: left; font-size: 11px; text-transform: uppercase; color: var(--muted); padding: 6px 8px; }
+.plans td { padding: 6px 8px; vertical-align: middle; }
+.missing { background: rgba(180, 83, 9, .1); border: 1px solid var(--warn); border-radius: 10px; padding: 12px 14px; font-size: 13px; margin-bottom: 14px; }
+table.pv { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.pv th { text-align: right; font-size: 11px; text-transform: uppercase; color: var(--muted); padding: 8px; border-bottom: 1px solid var(--border); }
+table.pv td { text-align: right; padding: 8px; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+table.pv th:first-child, table.pv td:first-child { text-align: left; }
+.high { color: var(--bad); font-weight: 700; }
+.scroll { overflow-x: auto; }
+.savebar { position: sticky; bottom: 0; background: var(--bg); padding: 12px 0; display: flex; gap: 12px; align-items: center; }
+.note { font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div><h1>Pricing and lender details</h1><p>Every rate, fee and charge customers see comes from this page</p></div>
+    <div class="nav">
+      <a href="loan-management.html">Loan Management</a>
+      <a href="collections.html">Collections</a>
+      <a href="analytics.html">Analytics</a>
+      <a href="compliance.html">Compliance</a>
+      <a href="admin-config.html">Configuration</a>
+    </div>
+  </div>
+
+  <div id="alert" class="alert" role="alert"></div>
+  <div id="missing" class="missing" style="display:none"></div>
+
+  <div id="form"></div>
+
+  <div class="card">
+    <h2>What customers will pay</h2>
+    <div class="sub">Worked out from the saved settings. The APR counts every fee, so it is the honest yearly cost of the loan. Save your changes to refresh it.</div>
+    <div style="display:flex; gap:10px; align-items:center; margin-bottom:12px; flex-wrap:wrap;">
+      <label for="pv-amount" style="margin:0">Loan amount (Rs)</label>
+      <input type="number" id="pv-amount" style="width:150px" min="100" step="1000">
+      <button class="btn" onclick="loadPreview()">Show</button>
+    </div>
+    <div class="scroll"><table class="pv"><thead><tr><th>Plan</th><th>Customer receives</th><th>Fees + GST</th><th>EMI</th><th>Total repaid</th><th>APR</th></tr></thead><tbody id="pv-rows"></tbody></table></div>
+    <div class="note" style="margin-top:10px;">New applications use the saved terms. A loan already applied for keeps the offer the customer saw.</div>
+  </div>
+
+  <div class="savebar">
+    <button class="btn primary" id="save" onclick="save()">Save changes</button>
+    <span class="note" id="saved"></span>
+  </div>
+</div>
+
+<script>
+const API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
+const token = localStorage.getItem('admin_token');
+if (!token) location.href = 'admin-config.html';
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const money = n => 'Rs ' + Math.round(n || 0).toLocaleString('en-IN');
+
+const GROUPS = [
+  { title: 'Loan limits and rate', sub: 'The range customers can borrow in and the rate for standard (non-plan) loans.', items: [
+    ['minAmount', 'Smallest loan (Rs)'], ['maxAmount', 'Largest loan (Rs)'], ['offerAmount', 'Amount shown in the quick application flow (Rs)'],
+    ['annualRatePercent', 'Interest rate for standard loans (% a year)'], ['minTenureMonths', 'Shortest tenure (months)'], ['maxTenureMonths', 'Longest tenure (months)'],
+  ] },
+  { title: 'Fees and charges', sub: 'The processing fee and GST are taken from the loan when it is paid out, so the customer receives less than the loan amount.', items: [
+    ['processingFeePercent', 'Processing fee (% of the loan)'], ['gstPercent', 'GST on the processing fee (%)'],
+    ['lateFee.percentPerMonth', 'Late fee (% of the instalment, for each month late)'], ['lateFee.minimum', 'Minimum late fee (Rs)'],
+    ['foreclosureFeePercent', 'Early closure fee (% of the principal still owed)'], ['coolingOffDays', 'Cooling-off period (days after payout)'],
+    ['maxAprPercent', 'APR ceiling (%, optional). Pricing above it cannot be saved'],
+  ] },
+];
+const INSTITUTION = [
+  ['lenderName', 'Lender name'], ['registrationNumber', 'NBFC registration number'], ['address', 'Registered address'], ['website', 'Website (https://...)'],
+  ['supportEmail', 'Support email'], ['supportPhone', 'Support phone'],
+  ['grievanceOfficerName', 'Grievance officer name'], ['grievanceOfficerEmail', 'Grievance officer email'], ['grievanceOfficerPhone', 'Grievance officer phone'],
+];
+
+let policy = null;
+const getPath = (o, path) => path.split('.').reduce((a, k) => a?.[k], o);
+function setPath(o, path, v) { const ks = path.split('.'); const last = ks.pop(); ks.reduce((a, k) => a[k], o)[last] = v; }
+
+function msg(text, kind) {
+  const a = $('alert'); a.textContent = text; a.className = 'alert show ' + kind;
+  if (kind === 'ok') setTimeout(() => a.classList.remove('show'), 5000);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+async function api(path, method = 'GET', body) {
+  const r = await fetch(API + path, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401 || r.status === 403) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  return r;
+}
+
+function render() {
+  let html = '';
+  for (const g of GROUPS) {
+    html += `<div class="card"><h2>${esc(g.title)}</h2><div class="sub">${esc(g.sub)}</div><div class="grid">` +
+      g.items.map(([p, label]) => `<div><label for="f-${p}">${esc(label)}</label><input type="number" step="any" id="f-${p}" value="${esc(getPath(policy, p) ?? '')}"></div>`).join('') + '</div></div>';
+  }
+  html += `<div class="card"><h2>Repayment plans</h2><div class="sub">Flat interest means a fixed percentage of the loan is added and split evenly over the months. Switch a plan off to stop offering it.</div>
+    <div class="scroll"><table class="plans"><thead><tr><th>Offer</th><th>Name shown to customers</th><th>Months</th><th>Flat interest (%)</th></tr></thead><tbody>` +
+    Object.entries(policy.plans).map(([k, p]) => `<tr><td><input type="checkbox" id="p-${k}-enabled" ${p.enabled ? 'checked' : ''} aria-label="Offer ${esc(p.label)}"></td>
+      <td><input type="text" id="p-${k}-label" value="${esc(p.label)}"></td>
+      <td><input type="number" id="p-${k}-tenureMonths" value="${esc(p.tenureMonths)}" style="width:90px"></td>
+      <td><input type="number" step="any" id="p-${k}-flatInterestPercent" value="${esc(p.flatInterestPercent)}" style="width:110px"></td></tr>`).join('') +
+    '</tbody></table></div></div>';
+  html += `<div class="card"><h2>Lender details</h2><div class="sub">Shown to customers in the loan agreement, the closure letter and the app's Help screen. Leave a field empty and it is simply left out.</div><div class="grid">` +
+    INSTITUTION.map(([k, label]) => `<div><label for="i-${k}">${esc(label)}</label><input type="text" id="i-${k}" value="${esc(policy.institution[k])}"></div>`).join('') + '</div></div>';
+  $('form').innerHTML = html;
+}
+
+function collect() {
+  const out = JSON.parse(JSON.stringify(policy));
+  for (const g of GROUPS) for (const [p] of g.items) {
+    const v = $('f-' + p).value.trim();
+    setPath(out, p, v === '' ? (p === 'maxAprPercent' ? null : v) : Number(v));
+  }
+  for (const k of Object.keys(out.plans)) {
+    out.plans[k].enabled = $(`p-${k}-enabled`).checked;
+    out.plans[k].label = $(`p-${k}-label`).value;
+    out.plans[k].tenureMonths = Number($(`p-${k}-tenureMonths`).value);
+    out.plans[k].flatInterestPercent = Number($(`p-${k}-flatInterestPercent`).value);
+  }
+  for (const [k] of INSTITUTION) out.institution[k] = $('i-' + k).value;
+  return out;
+}
+
+function renderPreview(rows) {
+  const cap = policy.maxAprPercent;
+  $('pv-rows').innerHTML = rows.map(q => `<tr><td>${esc(q.label)}</td><td>${money(q.netDisbursed)}</td><td>${money(q.totalCharges)}</td>
+    <td>${money(q.emi)} x ${q.tenureMonths}</td><td>${money(q.totalRepayable)}</td>
+    <td class="${(cap && q.aprPercent > cap) || q.aprPercent > 36 ? 'high' : ''}">${q.aprPercent}%</td></tr>`).join('');
+}
+
+function renderMissing(list) {
+  const el = $('missing');
+  if (!list.length) { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  el.innerHTML = `<b>Still to add before real customers use the app:</b> ${list.map(esc).join(', ')}.`;
+}
+
+async function load() {
+  try {
+    const r = await api('/admin/pricing');
+    const d = await r.json();
+    policy = d.policy;
+    $('pv-amount').value = policy.offerAmount;
+    render();
+    renderPreview(d.samples);
+    renderMissing(d.missingInstitutionDetails);
+  } catch (e) { msg(e.message, 'err'); }
+}
+
+async function loadPreview() {
+  try {
+    const amount = Number($('pv-amount').value);
+    const r = await fetch(`${API}/pricing/quotes?amount=${encodeURIComponent(amount)}`);
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Could not work that out');
+    const std = await (await fetch(`${API}/pricing/quote?amount=${encodeURIComponent(amount)}&tenure=12`)).json();
+    renderPreview([...d.quotes, ...(std.quote ? [std.quote] : [])]);
+  } catch (e) { msg(e.message, 'err'); }
+}
+
+async function save() {
+  $('save').disabled = true;
+  try {
+    const r = await api('/admin/pricing', 'PUT', collect());
+    const d = await r.json();
+    if (!r.ok) throw new Error((d.errors || [d.error]).join('\n'));
+    policy = d.policy;
+    render();
+    renderPreview(d.samples);
+    renderMissing(d.missingInstitutionDetails);
+    $('saved').textContent = 'Saved ' + new Date().toLocaleTimeString();
+    msg(d.message, 'ok');
+  } catch (e) { msg(e.message, 'err'); }
+  $('save').disabled = false;
+}
+
+load();
+</script>
+</body>
+</html>

@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
+import '../services/api_service.dart';
+import '../utils/format.dart';
 import '../main.dart';
 import 'pan_verify_screen.dart';
 import 'loan_history_screen.dart';
 import 'profile_screen.dart';
 import 'notifications_screen.dart';
+import 'help_screen.dart';
 import 'emi_calculator_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -20,6 +23,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     Future.microtask(() => context.read<AuthService>().loadUserProfile());
+    Future.microtask(_loadPricing);
   }
 
   @override
@@ -271,29 +275,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(height: 12),
                     _offerCard(
                       title: 'Personal Loan',
-                      subtitle: 'Up to ₹5,00,000 • 15% p.a.',
+                      subtitle: _pricing == null
+                          ? 'Instant personal loan'
+                          : 'Up to ${formatMoney(asNum(_pricing!['maxAmount']))} • exact charges shown before you apply',
                       icon: Icons.person_pin_rounded,
                       color: kNavy,
-                      onApply: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const PanVerifyScreen()),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    _offerCard(
-                      title: 'Business Loan',
-                      subtitle: 'Up to ₹25,00,000 • 14% p.a.',
-                      icon: Icons.business_center_rounded,
-                      color: const Color(0xFF7C3AED),
-                      onApply: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const PanVerifyScreen()),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    _offerCard(
-                      title: 'Education Loan',
-                      subtitle: 'Up to ₹10,00,000 • 12% p.a.',
-                      icon: Icons.school_rounded,
-                      color: const Color(0xFF0891B2),
                       onApply: () => Navigator.of(context).push(
                         MaterialPageRoute(builder: (_) => const PanVerifyScreen()),
                       ),
@@ -354,6 +340,15 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
+  }
+
+  Map<String, dynamic>? _pricing;
+
+  Future<void> _loadPricing() async {
+    try {
+      final p = await context.read<ApiService>().getPricing();
+      if (mounted) setState(() => _pricing = p);
+    } catch (_) {}
   }
 
   Widget _offerCard({

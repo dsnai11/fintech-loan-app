@@ -17,6 +17,7 @@ class _LoanDetailScreenState extends State<LoanDetailScreen> {
   bool _loading = true;
   String? _error;
   int? _paying;
+  Map<String, dynamic>? _cooling;
 
   String get _loanId => widget.loan['_id'].toString();
 
@@ -29,9 +30,18 @@ class _LoanDetailScreenState extends State<LoanDetailScreen> {
   Future<void> _fetch() async {
     setState(() { _loading = true; _error = null; });
     try {
-      final data = await context.read<ApiService>().getEmiSchedule(_loanId);
+      final api = context.read<ApiService>();
+      final data = await api.getEmiSchedule(_loanId);
+      Map<String, dynamic>? cooling;
+      if (widget.loan['status'] == 'disbursed') {
+        try {
+          cooling = await api.getCoolingOffQuote(_loanId);
+        } catch (_) {}
+      }
+      if (!mounted) return;
       setState(() {
         _emis = List<Map<String, dynamic>>.from(data['emis'] ?? []);
+        _cooling = cooling;
         _loading = false;
       });
     } catch (e) {
@@ -69,6 +79,68 @@ class _LoanDetailScreenState extends State<LoanDetailScreen> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
     } finally {
       if (mounted) setState(() => _paying = null);
+    }
+  }
+
+  Future<void> _coolOff() async {
+    final api = context.read<ApiService>();
+    Map<String, dynamic> q;
+    try {
+      q = await api.getCoolingOffQuote(_loanId);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
+      _fetch();
+      return;
+    }
+    if (!mounted) return;
+
+    Widget row(String label, num value, {bool bold = false}) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: Row(children: [
+            Expanded(child: Text(label, style: TextStyle(fontWeight: bold ? FontWeight.w800 : FontWeight.w400))),
+            Text(_fmtMoney(value), style: TextStyle(fontWeight: bold ? FontWeight.w800 : FontWeight.w600)),
+          ]),
+        );
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancel this loan'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            row('Amount you received', _num(q['principal'])),
+            row('Interest for ${q['daysHeld']} day(s)', _num(q['accruedInterest'])),
+            const Divider(),
+            row('Total to pay back', _num(q['total']), bold: true),
+            const SizedBox(height: 8),
+            Text(
+              'You can cancel until ${_fmtDate(q['windowEndsAt'])}. Fees and GST already deducted are not refunded.',
+              style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Keep the loan')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Pay & cancel')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    setState(() => _paying = -1);
+    try {
+      await api.coolOff(_loanId, _num(q['total']));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Loan cancelled')));
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
+      setState(() => _paying = null);
+      _fetch();
     }
   }
 
@@ -182,6 +254,14 @@ class _LoanDetailScreenState extends State<LoanDetailScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           _summaryCard(paidCount, total),
+          if (_cooling != null) ...[
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _paying == null ? _coolOff : null,
+              icon: const Icon(Icons.undo_rounded),
+              label: const Text('Cancel this loan (cooling-off)'),
+            ),
+          ],
           if (widget.loan['status'] == 'disbursed' && _emis.any((e) => e['status'] != 'PAID' && e['status'] != 'WAIVED')) ...[
             const SizedBox(height: 12),
             OutlinedButton.icon(

@@ -141,9 +141,9 @@ class _LoanDisbursedScreenState extends State<LoanDisbursedScreen>
                               ),
                               child: Column(
                                 children: [
-                                  _row('Approved Amount', _fmtMoney(loan['loanAmount'])),
+                                  _row('Loan Amount', _fmtMoney(loan['loanAmount'])),
                                   _row('Processing Fee', '- ${_fmtMoney(loan['processingFee'])}'),
-                                  _row('GST (18%)', '- ${_fmtMoney(loan['gst'])}'),
+                                  _row('GST (${loan['gstPercent'] ?? 18}%)', '- ${_fmtMoney(loan['gst'])}'),
                                   const SizedBox(height: 6),
                                   _row('Txn ID', _fmt(txnId),
                                       valueColor: const Color(0xFF86EFAC)),
@@ -214,7 +214,7 @@ class _LoanDisbursedScreenState extends State<LoanDisbursedScreen>
                                                 Text(dateStr,
                                                     style: const TextStyle(fontWeight: FontWeight.w600,
                                                         fontSize: 13, color: Color(0xFF111827))),
-                                                const Text('Auto-debit',
+                                                const Text('Pay in the app',
                                                     style: TextStyle(fontSize: 11, color: Color(0xFF9CA3AF))),
                                               ],
                                             ),

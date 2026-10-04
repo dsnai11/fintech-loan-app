@@ -103,7 +103,7 @@ class _EligibilityCheckScreenState extends State<EligibilityCheckScreen>
                   const SizedBox(height: 8),
                   Text(
                     _done
-                        ? 'Great news! You qualify for a loan up to ₹5,00,000'
+                        ? 'Your details look good. You may be eligible for a loan, subject to verification.'
                         : 'Please wait while we verify your details',
                     textAlign: TextAlign.center,
                     style: const TextStyle(

@@ -205,6 +205,56 @@ class ApiService {
     }
   }
 
+  // Pricing (public: the current rates, fees and the Key Fact Statement for an amount)
+  Future<Map<String, dynamic>> getPricing() async {
+    try {
+      final response = await _dio.get('/pricing');
+      return Map<String, dynamic>.from(response.data['policy']);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getQuotes(int amount) async {
+    try {
+      final response = await _dio.get('/pricing/quotes', queryParameters: {'amount': amount});
+      return List<Map<String, dynamic>>.from(response.data['quotes']);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> getQuote({required int amount, String? plan, int? tenure}) async {
+    try {
+      final response = await _dio.get('/pricing/quote', queryParameters: {
+        'amount': amount,
+        if (plan != null) 'plan': plan,
+        if (tenure != null) 'tenure': tenure,
+      });
+      return Map<String, dynamic>.from(response.data['quote']);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> getCoolingOffQuote(String loanId) async {
+    try {
+      final response = await _dio.get('/emi/cooling-off/$loanId');
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> coolOff(String loanId, num expectedAmount) async {
+    try {
+      final response = await _dio.post('/emi/cooling-off/$loanId', data: {'expectedAmount': expectedAmount});
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   // Compliance endpoints
   Future<Map<String, dynamic>> getAgreement(String loanId) async {
     try {
