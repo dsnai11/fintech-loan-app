@@ -8,6 +8,7 @@ import { screenLoan } from '../services/amlService.js';
 import { getPolicy, computeQuote, checkRequest } from '../services/pricingPolicy.js';
 import { renderClosureLetter } from '../services/closureLetter.js';
 import { renderStatement } from '../services/loanStatement.js';
+import { repeatEligibility, maxAmountFor } from '../services/repeatLoan.js';
 import EMIPayment from '../models/EMIPayment.js';
 
 const PURPOSES = ['Personal', 'Business', 'Education', 'Medical', 'Other'];
@@ -35,7 +36,7 @@ router.post('/apply-full', authMiddleware, async (req, res) => {
 
     const policy = getPolicy();
     const request = { amount: Number(loanAmount), planType: planType || undefined, tenureMonths: tenure === undefined ? undefined : Number(tenure) };
-    const problem = checkRequest(policy, request);
+    const problem = checkRequest(policy, request, await maxAmountFor(req.user.userId, policy));
     if (problem) return res.status(400).json({ error: problem });
     const quote = computeQuote(policy, request);
 
@@ -143,7 +144,7 @@ router.post('/apply', authMiddleware, async (req, res) => {
 
     const policy = getPolicy();
     const request = { amount: Number(loanAmount), planType: 'standard', tenureMonths: Number(tenure) };
-    const problem = checkRequest(policy, request);
+    const problem = checkRequest(policy, request, await maxAmountFor(req.user.userId, policy));
     if (problem) return res.status(400).json({ error: problem });
     const quote = computeQuote(policy, request);
 
@@ -213,6 +214,15 @@ async function statementHtml(loan) {
 }
 const statementReady = loan => ['disbursed', 'closed'].includes(loan.status);
 const isAdminReq = req => req.user.isAdmin || String(req.user.email).toLowerCase() === (process.env.ADMIN_EMAIL || 'admin@lifc.in').toLowerCase();
+
+// What this customer may borrow now, and how to unlock more if they cannot yet
+router.get('/repeat-offer', authMiddleware, async (req, res) => {
+  try {
+    res.json(await repeatEligibility(req.user.userId, getPolicy()));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // Account statement: payout, every instalment, late fees and what is still owed
 router.get('/:loanId/statement', authMiddleware, async (req, res) => {

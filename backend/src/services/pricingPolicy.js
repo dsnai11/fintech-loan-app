@@ -24,6 +24,8 @@ export const DEFAULTS = {
   foreclosureFeePercent: Number.isFinite(envFee) && envFee >= 0 ? envFee : 2,
   coolingOffDays: 3, // days after disbursal in which the customer may cancel (set by the NBFC)
   maxAprPercent: null, // optional ceiling: pricing that would exceed it cannot be saved
+  // Higher limit for customers who have repaid before. Off until the NBFC switches it on.
+  repeat: { enabled: false, maxLoanAmount: 100000, stepUpPercent: 25, minClosedLoans: 1 },
   institution: {
     lenderName: 'Laxmi India Finance Ltd.',
     registrationNumber: '',
@@ -104,6 +106,10 @@ export function validatePolicy(candidate) {
   p.foreclosureFeePercent = num(p.foreclosureFeePercent, 0, 10, 'Early closure fee', errors);
   p.coolingOffDays = num(p.coolingOffDays, 0, 30, 'Cooling-off days', errors, { int: true });
   p.maxAprPercent = num(p.maxAprPercent, 1, 200, 'Maximum APR', errors, { allowNull: true });
+  p.repeat.enabled = p.repeat.enabled === true || p.repeat.enabled === 'true';
+  p.repeat.maxLoanAmount = num(p.repeat.maxLoanAmount, 100, 10000000, 'Repeat-customer largest loan', errors, { int: true });
+  p.repeat.stepUpPercent = num(p.repeat.stepUpPercent, 0, 500, 'Repeat-customer step-up', errors);
+  p.repeat.minClosedLoans = num(p.repeat.minClosedLoans, 1, 20, 'Loans to repay before a higher limit', errors, { int: true });
 
   if (errors.length === 0) {
     if (p.minAmount > p.maxAmount) errors.push('Minimum amount cannot be above the maximum amount');
@@ -159,10 +165,11 @@ export function lateFeeFor(policy, emiAmount, monthsLate) {
 }
 
 // Returns an error message, or null when the request is acceptable under the policy.
-export function checkRequest(policy, { amount, planType, tenureMonths }) {
+// `maxAmount` lets a repeat customer's own limit replace the standard one.
+export function checkRequest(policy, { amount, planType, tenureMonths }, maxAmount = policy.maxAmount) {
   if (!Number.isInteger(amount)) return 'Amount must be a whole number of rupees';
-  if (amount < policy.minAmount || amount > policy.maxAmount) {
-    return `Amount must be between Rs ${policy.minAmount.toLocaleString('en-IN')} and Rs ${policy.maxAmount.toLocaleString('en-IN')}`;
+  if (amount < policy.minAmount || amount > maxAmount) {
+    return `Amount must be between Rs ${policy.minAmount.toLocaleString('en-IN')} and Rs ${maxAmount.toLocaleString('en-IN')}`;
   }
   if (planType && planType !== 'standard') {
     const plan = policy.plans[planType];

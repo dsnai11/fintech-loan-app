@@ -217,6 +217,16 @@ class ApiService {
   }
 
   // Pricing (public: the current rates, fees and the Key Fact Statement for an amount)
+  // The most this customer may borrow now (higher for good repeat customers) and why, if not
+  Future<Map<String, dynamic>> getRepeatOffer() async {
+    try {
+      final response = await _dio.get('/loans/repeat-offer');
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   Future<Map<String, dynamic>> getPricing() async {
     try {
       final response = await _dio.get('/pricing');

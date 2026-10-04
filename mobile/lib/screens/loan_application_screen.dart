@@ -71,6 +71,9 @@ class _LoanApplicationScreenState extends State<LoanApplicationScreen> {
         if (_loanAmount < _minAmount) _loanAmount = _minAmount;
       });
       _calculateEMI();
+      final offer = await context.read<ApiService>().getRepeatOffer();
+      if (!mounted || offer['eligible'] != true) return;
+      setState(() => _maxAmount = asNum(offer['maxAmount']).toDouble());
     } catch (_) {}
   }
 

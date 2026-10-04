@@ -109,6 +109,9 @@ const GROUPS = [
     ['foreclosureFeePercent', 'Early closure fee (% of the principal still owed)'], ['coolingOffDays', 'Cooling-off period (days after payout)'],
     ['maxAprPercent', 'APR ceiling (%, optional). Pricing above it cannot be saved'],
   ] },
+  { title: 'Higher limit for repeat customers', sub: 'Switch on to let customers who repaid a loan in good standing borrow more than the standard largest loan. Customers with a defaulted loan, an open loan, unapproved KYC or an open AML alert never qualify.', items: [
+    ['repeat.maxLoanAmount', 'Largest loan for repeat customers (Rs)'], ['repeat.stepUpPercent', 'Step-up over their largest repaid loan (%)'], ['repeat.minClosedLoans', 'Loans to repay first'],
+  ] },
 ];
 const INSTITUTION = [
   ['lenderName', 'Lender name'], ['registrationNumber', 'NBFC registration number'], ['address', 'Registered address'], ['website', 'Website (https://...)'],
@@ -137,6 +140,7 @@ function render() {
     html += `<div class="card"><h2>${esc(g.title)}</h2><div class="sub">${esc(g.sub)}</div><div class="grid">` +
       g.items.map(([p, label]) => `<div><label for="f-${p}">${esc(label)}</label><input type="number" step="any" id="f-${p}" value="${esc(getPath(policy, p) ?? '')}"></div>`).join('') + '</div></div>';
   }
+  html += `<div class="card"><label style="display:flex;gap:8px;align-items:center;margin:0"><input type="checkbox" id="repeat-enabled" ${policy.repeat.enabled ? 'checked' : ''}> Offer a higher limit to repeat customers</label></div>`;
   html += `<div class="card"><h2>Repayment plans</h2><div class="sub">Flat interest means a fixed percentage of the loan is added and split evenly over the months. Switch a plan off to stop offering it.</div>
     <div class="scroll"><table class="plans"><thead><tr><th>Offer</th><th>Name shown to customers</th><th>Months</th><th>Flat interest (%)</th></tr></thead><tbody>` +
     Object.entries(policy.plans).map(([k, p]) => `<tr><td><input type="checkbox" id="p-${k}-enabled" ${p.enabled ? 'checked' : ''} aria-label="Offer ${esc(p.label)}"></td>
@@ -155,6 +159,7 @@ function collect() {
     const v = $('f-' + p).value.trim();
     setPath(out, p, v === '' ? (p === 'maxAprPercent' ? null : v) : Number(v));
   }
+  out.repeat.enabled = $('repeat-enabled').checked;
   for (const k of Object.keys(out.plans)) {
     out.plans[k].enabled = $(`p-${k}-enabled`).checked;
     out.plans[k].label = $(`p-${k}-label`).value;

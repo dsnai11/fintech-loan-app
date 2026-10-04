@@ -277,7 +277,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       title: 'Personal Loan',
                       subtitle: _pricing == null
                           ? 'Instant personal loan'
-                          : 'Up to ${formatMoney(asNum(_pricing!['maxAmount']))} • exact charges shown before you apply',
+                          : _repeatMax != null
+                              ? 'Welcome back! Up to ${formatMoney(_repeatMax!)} for you • exact charges shown before you apply'
+                              : 'Up to ${formatMoney(asNum(_pricing!['maxAmount']))} • exact charges shown before you apply',
                       icon: Icons.person_pin_rounded,
                       color: kNavy,
                       onApply: () => Navigator.of(context).push(
@@ -343,11 +345,14 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Map<String, dynamic>? _pricing;
+  num? _repeatMax;
 
   Future<void> _loadPricing() async {
     try {
       final p = await context.read<ApiService>().getPricing();
       if (mounted) setState(() => _pricing = p);
+      final offer = await context.read<ApiService>().getRepeatOffer();
+      if (mounted && offer['eligible'] == true) setState(() => _repeatMax = asNum(offer['maxAmount']));
     } catch (_) {}
   }
 
