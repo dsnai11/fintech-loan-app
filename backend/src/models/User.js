@@ -44,6 +44,11 @@ const userSchema = new mongoose.Schema(
     loanHistory: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Loan' }],
     creditScore: { type: Number, min: 0, max: 900 },
     phoneVerified: { type: Boolean, default: false },
+    phoneVerifiedAt: Date,
+    // The terms and conditions the customer last accepted (see services/terms.js)
+    termsVersion: { type: Number, default: 0 },
+    termsAcceptedAt: Date,
+    termsAcceptedIp: String,
     // Never returned by a normal query. Ask for them with .select('+field') when needed.
     passwordResetHash: { type: String, select: false },
     passwordResetExpires: { type: Date, select: false },

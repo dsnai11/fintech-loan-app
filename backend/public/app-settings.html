@@ -34,6 +34,19 @@
 <div class="container">
   <div id="alert" class="alert" role="alert"></div>
   <div id="form"></div>
+
+  <div class="card" id="terms-card">
+    <h2>Terms and conditions</h2>
+    <div class="sub">Customers read and accept these when they sign up. Publishing a new version asks every customer to accept it again the next time they open the app. <b>Have your lawyer approve this text.</b> The wording below is a starting draft.</div>
+    <div class="grid">
+      <div><label for="t-title">Title</label><input id="t-title" maxlength="80"></div>
+      <div><label>Current version</label><div id="t-version" class="note" style="padding:9px 0"></div></div>
+    </div>
+    <label for="t-text">Text</label>
+    <textarea id="t-text" style="width:100%;min-height:340px;font-family:inherit;line-height:1.5"></textarea>
+    <div class="note" style="margin:6px 0 10px">A line starting with <code># </code> is a heading. Blank lines separate paragraphs. <code>{{lenderName}}</code> and <code>{{grievance}}</code> are filled in from the Pricing page.</div>
+    <button class="btn primary" id="t-save" onclick="publishTerms()">Publish new version</button>
+  </div>
   <div class="bar"><button class="btn primary" id="save" onclick="save()">Save changes</button><span class="note" id="saved">The apps pick up changes the next time they open.</span></div>
 </div>
 
@@ -164,7 +177,25 @@ async function save() {
   } catch (e) { msg(e.message, 'err'); }
   $('save').disabled = false;
 }
+async function loadTerms() {
+  try {
+    const t = await api('/admin/terms');
+    $('t-title').value = t.title; $('t-text').value = t.text;
+    $('t-version').textContent = 'Version ' + t.version + (t.updatedAt ? ' · published ' + new Date(t.updatedAt).toLocaleDateString('en-IN') + ' by ' + (t.updatedBy || '') : ' · starting draft, never published');
+    const ok = !window.PortalShell || PortalShell.can('terms.edit');
+    $('t-title').disabled = $('t-text').disabled = $('t-save').disabled = !ok;
+    if (!ok) $('t-version').textContent += ' · your role cannot edit the terms';
+  } catch (e) { $('terms-card').style.display = 'none'; }
+}
+async function publishTerms() {
+  if (!confirm('Publish this as the new version? Every customer will be asked to accept it again.')) return;
+  $('t-save').disabled = true;
+  try { const d = await api('/admin/terms', 'PUT', { title: $('t-title').value, text: $('t-text').value }); msg(d.message, 'ok'); await loadTerms(); }
+  catch (e) { msg(e.message, 'err'); }
+  $('t-save').disabled = false;
+}
 load();
+window.addEventListener('load', loadTerms);
 </script>
 <script src="assets/portal.js"></script>
 </body>

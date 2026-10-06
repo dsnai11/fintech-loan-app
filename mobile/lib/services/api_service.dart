@@ -61,6 +61,7 @@ class ApiService {
     required String phone,
     required String password,
     required String confirmPassword,
+    int? termsVersion,
   }) async {
     try {
       final response = await _dio.post(
@@ -72,6 +73,8 @@ class ApiService {
           'phone': phone,
           'password': password,
           'confirmPassword': confirmPassword,
+          if (termsVersion != null) 'acceptedTerms': true,
+          if (termsVersion != null) 'termsVersion': termsVersion,
         },
       );
       return response.data;
@@ -413,10 +416,37 @@ class ApiService {
     }
   }
 
-  // KYC endpoints
+  // Terms and conditions, and what is still to do after signing in
+  Future<Map<String, dynamic>> getTerms() async {
+    try {
+      final response = await _dio.get('/terms');
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<void> acceptTerms(int version) async {
+    try {
+      await _dio.post('/auth/accept-terms', data: {'version': version});
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> getOnboarding() async {
+    try {
+      final response = await _dio.get('/auth/onboarding');
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  // Phone number check: a code is sent by SMS, then entered
   Future<Map<String, dynamic>> sendOtp() async {
     try {
-      final response = await _dio.post('/kyc/otp/send');
+      final response = await _dio.post('/auth/phone/send');
       return response.data;
     } on DioException catch (e) {
       throw _handleError(e);
@@ -425,7 +455,7 @@ class ApiService {
 
   Future<Map<String, dynamic>> verifyOtp(String otp) async {
     try {
-      final response = await _dio.post('/kyc/otp/verify', data: {'otp': otp});
+      final response = await _dio.post('/auth/phone/verify', data: {'code': otp});
       return response.data;
     } on DioException catch (e) {
       throw _handleError(e);

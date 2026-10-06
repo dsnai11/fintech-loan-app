@@ -32,6 +32,8 @@ import supportRoutes from './routes/support.js';
 import adminSupportRoutes from './routes/adminSupport.js';
 import adminAnnouncementsRoutes from './routes/adminAnnouncements.js';
 import appSettingsRoutes from './routes/appSettings.js';
+import phoneRoutes from './routes/phone.js';
+import termsRoutes from './routes/terms.js';
 import { ensureRoles } from './services/permissions.js';
 import { startScheduler } from './services/notificationService.js';
 import { ensureAdmin } from './services/adminBootstrap.js';
@@ -104,6 +106,8 @@ mongoose.connect(mongoUrl)
 app.use('/api', (req, res, next) => ensureRoles().then(() => next(), next));
 app.use('/api/pricing', pricingRoutes);
 app.use('/api/auth/2fa', twoFactorRoutes);
+app.use('/api/auth/phone', phoneRoutes);
+app.use('/api', termsRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/loans', loanRoutes);
 app.use('/api/users', userRoutes);

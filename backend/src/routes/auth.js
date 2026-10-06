@@ -2,7 +2,8 @@ import express from 'express';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import User from '../models/User.js';
-import { generateToken } from '../middleware/auth.js';
+import { generateToken, authMiddleware } from '../middleware/auth.js';
+import { currentVersion, termsRequiredFor } from '../services/terms.js';
 import { audit } from '../services/auditService.js';
 import { issueResetToken, consumeResetToken } from '../services/passwordReset.js';
 import { sendPlainEmail } from '../services/notificationService.js';
@@ -30,6 +31,15 @@ router.post('/signup', async (req, res) => {
       return res.status(400).json({ error: 'Password must be 8 to 128 characters' });
     }
 
+    if (!/^[6-9]\d{9}$/.test(String(phone))) {
+      return res.status(400).json({ error: 'Enter a valid 10-digit mobile number' });
+    }
+
+    if (process.env.REQUIRE_TERMS !== 'false') {
+      if (req.body.acceptedTerms !== true) return res.status(400).json({ error: 'Please read and accept the terms and conditions to continue', code: 'TERMS_REQUIRED' });
+      if (Number(req.body.termsVersion) !== currentVersion()) return res.status(409).json({ error: 'The terms and conditions were just updated. Please read the new version and accept it.', code: 'TERMS_CHANGED' });
+    }
+
     const existingUser = await User.findOne({ $or: [{ email }, { phone }] });
     if (existingUser) {
       return res.status(400).json({ error: 'Email or phone already registered' });
@@ -41,9 +51,11 @@ router.post('/signup', async (req, res) => {
       email,
       phone,
       password,
+      ...(process.env.REQUIRE_TERMS !== 'false' ? { termsVersion: currentVersion(), termsAcceptedAt: new Date(), termsAcceptedIp: req.ip } : {}),
     });
 
     await user.save();
+    if (process.env.REQUIRE_TERMS !== 'false') await audit({ email: user.email, role: 'customer' }, 'TERMS_ACCEPTED', { type: 'User', id: user._id }, { version: currentVersion(), at: 'signup' }, req);
     const token = generateToken(user._id, user.email);
 
     res.status(201).json({
@@ -121,6 +133,36 @@ router.post('/login', async (req, res) => {
 });
 
 // Always answers the same way, so it cannot be used to find out which emails are registered.
+// What the app must still ask this customer to do before they can use it: accept the terms, verify the phone.
+router.get('/onboarding', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId).select('role email phone phoneVerified termsVersion');
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const customer = !isStaffRole(user.role) && user.email !== (process.env.ADMIN_EMAIL || 'admin@lifc.in').toLowerCase();
+    res.json({
+      termsRequired: customer && termsRequiredFor(user),
+      termsVersion: currentVersion(),
+      phoneVerified: !!user.phoneVerified,
+      phone: String(user.phone).replace(/(\d{2})\d{6}(\d{2})/, '$1XXXXXX$2'),
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/accept-terms', authMiddleware, async (req, res) => {
+  try {
+    if (Number(req.body?.version) !== currentVersion()) return res.status(409).json({ error: 'The terms were just updated. Please read the new version.', code: 'TERMS_CHANGED', version: currentVersion() });
+    const user = await User.findById(req.user.userId).select('email termsVersion');
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    await User.updateOne({ _id: user._id }, { termsVersion: currentVersion(), termsAcceptedAt: new Date(), termsAcceptedIp: req.ip });
+    await audit({ email: user.email, role: 'customer' }, 'TERMS_ACCEPTED', { type: 'User', id: user._id }, { version: currentVersion(), at: 'login' }, req);
+    res.json({ accepted: true, version: currentVersion() });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.post('/forgot-password', async (req, res) => {
   const generic = { message: 'If that email is registered, we have sent a link to reset the password.' };
   try {

@@ -5,45 +5,45 @@ import 'package:provider/provider.dart';
 import '../main.dart';
 import '../services/api_service.dart';
 import '../utils/error_utils.dart';
+import 'terms_screen.dart' show kDarkBg, kDarkCard, kDarkLine, kDarkMuted;
 
+// The phone check: six boxes, the code is checked as soon as the last digit goes in, and the keyboard offers the
+// code from the SMS on phones that support it. Sends nothing by itself: the caller has already asked for a code.
 class OtpScreen extends StatefulWidget {
   final String maskedPhone;
   final String? sandboxOtp;
   final VoidCallback? onVerified;
 
-  const OtpScreen({
-    Key? key,
-    required this.maskedPhone,
-    this.sandboxOtp,
-    this.onVerified,
-  }) : super(key: key);
+  const OtpScreen({Key? key, required this.maskedPhone, this.sandboxOtp, this.onVerified}) : super(key: key);
 
   @override
   State<OtpScreen> createState() => _OtpScreenState();
 }
 
 class _OtpScreenState extends State<OtpScreen> {
-  final List<TextEditingController> _ctls = List.generate(6, (_) => TextEditingController());
-  final List<FocusNode> _nodes = List.generate(6, (_) => FocusNode());
+  final _field = TextEditingController();
+  final _focus = FocusNode();
 
-  bool _isLoading = false;
-  bool _isResending = false;
+  bool _verifying = false;
+  bool _resending = false;
   String? _error;
-  int _resendSeconds = 30;
+  int _wait = 30;
   Timer? _timer;
+  String? _sandboxOtp;
 
   @override
   void initState() {
     super.initState();
-    _startResendTimer();
-    if (widget.sandboxOtp != null) {
-      // Pre-fill sandbox OTP for development
-      Future.delayed(const Duration(milliseconds: 400), () {
-        final digits = widget.sandboxOtp!.split('');
-        for (int i = 0; i < digits.length && i < 6; i++) {
-          _ctls[i].text = digits[i];
+    _sandboxOtp = widget.sandboxOtp;
+    _startTimer(30);
+    _field.addListener(() => setState(() {}));
+    // With no SMS provider set up the server hands the code back so the flow can be tried.
+    if (_sandboxOtp != null) {
+      Future.delayed(const Duration(milliseconds: 600), () {
+        if (mounted && _sandboxOtp != null) {
+          _field.text = _sandboxOtp!;
+          _verify();
         }
-        setState(() {});
       });
     }
   }
@@ -51,211 +51,157 @@ class _OtpScreenState extends State<OtpScreen> {
   @override
   void dispose() {
     _timer?.cancel();
-    for (final c in _ctls) c.dispose();
-    for (final n in _nodes) n.dispose();
+    _field.dispose();
+    _focus.dispose();
     super.dispose();
   }
 
-  void _startResendTimer() {
-    _resendSeconds = 30;
+  void _startTimer(int seconds) {
     _timer?.cancel();
+    setState(() => _wait = seconds);
     _timer = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (_resendSeconds == 0) {
+      if (_wait <= 1) {
         t.cancel();
-      } else {
-        setState(() => _resendSeconds--);
+        if (mounted) setState(() => _wait = 0);
+      } else if (mounted) {
+        setState(() => _wait--);
       }
     });
   }
 
-  String get _otp => _ctls.map((c) => c.text).join();
-
   Future<void> _verify() async {
-    if (_otp.length != 6) {
-      setState(() => _error = 'Enter all 6 digits');
-      return;
-    }
-    setState(() { _isLoading = true; _error = null; });
+    final code = _field.text.trim();
+    if (code.length != 6 || _verifying) return;
+    setState(() {
+      _verifying = true;
+      _error = null;
+    });
     try {
-      final api = context.read<ApiService>();
-      await api.verifyOtp(_otp);
-      if (mounted) {
-        if (widget.onVerified != null) {
-          widget.onVerified!();
-        } else {
-          Navigator.of(context).pushReplacementNamed('/home');
-        }
+      await context.read<ApiService>().verifyOtp(code);
+      HapticFeedback.mediumImpact();
+      if (!mounted) return;
+      if (widget.onVerified != null) {
+        widget.onVerified!();
+      } else {
+        Navigator.of(context).pushReplacementNamed('/home');
       }
     } catch (e) {
-      setState(() { _error = friendlyError(e); _isLoading = false; });
+      HapticFeedback.heavyImpact();
+      if (!mounted) return;
+      setState(() {
+        _error = friendlyError(e);
+        _verifying = false;
+      });
+      _field.clear();
+      _focus.requestFocus();
     }
   }
 
   Future<void> _resend() async {
-    setState(() { _isResending = true; _error = null; });
+    setState(() {
+      _resending = true;
+      _error = null;
+    });
     try {
-      final api = context.read<ApiService>();
-      await api.sendOtp();
-      _startResendTimer();
+      final r = await context.read<ApiService>().sendOtp();
+      _field.clear();
+      _sandboxOtp = r['sandboxOtp']?.toString();
+      _startTimer(((r['resendAfterSeconds'] as num?) ?? 30).toInt());
+      if (_sandboxOtp != null) {
+        _field.text = _sandboxOtp!;
+        _verify();
+      }
     } catch (e) {
       setState(() => _error = friendlyError(e));
     } finally {
-      setState(() => _isResending = false);
+      if (mounted) setState(() => _resending = false);
     }
   }
 
+  String get _clock => '0:${_wait.toString().padLeft(2, '0')}';
+
   @override
   Widget build(BuildContext context) {
+    final code = _field.text;
     return Scaffold(
-      backgroundColor: kBg,
-      appBar: AppBar(
-        backgroundColor: kNavy,
-        foregroundColor: Colors.white,
-        title: const Text('Verify Phone', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-        elevation: 0,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            const SizedBox(height: 32),
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: kNavy.withOpacity(0.08),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.sms_rounded, color: kNavy, size: 40),
-            ),
-            const SizedBox(height: 20),
-            const Text('OTP Verification',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Color(0xFF111827))),
-            const SizedBox(height: 8),
-            Text(
-              'We sent a 6-digit OTP to\n${widget.maskedPhone}',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 14, color: Color(0xFF6B7280), height: 1.5),
-            ),
-            if (widget.sandboxOtp != null) ...[
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFEF9C3),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFFFDE047)),
-                ),
-                child: Text(
-                  'Sandbox OTP: ${widget.sandboxOtp}',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF854D0E)),
-                ),
-              ),
-            ],
-            const SizedBox(height: 36),
+      backgroundColor: kDarkBg,
+      appBar: AppBar(backgroundColor: kDarkBg, foregroundColor: Colors.white, elevation: 0),
+      body: SafeArea(
+        child: GestureDetector(
+          onTap: () => _focus.requestFocus(),
+          behavior: HitTestBehavior.opaque,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Verify your number', style: TextStyle(color: Colors.white, fontSize: 30, height: 1.15, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 12),
+                Text('Enter the 6-digit code we sent by SMS to ${widget.maskedPhone}', style: const TextStyle(color: kDarkMuted, fontSize: 15, height: 1.5)),
+                const SizedBox(height: 32),
 
-            // OTP boxes
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(6, (i) => Container(
-                width: 46,
-                height: 54,
-                margin: EdgeInsets.only(left: i == 0 ? 0 : 8),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: _ctls[i].text.isNotEmpty ? kNavy : const Color(0xFFE5E7EB),
-                    width: _ctls[i].text.isNotEmpty ? 2 : 1,
-                  ),
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8)],
-                ),
-                child: TextField(
-                  controller: _ctls[i],
-                  focusNode: _nodes[i],
-                  textAlign: TextAlign.center,
-                  keyboardType: TextInputType.number,
-                  maxLength: 1,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Color(0xFF111827)),
-                  decoration: const InputDecoration(
-                    counterText: '',
-                    border: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    fillColor: Colors.transparent,
-                    filled: false,
-                  ),
-                  onChanged: (v) {
-                    setState(() {});
-                    if (v.isNotEmpty && i < 5) {
-                      _nodes[i + 1].requestFocus();
-                    } else if (v.isEmpty && i > 0) {
-                      _nodes[i - 1].requestFocus();
-                    }
-                    if (_otp.length == 6) _verify();
-                  },
-                ),
-              )),
-            ),
-
-            if (_error != null) ...[
-              const SizedBox(height: 16),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFEF2F2),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFFFCA5A5)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.error_outline, color: Color(0xFFEF4444), size: 16),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(_error!, style: const TextStyle(color: Color(0xFFEF4444), fontSize: 13))),
-                  ],
-                ),
-              ),
-            ],
-
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: (_isLoading || _otp.length != 6) ? null : _verify,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: kNavy,
-                  disabledBackgroundColor: kNavy.withOpacity(0.4),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-                child: _isLoading
-                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                    : const Text('Verify OTP', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            if (_resendSeconds > 0)
-              Text(
-                'Resend OTP in ${_resendSeconds}s',
-                style: const TextStyle(fontSize: 13, color: Color(0xFF9CA3AF)),
-              )
-            else
-              GestureDetector(
-                onTap: _isResending ? null : _resend,
-                child: Text(
-                  _isResending ? 'Sending...' : 'Resend OTP',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: _isResending ? const Color(0xFF9CA3AF) : kNavy,
+                // One real text field, invisible, so the keyboard can suggest the code from the SMS.
+                SizedBox(
+                  height: 0,
+                  width: 0,
+                  child: TextField(
+                    controller: _field,
+                    focusNode: _focus,
+                    autofocus: true,
+                    keyboardType: TextInputType.number,
+                    autofillHints: const [AutofillHints.oneTimeCode],
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(6)],
+                    onChanged: (v) {
+                      if (v.length == 6) _verify();
+                    },
                   ),
                 ),
-              ),
-          ],
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: List.generate(6, (i) {
+                    final filled = i < code.length;
+                    final active = i == code.length && !_verifying;
+                    return Container(
+                      width: (MediaQuery.of(context).size.width - 48 - 5 * 10) / 6,
+                      height: 60,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: kDarkCard,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: _error != null ? const Color(0xFFFF6B6B) : active ? kGreen : kDarkLine, width: active ? 1.8 : 1),
+                      ),
+                      child: Text(filled ? code[i] : '', style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w700)),
+                    );
+                  }),
+                ),
+                const SizedBox(height: 16),
+                if (_error != null) Text(_error!, style: const TextStyle(color: Color(0xFFFF8A8A), fontSize: 13.5, height: 1.4)),
+                if (_sandboxOtp != null && _error == null)
+                  Container(
+                    margin: const EdgeInsets.only(top: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(color: const Color(0xFF2A2412), borderRadius: BorderRadius.circular(10)),
+                    child: const Text('Test mode: no SMS provider is set up yet, so the code was filled in for you.', style: TextStyle(color: Color(0xFFF0C766), fontSize: 12.5, height: 1.4)),
+                  ),
+                const SizedBox(height: 20),
+                if (_verifying)
+                  Row(children: const [
+                    SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: kGreen)),
+                    SizedBox(width: 10),
+                    Text('Checking...', style: TextStyle(color: kDarkMuted)),
+                  ])
+                else if (_wait > 0)
+                  Text('Resend code in $_clock', style: const TextStyle(color: kDarkMuted, fontSize: 14))
+                else
+                  GestureDetector(
+                    onTap: _resending ? null : _resend,
+                    child: Text(_resending ? 'Sending...' : 'Send a new code', style: const TextStyle(color: kGreen, fontSize: 14.5, fontWeight: FontWeight.w700)),
+                  ),
+                const Spacer(),
+                const Text('We will never ask you to share this code with anyone, including our staff.', style: TextStyle(color: kDarkMuted, fontSize: 12.5, height: 1.4)),
+              ],
+            ),
+          ),
         ),
       ),
     );

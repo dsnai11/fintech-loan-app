@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import '../services/app_settings.dart';
 import 'app_gate_screen.dart';
+import 'onboarding_flow.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({Key? key}) : super(key: key);
@@ -46,7 +47,7 @@ class _SplashScreenState extends State<SplashScreen> {
     final authService = context.read<AuthService>();
 
     if (authService.isAuthenticated) {
-      Navigator.of(context).pushReplacementNamed('/home');
+      await continueToHome(context);
     } else {
       Navigator.of(context).pushReplacementNamed('/login');
     }

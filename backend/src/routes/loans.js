@@ -7,6 +7,7 @@ import { audit } from '../services/auditService.js';
 import { screenLoan } from '../services/amlService.js';
 import { getPolicy, computeQuote, checkRequest } from '../services/pricingPolicy.js';
 import { policyFor } from '../services/appSettings.js';
+import { termsRequiredFor } from '../services/terms.js';
 import { renderClosureLetter } from '../services/closureLetter.js';
 import { renderStatement } from '../services/loanStatement.js';
 import { repeatEligibility, maxAmountFor } from '../services/repeatLoan.js';
@@ -44,6 +45,8 @@ router.post('/apply-full', authMiddleware, async (req, res) => {
 
     const user = await User.findById(req.user.userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
+    if (termsRequiredFor(user)) return res.status(403).json({ error: 'Please accept the updated terms and conditions first.', code: 'TERMS_REQUIRED' });
+    if (process.env.REQUIRE_PHONE_VERIFIED !== 'false' && !user.phoneVerified) return res.status(403).json({ error: 'Verify your phone number first. Open the app and enter the code we send you.', code: 'PHONE_NOT_VERIFIED' });
 
     // Update user profile with personal + bank details
     if (personalDetails) {
@@ -154,6 +157,8 @@ router.post('/apply', authMiddleware, async (req, res) => {
 
     const user = await User.findById(req.user.userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
+    if (termsRequiredFor(user)) return res.status(403).json({ error: 'Please accept the updated terms and conditions first.', code: 'TERMS_REQUIRED' });
+    if (process.env.REQUIRE_PHONE_VERIFIED !== 'false' && !user.phoneVerified) return res.status(403).json({ error: 'Verify your phone number first. Open the app and enter the code we send you.', code: 'PHONE_NOT_VERIFIED' });
 
     const loan = new Loan({
       userId: req.user.userId,

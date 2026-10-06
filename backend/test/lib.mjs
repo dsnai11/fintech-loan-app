@@ -61,6 +61,8 @@ export async function startServer(db, env = {}) {
         RAZORPAY_WEBHOOK_SECRET: '',
         REQUIRE_KYC_FOR_APPROVAL: '',
         REQUIRE_LOAN_AGREEMENT: '',
+        REQUIRE_TERMS: 'false',
+        REQUIRE_PHONE_VERIFIED: 'false',
         ...env,
       },
     });

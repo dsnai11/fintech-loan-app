@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import '../services/api_service.dart';
 import '../main.dart';
-import 'otp_screen.dart';
+import 'onboarding_flow.dart';
+import 'terms_screen.dart';
+import 'package:flutter/gestures.dart';
 import '../widgets/form_inputs.dart';
 
 class SignupScreen extends StatefulWidget {
@@ -23,6 +25,16 @@ class _SignupScreenState extends State<SignupScreen> {
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
   bool _agreedToTerms = false;
+  int? _termsVersion;
+
+  @override
+  void initState() {
+    super.initState();
+    // The version the customer is shown is the version recorded as accepted.
+    context.read<ApiService>().getTerms().then((t) {
+      if (mounted) setState(() => _termsVersion = (t['version'] as num?)?.toInt());
+    }).catchError((_) {});
+  }
 
   @override
   void dispose() {
@@ -38,7 +50,7 @@ class _SignupScreenState extends State<SignupScreen> {
   Future<void> _signup() async {
     if (!_agreedToTerms) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please agree to terms and conditions')),
+        const SnackBar(content: Text('Please read and accept the terms and conditions')),
       );
       return;
     }
@@ -50,25 +62,10 @@ class _SignupScreenState extends State<SignupScreen> {
       phone: _phoneController.text.trim(),
       password: _passwordController.text,
       confirmPassword: _confirmPasswordController.text,
+      termsVersion: _termsVersion,
     );
-    if (success && mounted) {
-      // Send OTP after signup and go to OTP screen
-      try {
-        final api = context.read<ApiService>();
-        final result = await api.sendOtp();
-        if (mounted) {
-          Navigator.of(context).pushReplacement(MaterialPageRoute(
-            builder: (_) => OtpScreen(
-              maskedPhone: result['phone'] ?? '**XXXXXX**',
-              sandboxOtp: result['sandboxOtp'],
-            ),
-          ));
-        }
-      } catch (_) {
-        // If OTP send fails, go home anyway (non-blocking)
-        if (mounted) Navigator.of(context).pushReplacementNamed('/home');
-      }
-    }
+    // Terms are accepted; the phone check comes next, then home.
+    if (success && mounted) await continueToHome(context);
   }
 
   Widget _label(String text) => Padding(
@@ -243,10 +240,20 @@ class _SignupScreenState extends State<SignupScreen> {
                                 : null,
                           ),
                           const SizedBox(width: 10),
-                          const Expanded(
-                            child: Text(
-                              'I agree to the Terms & Privacy Policy',
-                              style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+                          Expanded(
+                            child: Text.rich(
+                              TextSpan(
+                                style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+                                children: [
+                                  const TextSpan(text: 'I agree to the '),
+                                  TextSpan(
+                                    text: 'Terms and Conditions',
+                                    style: const TextStyle(color: kNavy, fontWeight: FontWeight.w700, decoration: TextDecoration.underline),
+                                    recognizer: TapGestureRecognizer()
+                                      ..onTap = () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TermsScreen())),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ],

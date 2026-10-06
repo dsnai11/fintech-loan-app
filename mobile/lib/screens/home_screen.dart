@@ -11,6 +11,7 @@ import 'notifications_screen.dart';
 import 'help_screen.dart';
 import 'emi_calculator_screen.dart';
 import 'support_screen.dart';
+import 'onboarding_flow.dart';
 import '../services/app_settings.dart';
 import '../services/selected_product.dart';
 
@@ -27,6 +28,39 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     Future.microtask(() => context.read<AuthService>().loadUserProfile());
     Future.microtask(_loadPricing);
+    Future.microtask(_loadPhoneStatus);
+  }
+
+  bool _phoneUnverified = false;
+
+  Future<void> _loadPhoneStatus() async {
+    try {
+      final s = await context.read<ApiService>().getOnboarding();
+      if (mounted) setState(() => _phoneUnverified = s['phoneVerified'] != true);
+    } catch (_) {}
+  }
+
+  Widget _verifyPhoneCard() {
+    return GestureDetector(
+      onTap: () async {
+        final ok = await verifyPhone(context);
+        if (ok) _loadPhoneStatus();
+      },
+      child: Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(color: const Color(0xFF16161C), borderRadius: BorderRadius.circular(14)),
+        child: Row(children: const [
+          Icon(Icons.sms_outlined, color: Colors.white, size: 22),
+          SizedBox(width: 12),
+          Expanded(
+            child: Text('Verify your phone number. You need to do this before you can apply for a loan.', style: TextStyle(color: Colors.white, fontSize: 13, height: 1.4)),
+          ),
+          Icon(Icons.chevron_right_rounded, color: Colors.white70),
+        ]),
+      ),
+    );
   }
 
   @override
@@ -211,6 +245,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    if (_phoneUnverified) _verifyPhoneCard(),
                     if (settings.banner != null) _banner(settings.banner!),
                     const Text(
                       'Quick Actions',

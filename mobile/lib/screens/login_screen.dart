@@ -1,3 +1,4 @@
+import 'onboarding_flow.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
@@ -75,9 +76,8 @@ class _LoginScreenState extends State<LoginScreen> {
       email: _emailController.text.trim(),
       password: _passwordController.text,
     );
-    if (success && mounted) {
-      Navigator.of(context).pushReplacementNamed('/home');
-    }
+    // The terms and the phone check come first when they are still outstanding.
+    if (success && mounted) await continueToHome(context);
   }
 
   @override

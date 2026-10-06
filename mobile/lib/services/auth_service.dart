@@ -26,6 +26,7 @@ class AuthService extends ChangeNotifier {
     required String phone,
     required String password,
     required String confirmPassword,
+    int? termsVersion,
   }) async {
     _isLoading = true;
     _error = null;
@@ -39,6 +40,7 @@ class AuthService extends ChangeNotifier {
         phone: phone,
         password: password,
         confirmPassword: confirmPassword,
+        termsVersion: termsVersion,
       );
 
       _token = response['token'];

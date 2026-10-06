@@ -3,84 +3,29 @@ import User from '../models/User.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { getConfig } from '../services/configService.js';
 import { audit } from '../services/auditService.js';
+import { sendCode, verifyCode } from '../services/phoneVerification.js';
 import { flagDuplicatePan, flagNameMismatch, namesCompatible } from '../services/amlService.js';
 
 const router = express.Router();
 
-// In-memory OTP store: { phone: { otp, expiresAt, attempts } }
-const otpStore = new Map();
-
-// POST /api/kyc/otp/send
+// The phone check lives in services/phoneVerification.js. These two routes stay so older app builds keep working.
 router.post('/otp/send', authMiddleware, async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId).select('phone');
+    const user = await User.findById(req.user.userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
-
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    otpStore.set(user.phone, { otp, expiresAt: Date.now() + 5 * 60 * 1000, attempts: 0 });
-
-    const smsProvider = getConfig('SMS_PROVIDER');
-    const smsApiKey   = getConfig('SMS_API_KEY');
-    const senderId    = getConfig('SMS_SENDER_ID', 'LIFINC');
-
-    let smsSent = false;
-
-    if (smsProvider === 'fast2sms' && smsApiKey) {
-      const msg = encodeURIComponent(`Your LIFC OTP is ${otp}. Valid for 5 minutes. Do not share.`);
-      const r = await fetch(`https://www.fast2sms.com/dev/bulkV2?authorization=${smsApiKey}&sender_id=${senderId}&message=${msg}&language=english&route=q&numbers=${user.phone}`)
-        .then(x => x.json()).catch(() => null);
-      smsSent = r?.return === true;
-    } else if (smsProvider === 'msg91' && smsApiKey) {
-      const templateId = getConfig('MSG91_TEMPLATE_ID');
-      const r = await fetch('https://api.msg91.com/api/v5/otp', {
-        method: 'POST',
-        headers: { 'authkey': smsApiKey, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ template_id: templateId, mobile: `91${user.phone}`, otp }),
-      }).then(x => x.json()).catch(() => null);
-      smsSent = r?.type === 'success';
-    } else if (smsProvider === 'twilio' && getConfig('TWILIO_ACCOUNT_SID')) {
-      const sid   = getConfig('TWILIO_ACCOUNT_SID');
-      const token = getConfig('TWILIO_AUTH_TOKEN');
-      const from  = getConfig('TWILIO_PHONE');
-      const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
-        method: 'POST',
-        headers: { 'Authorization': 'Basic ' + Buffer.from(`${sid}:${token}`).toString('base64'), 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ To: `+91${user.phone}`, From: from, Body: `Your LIFC OTP is ${otp}. Valid 5 min.` }),
-      }).then(x => x.json()).catch(() => null);
-      smsSent = !!r?.sid;
-    }
-
-    res.json({
-      message: smsSent ? 'OTP sent via SMS' : 'OTP generated',
-      phone: user.phone.replace(/(\d{2})\d{6}(\d{2})/, '$1XXXXXX$2'),
-      smsSent,
-      // Return OTP only in sandbox mode (no real provider configured)
-      ...(!smsProvider || smsProvider === 'sandbox' ? { sandboxOtp: otp } : {}),
-    });
+    const r = await sendCode(user);
+    res.status(r.status).json(r.body);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// POST /api/kyc/otp/verify
 router.post('/otp/verify', authMiddleware, async (req, res) => {
   try {
-    const { otp } = req.body;
-    if (!otp) return res.status(400).json({ error: 'OTP is required' });
-
-    const user = await User.findById(req.user.userId).select('phone');
-    const record = otpStore.get(user.phone);
-
-    if (!record) return res.status(400).json({ error: 'OTP not found. Please resend.' });
-    if (Date.now() > record.expiresAt) { otpStore.delete(user.phone); return res.status(400).json({ error: 'OTP expired. Please resend.' }); }
-    if (record.attempts >= 3) { otpStore.delete(user.phone); return res.status(400).json({ error: 'Too many attempts. Please resend.' }); }
-
-    record.attempts++;
-    if (record.otp !== otp.toString()) return res.status(400).json({ error: 'Invalid OTP', attemptsLeft: 3 - record.attempts });
-
-    otpStore.delete(user.phone);
-    await User.findByIdAndUpdate(req.user.userId, { phoneVerified: true });
-    res.json({ message: 'Phone verified successfully' });
+    const user = await User.findById(req.user.userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const r = await verifyCode(user, req.body?.otp, req);
+    res.status(r.status).json(r.body);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
