@@ -640,19 +640,35 @@ async function loadApplications() {
     const tbody = document.getElementById('applicationsBody');
     tbody.innerHTML = (loans || []).map(l => `
       <tr>
-        <td>${esc(l._id?.slice(-8))}</td>
+        <td>${esc(l._id?.slice(-8))}${['disbursed', 'closed', 'defaulted'].includes(l.status) ? `<br><a href="#" onclick="toggleEmis('${esc(l._id)}'); return false;">Repayments</a>` : ''}</td>
         <td>₹${esc(l.loanAmount)}</td>
         <td>${esc(l.tenure)}</td>
         <td><span class="status-badge status-${esc(l.status)}">${esc(l.status)}</span></td>
         <td>₹${esc(l.monthlyEMI)}</td>
         <td>${new Date(l.createdAt).toLocaleDateString()}${['disbursed', 'closed'].includes(l.status) ? ` <a href="#" onclick="openStatement('${esc(l._id)}'); return false;">Statement</a>` : ''}${l.status === 'closed' ? ` <a href="#" onclick="openClosureLetter('${esc(l._id)}'); return false;">Closure letter</a>` : ''}</td>
       </tr>
+      <tr id="emi-row-${esc(l._id)}" style="display:none"><td colspan="6" id="emi-cell-${esc(l._id)}"></td></tr>
     `).join('') || '<tr><td colspan="6">No applications</td></tr>';
 
     document.getElementById('applicationsLoading').style.display = 'none';
     document.getElementById('applicationsTable').style.display = 'table';
   } catch (e) {
     showAlert('applications', 'error', `Failed: ${e.message}`);
+  }
+}
+
+// Show or hide a loan's repayment schedule, with every instalment and whether it is paid
+async function toggleEmis(loanId) {
+  const row = document.getElementById('emi-row-' + loanId);
+  const cell = document.getElementById('emi-cell-' + loanId);
+  if (!row) return;
+  if (row.style.display !== 'none') { row.style.display = 'none'; return; }
+  row.style.display = '';
+  cell.innerHTML = '<div style="padding:12px;color:#64748b">Loading...</div>';
+  try {
+    cell.innerHTML = EmiTable.render(await apiCall('GET', '/emi/schedule/' + encodeURIComponent(loanId)));
+  } catch (e) {
+    cell.innerHTML = '<div style="padding:12px;color:#b91c1c">Could not load the repayments: ' + esc(e.message) + '</div>';
   }
 }
 
@@ -741,6 +757,7 @@ function showAlert(pageId, type, msg) {
 
 if (token) start(); else showLogin();
 </script>
+<script src="assets/emi-table.js"></script>
 <script src="assets/portal.js"></script>
 </body>
 </html>

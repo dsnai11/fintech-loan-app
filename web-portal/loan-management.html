@@ -612,6 +612,12 @@
         <value id="detail-kyc">-</value>
       </div>
 
+      <!-- Repayments -->
+      <div id="detail-emis-wrap" style="display:none; margin-top: 16px;">
+        <label style="font-weight: 600; font-size: 13px;">Repayments</label>
+        <div id="detail-emis"></div>
+      </div>
+
       <!-- Modal Footer -->
       <div class="modal-footer">
         <button class="btn-primary" id="btn-approve" onclick="approveModal()" style="background: #10b981;">
@@ -780,8 +786,27 @@
         recBox.className = `recommendation ${className}`;
 
         document.getElementById('loanModal').classList.add('active');
+        loadModalEmis(loan);
       } catch (e) {
         showAlert('Error loading loan details: ' + e.message, 'error');
+      }
+    }
+
+    // The repayment schedule, once the loan has been paid out
+    async function loadModalEmis(loan) {
+      const wrap = document.getElementById('detail-emis-wrap');
+      const box = document.getElementById('detail-emis');
+      const repayable = ['disbursed', 'closed', 'defaulted'].includes(loan.status);
+      wrap.style.display = repayable ? '' : 'none';
+      if (!repayable) return;
+      box.innerHTML = '<div style="padding:10px;color:#64748b">Loading...</div>';
+      try {
+        const r = await fetch(`${API_BASE}/emi/schedule/${loan._id}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` } });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || 'Could not load');
+        box.innerHTML = EmiTable.render(d);
+      } catch (e) {
+        box.innerHTML = '<div style="padding:10px;color:#b91c1c">Could not load the repayments: ' + e.message + '</div>';
       }
     }
 
@@ -867,6 +892,7 @@
       window.location.href = 'admin-config.html';
     }
   </script>
+<script src="assets/emi-table.js"></script>
 <script src="assets/portal.js"></script>
 </body>
 </html>
