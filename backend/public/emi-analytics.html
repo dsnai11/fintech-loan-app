@@ -469,11 +469,12 @@
 
     <!-- Paid Tab -->
     <div id="paid" class="tab-content">
-      <div style="padding: 40px; background: white; border-radius: 12px; text-align: center; color: #6b7280;">
-        <p>Showing recent 50 paid EMIs...</p>
-        <table style="width: 100%; margin-top: 20px;">
+      <div style="padding: 20px; background: white; border-radius: 12px; color: #6b7280;">
+        <p id="paid-note">Loading...</p>
+        <div style="overflow-x:auto"><table style="width: 100%; margin-top: 14px;">
           <thead>
             <tr>
+              <th style="text-align: left;">Customer</th>
               <th style="text-align: left;">Loan ID</th>
               <th>EMI #</th>
               <th>Amount</th>
@@ -483,17 +484,18 @@
             </tr>
           </thead>
           <tbody id="paid-body"></tbody>
-        </table>
+        </table></div>
       </div>
     </div>
 
     <!-- Pending Tab -->
     <div id="pending" class="tab-content">
-      <div style="padding: 40px; background: white; border-radius: 12px; text-align: center; color: #6b7280;">
-        <p>Showing next 50 due EMIs...</p>
-        <table style="width: 100%; margin-top: 20px;">
+      <div style="padding: 20px; background: white; border-radius: 12px; color: #6b7280;">
+        <p id="pending-note">Loading...</p>
+        <div style="overflow-x:auto"><table style="width: 100%; margin-top: 14px;">
           <thead>
             <tr>
+              <th style="text-align: left;">Customer</th>
               <th style="text-align: left;">Loan ID</th>
               <th>EMI #</th>
               <th>Amount</th>
@@ -502,27 +504,27 @@
             </tr>
           </thead>
           <tbody id="pending-body"></tbody>
-        </table>
+        </table></div>
       </div>
     </div>
 
     <!-- Failed Tab -->
     <div id="failed" class="tab-content">
-      <div style="padding: 40px; background: white; border-radius: 12px; text-align: center; color: #6b7280;">
-        <p>Showing failed payments requiring retry...</p>
-        <table style="width: 100%; margin-top: 20px;">
+      <div style="padding: 20px; background: white; border-radius: 12px; color: #6b7280;">
+        <p id="failed-note">Loading...</p>
+        <div style="overflow-x:auto"><table style="width: 100%; margin-top: 14px;">
           <thead>
             <tr>
+              <th style="text-align: left;">Customer</th>
               <th style="text-align: left;">Loan ID</th>
               <th>EMI #</th>
               <th>Amount</th>
               <th>Failure Reason</th>
               <th>Retries</th>
-              <th>Action</th>
             </tr>
           </thead>
           <tbody id="failed-body"></tbody>
-        </table>
+        </table></div>
       </div>
     </div>
   </div>
@@ -571,13 +573,15 @@
 
         // Update metrics
         document.getElementById('metric-collected').textContent =
-          '₹' + (data.collections.totalCollected / 100000).toFixed(1) + 'L';
+          '₹' + Math.round(data.collections.totalCollected || 0).toLocaleString('en-IN');
         document.getElementById('metric-penalties').textContent =
-          '₹' + (data.collections.totalPenalties / 1000).toFixed(0) + 'K';
+          '₹' + Math.round(data.collections.totalPenalties || 0).toLocaleString('en-IN');
         document.getElementById('metric-rate').textContent = data.collections.collectionRate;
 
         // Load overdue EMIs
         await loadOverdueEmis();
+        const open = document.querySelector('.tab-content.active');
+        if (open && open.id !== 'overdue') loadEmiList(open.id.toUpperCase());
 
         showAlert('Analytics loaded successfully', 'success');
       } catch (error) {
@@ -656,6 +660,34 @@
       }
     }
 
+    const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const money = n => '₹' + Math.round(n || 0).toLocaleString('en-IN');
+    const fmtDate = d => d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '-';
+    const TAB_ROWS = {
+      PAID: e => [e.customer, e.loanId.slice(-8), e.emiNumber, money(e.paidAmount || e.amount), fmtDate(e.paidDate), e.daysLate ? e.daysLate + ' days' : 'On time', e.penalty ? money(e.penalty) : '-'],
+      PENDING: e => [e.customer, e.loanId.slice(-8), e.emiNumber, money(e.amount), fmtDate(e.dueDate), e.daysUntilDue < 0 ? 'Due now' : e.daysUntilDue + ' days'],
+      FAILED: e => [e.customer, e.loanId.slice(-8), e.emiNumber, money(e.amount), e.failureReason || 'Not recorded', e.retries],
+    };
+    const TAB_NOTE = { PAID: 'most recent paid EMIs', PENDING: 'next EMIs to fall due', FAILED: 'failed payments that need a retry' };
+
+    // Fills the paid, upcoming and failed lists from the server
+    async function loadEmiList(status) {
+      const id = status.toLowerCase();
+      const note = document.getElementById(id + '-note');
+      const body = document.getElementById(id + '-body');
+      note.textContent = 'Loading...';
+      try {
+        const r = await fetch(`${API_BASE}/emi/admin/list?status=${status}&limit=50`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || 'Could not load');
+        note.textContent = d.total ? `Showing ${d.emis.length} of ${d.total}: ${TAB_NOTE[status]}.` : 'Nothing here yet.';
+        body.innerHTML = d.emis.map(e => '<tr>' + TAB_ROWS[status](e).map((v, i) => `<td${i < 2 ? ' style="text-align:left"' : ''}>${esc(v)}</td>`).join('') + '</tr>').join('');
+      } catch (e) {
+        note.textContent = 'Could not load this list: ' + e.message;
+        body.innerHTML = '';
+      }
+    }
+
     function switchTab(tabName) {
       // Hide all tabs
       document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
@@ -664,6 +696,7 @@
       // Show selected tab
       document.getElementById(tabName).classList.add('active');
       event.target.classList.add('active');
+      if (tabName !== 'overdue') loadEmiList(tabName.toUpperCase());
     }
 
     function sendReminder(email, amount) {

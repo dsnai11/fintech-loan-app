@@ -247,6 +247,47 @@ router.get('/admin/overdue', adminMiddleware, async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════
+// 📋 ADMIN: EMIS BY STATUS (paid, upcoming, failed)
+// ═══════════════════════════════════════════════════════════════════
+
+router.get('/admin/list', adminMiddleware, async (req, res) => {
+  try {
+    const status = String(req.query.status || '').toUpperCase();
+    if (!['PAID', 'PENDING', 'FAILED'].includes(status)) return res.status(400).json({ error: 'status must be PAID, PENDING or FAILED' });
+    const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+    // Paid: most recent first. Upcoming: soonest first. Failed: most recent first.
+    const sort = status === 'PENDING' ? { dueDate: 1 } : status === 'PAID' ? { paidDate: -1 } : { updatedAt: -1 };
+    const [total, rows] = await Promise.all([
+      EMIPayment.countDocuments({ status }),
+      EMIPayment.find({ status }).sort(sort).limit(limit).populate('userId', 'firstName lastName phone'),
+    ]);
+    const day = 86400000;
+    res.json({
+      status,
+      total,
+      emis: rows.map(e => ({
+        emiId: String(e._id),
+        loanId: String(e.loanId),
+        customer: e.userId ? `${e.userId.firstName} ${e.userId.lastName}` : 'Unknown',
+        phone: e.userId?.phone || '',
+        emiNumber: e.emiNumber,
+        amount: e.amount,
+        dueDate: e.dueDate,
+        paidDate: e.paidDate || null,
+        paidAmount: e.paidAmount || 0,
+        penalty: e.penaltyApplied || 0,
+        daysLate: e.paidDate ? Math.max(0, Math.ceil((new Date(e.paidDate) - new Date(e.dueDate)) / day)) : 0,
+        daysUntilDue: Math.ceil((new Date(e.dueDate) - Date.now()) / day),
+        failureReason: e.metadata?.failureReason || '',
+        retries: e.metadata?.retryCount || 0,
+      })),
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════
 // ⚙️ ADMIN: MARK OVERDUE EMIS
 // ═══════════════════════════════════════════════════════════════════
 

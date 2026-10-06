@@ -48,6 +48,15 @@ check('loan closes after the last EMI', (await Loan.findById(loan._id)).status =
 const an = (await call('GET', '/emi/admin/analytics', admin)).d;
 check('EMI analytics reflect the payments', an.totalEmis === 3 && an.stats.paid === 3 && an.collections.collectionRate === '100.00%', JSON.stringify(an));
 
+section('EMI LISTS FOR STAFF');
+const paidList = await call('GET', '/emi/admin/list?status=PAID', admin);
+check('paid EMIs are listed with customer, loan and amounts', paidList.s === 200 && paidList.d.total === 3 && paidList.d.emis.length === 3 && paidList.d.emis[0].customer === 'Test User' && paidList.d.emis[0].paidAmount > 0 && String(paidList.d.emis[0].loanId) === String(loan._id), JSON.stringify(paidList.d).slice(0, 200));
+check('most recently paid comes first', new Date(paidList.d.emis[0].paidDate) >= new Date(paidList.d.emis[2].paidDate));
+check('nothing is upcoming or failed on this loan', (await call('GET', '/emi/admin/list?status=PENDING', admin)).d.total === 0 && (await call('GET', '/emi/admin/list?status=FAILED', admin)).d.total === 0);
+check('an unknown status is refused (400)', (await call('GET', '/emi/admin/list?status=ALL', admin)).s === 400);
+check('customers cannot read the list (403)', (await call('GET', '/emi/admin/list?status=PAID', t)).s === 403);
+check('no login -> 401', (await call('GET', '/emi/admin/list?status=PAID', null)).s === 401);
+
 section('PLAN TYPES: PRINCIPAL AND INTEREST SPLIT');
 // Approve and disburse a loan through the API, then return its schedule.
 async function scheduleFor(fields) {
