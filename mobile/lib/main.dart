@@ -7,7 +7,7 @@ import 'services/app_settings.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
-import 'screens/home_screen.dart';
+import 'screens/main_shell.dart';
 
 const kNavy = Color(0xFF7B0000);
 const kGreen = Color(0xFFC41E3A);
@@ -80,7 +80,7 @@ class MyApp extends StatelessWidget {
         routes: {
           '/login': (_) => const LoginScreen(),
           '/signup': (_) => const SignupScreen(),
-          '/home': (_) => const HomeScreen(),
+          '/home': (_) => const MainShell(),
         },
       ),
     );

@@ -7,7 +7,9 @@ import 'loan_detail_screen.dart';
 import 'agreement_screen.dart';
 
 class LoanHistoryScreen extends StatefulWidget {
-  const LoanHistoryScreen({Key? key}) : super(key: key);
+  // `embedded` when shown as a tab: there is nowhere to go back to.
+  final bool embedded;
+  const LoanHistoryScreen({Key? key, this.embedded = false}) : super(key: key);
 
   @override
   State<LoanHistoryScreen> createState() => _LoanHistoryScreenState();
@@ -91,6 +93,7 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                 child: Row(
                   children: [
+                    if (!widget.embedded) ...[
                     GestureDetector(
                       onTap: () => Navigator.pop(context),
                       child: Container(
@@ -104,6 +107,7 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
                       ),
                     ),
                     const SizedBox(width: 14),
+                    ],
                     const Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [

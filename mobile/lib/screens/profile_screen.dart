@@ -8,7 +8,9 @@ import 'privacy_screen.dart';
 import 'help_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({Key? key}) : super(key: key);
+  // `embedded` when shown as a tab: there is nowhere to go back to.
+  final bool embedded;
+  const ProfileScreen({Key? key, this.embedded = false}) : super(key: key);
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -117,6 +119,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
                 child: Row(
                   children: [
+                    if (!widget.embedded) ...[
                     GestureDetector(
                       onTap: () => Navigator.pop(context),
                       child: Container(
@@ -130,6 +133,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                     const SizedBox(width: 14),
+                    ],
                     const Expanded(
                       child: Text('My Profile',
                           style: TextStyle(color: Colors.white, fontSize: 20,
