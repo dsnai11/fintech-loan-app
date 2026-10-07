@@ -612,6 +612,12 @@
         <value id="detail-kyc">-</value>
       </div>
 
+      <!-- Decision engine -->
+      <div id="detail-decision-wrap" style="display:none; margin-top: 16px;">
+        <label style="font-weight: 600; font-size: 13px;">Decision engine</label>
+        <div id="detail-decision"></div>
+      </div>
+
       <!-- Repayments -->
       <div id="detail-emis-wrap" style="display:none; margin-top: 16px;">
         <label style="font-weight: 600; font-size: 13px;">Repayments</label>
@@ -787,9 +793,26 @@
 
         document.getElementById('loanModal').classList.add('active');
         loadModalEmis(loan);
+        showDecision(loan);
       } catch (e) {
         showAlert('Error loading loan details: ' + e.message, 'error');
       }
+    }
+
+    // What the decision engine found when this application came in
+    function showDecision(loan) {
+      const wrap = document.getElementById('detail-decision-wrap');
+      const box = document.getElementById('detail-decision');
+      const d = loan.decision;
+      wrap.style.display = d ? '' : 'none';
+      if (!d) return;
+      const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      const color = { APPROVE: '#047857', REJECT: '#b91c1c', REFER: '#b45309' }[d.outcome] || '#475569';
+      const label = d.outcome === 'APPROVE' ? 'Approve' : d.outcome === 'REJECT' ? 'Reject' : 'Send to ' + (d.referTo || 'a person');
+      const how = d.applied ? 'Done automatically.' : d.mode === 'shadow' ? 'Shadow mode: this is what it would do. A person decides.' : 'A person decides.';
+      const flags = (d.checks || []).filter(c => c.result === 'refer' || c.result === 'reject');
+      box.innerHTML = '<div style="padding:8px 0;font-size:13px"><strong style="color:' + color + '">' + esc(label) + '</strong> <span style="color:#64748b">' + esc(how) + '</span>' +
+        (flags.length ? '<ul style="margin:6px 0 0 18px">' + flags.map(c => '<li>' + esc(c.name) + ': ' + esc(c.detail) + '</li>').join('') + '</ul>' : '<div style="color:#64748b">Every rule passed.</div>') + '</div>';
     }
 
     // The repayment schedule, once the loan has been paid out

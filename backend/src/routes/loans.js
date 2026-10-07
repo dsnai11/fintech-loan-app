@@ -8,6 +8,7 @@ import { screenLoan } from '../services/amlService.js';
 import { getPolicy, computeQuote, checkRequest } from '../services/pricingPolicy.js';
 import { policyFor } from '../services/appSettings.js';
 import { termsRequiredFor } from '../services/terms.js';
+import { decideLoan } from '../services/decisionEngine.js';
 import { renderClosureLetter } from '../services/closureLetter.js';
 import { renderStatement } from '../services/loanStatement.js';
 import { repeatEligibility, maxAmountFor } from '../services/repeatLoan.js';
@@ -108,6 +109,7 @@ router.post('/apply-full', authMiddleware, async (req, res) => {
     await user.save();
     await audit(req.user, 'LOAN_APPLIED', { type: 'Loan', id: loan._id }, { amount: loan.loanAmount, tenure: loan.tenure }, req);
     await screenLoan(loan, user);
+    await decideLoan(loan, user);
 
     res.status(201).json({
       message: 'Loan application submitted successfully',
@@ -179,6 +181,7 @@ router.post('/apply', authMiddleware, async (req, res) => {
     await user.save();
     await audit(req.user, 'LOAN_APPLIED', { type: 'Loan', id: loan._id }, { amount: loan.loanAmount, tenure: loan.tenure }, req);
     await screenLoan(loan, user);
+    await decideLoan(loan, user);
 
     res.status(201).json({
       message: 'Loan application submitted',

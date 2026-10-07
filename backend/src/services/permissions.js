@@ -31,6 +31,8 @@ export const PERMISSIONS = [
   { key: 'announcements.send', group: 'Customer messages', label: 'Send announcements to groups of customers' },
   { key: 'terms.edit', group: 'Administration', label: 'Edit and publish the terms and conditions customers accept' },
   { key: 'appsettings.edit', group: 'Administration', label: 'Change what the customer apps show (products, banner, switches, maintenance)' },
+  { key: 'decisions.view', group: 'Decisions', label: 'See the decision rules and what the engine decided' },
+  { key: 'decisions.edit', group: 'Decisions', label: 'Change the decision rules and switch automatic approval on or off' },
   { key: 'staff.manage', group: 'Administration', label: 'Add staff and change their access (only up to your own level)' },
   { key: 'config.manage', group: 'Administration', label: 'Change app configuration and integrations' },
 ];
@@ -42,7 +44,7 @@ export const SUPER_ONLY = ['roles.manage'];
 
 export const DEFAULT_ROLES = {
   super_admin: { label: 'Super admin', description: 'Everything, including editing roles. Fixed.', permissions: ['*'] },
-  credit_officer: { label: 'Credit officer', description: 'Reviews and approves loans.', permissions: ['loans.view', 'loans.approve', 'customers.view', 'reports.view', 'pricing.view'] },
+  credit_officer: { label: 'Credit officer', description: 'Reviews and approves loans.', permissions: ['loans.view', 'loans.approve', 'customers.view', 'reports.view', 'pricing.view', 'decisions.view'] },
   kyc_reviewer: { label: 'KYC reviewer', description: 'Checks customer identity documents.', permissions: ['kyc.view', 'kyc.decide', 'aml.view', 'customers.view'] },
   collections_agent: { label: 'Collections agent', description: 'Follows up on overdue loans.', permissions: ['collections.view', 'collections.act', 'customers.view', 'loans.view'] },
   collections_manager: { label: 'Collections manager', description: 'Runs the collections team.', permissions: ['collections.view', 'collections.act', 'collections.manage', 'customers.view', 'loans.view', 'reports.view'] },
@@ -107,6 +109,8 @@ const RULES = [
   [/^\/api\/admin\/me(\/|$)/, ANY, ANY],
   [/^\/api\/admin\/roles(\/|$)/, SUPER, SUPER],
   [/^\/api\/admin\/staff(\/|$)/, 'staff.manage', 'staff.manage'],
+  [/^\/api\/admin\/decisions\/rules(\/|$)/, 'decisions.view', 'decisions.edit'],
+  [/^\/api\/admin\/decisions(\/|$)/, 'decisions.view', 'decisions.view'],
   [/^\/api\/admin\/support(\/|$)/, 'support.view', 'support.reply'],
   [/^\/api\/admin\/announcements(\/|$)/, 'announcements.send', 'announcements.send'],
   [/^\/api\/app-settings\/admin(\/|$)/, 'appsettings.edit', 'appsettings.edit'],

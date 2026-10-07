@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%92%B0%3C/text%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Decisions - LIFC Admin</title>
+<style>
+* { box-sizing: border-box; }
+.card { padding: 16px; margin-bottom: 14px; }
+.card h2 { margin: 0 0 4px; }
+.sub { font-size: 12px; color: var(--e-muted); margin-bottom: 12px; line-height: 1.5; }
+.alert { display: none; padding: 12px 16px; margin-bottom: 14px; white-space: pre-line; }
+.alert.show { display: block; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; align-items: end; }
+.grid input, .grid select { width: 100%; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 14px; }
+.tile { padding: 14px; }
+.tile .l { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--e-muted); }
+.tile .v { font-size: 28px; font-weight: 800; margin-top: 4px; }
+.tile .s { font-size: 12px; color: var(--e-muted); }
+.modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; }
+.mode { border: 1px solid var(--e-border); border-radius: 10px; padding: 12px 14px; cursor: pointer; display: flex; gap: 10px; background: var(--e-surface); }
+.mode.on { border-color: var(--e-primary); background: var(--e-primary-soft); }
+.mode b { display: block; font-size: 14px; }
+.mode span { font-size: 12px; color: var(--e-muted); line-height: 1.4; }
+.pill { display: inline-block; padding: 1px 9px; border-radius: 99px; font-size: 11px; font-weight: 700; background: var(--e-surface-2); border: 1px solid var(--e-border); }
+.pill.APPROVE, .pill.pass { background: var(--e-good-soft); color: var(--e-good); border-color: transparent; }
+.pill.REJECT, .pill.reject { background: var(--e-danger-soft); color: var(--e-danger); border-color: transparent; }
+.pill.REFER, .pill.refer { background: var(--e-warn-soft); color: var(--e-warn); border-color: transparent; }
+.sw { display: flex; gap: 8px; align-items: center; font-weight: 500; font-size: 13px; color: var(--e-text); }
+.bands td { padding: 4px 6px; }
+.bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+.note { font-size: 12px; color: var(--e-muted); }
+.scroll { overflow-x: auto; }
+.chk { display: grid; grid-template-columns: 24px 190px 1fr; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--e-border); font-size: 13px; align-items: start; }
+.chk:last-child { border-bottom: 0; }
+</style>
+<link rel="stylesheet" href="assets/portal.css">
+</head>
+<body data-shell="app" data-title="Decisions" data-sub="Approve clean applications automatically, reject the ones that break a hard rule, and send the rest to a person.">
+<div class="container">
+  <div id="alert" class="alert" role="alert"></div>
+  <div class="tabs">
+    <button id="tab-overview" class="on" onclick="showTab('overview')">Overview</button>
+    <button id="tab-rules" onclick="showTab('rules')">Rules</button>
+    <button id="tab-try" onclick="showTab('try')">Try an applicant</button>
+  </div>
+
+  <div id="view-overview"></div>
+  <div id="view-rules" style="display:none"></div>
+  <div id="view-try" style="display:none"></div>
+</div>
+
+<script>
+const API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
+const token = localStorage.getItem('admin_token');
+if (!token) location.href = 'admin-config.html';
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const when = d => new Date(d).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+const money = n => '₹' + Math.round(n || 0).toLocaleString('en-IN');
+const canEdit = () => !window.PortalShell || PortalShell.can('decisions.edit');
+let R = null; // the saved rules
+
+function msg(text, kind) {
+  const a = $('alert'); a.textContent = text; a.className = 'alert show ' + (kind === 'ok' ? 'ok' : 'err');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  if (kind === 'ok') setTimeout(() => a.classList.remove('show'), 5000);
+}
+async function api(path, method = 'GET', body) {
+  const r = await fetch(API + path, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.errors ? d.errors.join('\n') : d.error || 'Something went wrong');
+  return d;
+}
+
+function showTab(t) {
+  for (const k of ['overview', 'rules', 'try']) { $('view-' + k).style.display = k === t ? '' : 'none'; $('tab-' + k).classList.toggle('on', k === t); }
+  if (t === 'overview') loadOverview();
+}
+
+const MODE_INFO = {
+  off: ['Off', 'The engine does nothing. Every application waits for a person.'],
+  shadow: ['Shadow', 'The engine records what it would decide, but a person still decides every application. Use this to check the rules first.'],
+  auto: ['Automatic', 'Applications that pass every rule are approved at once. Those that break a hard rule are rejected. The rest wait for a person.'],
+};
+
+// ── Overview ──
+async function loadOverview() {
+  try {
+    const d = await api('/admin/decisions?days=30');
+    R = (await api('/admin/decisions/rules')).rules;
+    const n = (o, applied) => d.counts.filter(c => c.outcome === o && (applied === undefined || c.applied === applied)).reduce((t, c) => t + c.n, 0);
+    const c = d.calibration;
+    $('view-overview').innerHTML = `
+      <div class="card"><h2>Mode: ${esc(MODE_INFO[R.mode][0])}</h2><div class="sub">${esc(MODE_INFO[R.mode][1])} Change it on the Rules tab.</div></div>
+      <div class="tiles">
+        <div class="card tile"><div class="l">Would approve</div><div class="v">${n('APPROVE')}</div><div class="s">${n('APPROVE', true)} approved automatically</div></div>
+        <div class="card tile"><div class="l">Sent to a person</div><div class="v">${n('REFER')}</div><div class="s">needs a decision</div></div>
+        <div class="card tile"><div class="l">Would reject</div><div class="v">${n('REJECT')}</div><div class="s">${n('REJECT', true)} rejected automatically</div></div>
+      </div>
+      ${R.mode === 'shadow' ? `<div class="card"><h2>Does the engine agree with your people?</h2><div class="sub">In shadow mode a person still decides. This shows how the engine's answer compares, last 30 days.</div>
+        <div class="scroll"><table><thead><tr><th>Engine said</th><th>Person approved</th><th>Person rejected</th><th>Still waiting</th></tr></thead><tbody>
+          <tr><td>Approve</td><td>${c.wouldApprove.personApproved}</td><td>${c.wouldApprove.personRejected}</td><td>${c.wouldApprove.waiting}</td></tr>
+          <tr><td>Reject</td><td>${c.wouldReject.personApproved}</td><td>${c.wouldReject.personRejected}</td><td>${c.wouldReject.waiting}</td></tr>
+          <tr><td>Send to a person</td><td colspan="3">${c.wouldRefer} applications</td></tr></tbody></table></div>
+        <div class="note" style="margin-top:8px">Look at "Engine said approve, person rejected" and "Engine said reject, person approved". Those are the cases to understand before switching to automatic.</div></div>` : ''}
+      <div class="card"><h2>Recent decisions</h2>
+        <div class="scroll"><table><thead><tr><th>When</th><th>Customer</th><th>Amount</th><th>Engine</th><th>Why</th><th>Loan now</th></tr></thead><tbody>
+        ${d.recent.map(r => `<tr><td>${when(r.at)}</td><td>${esc(r.customer)}</td><td>${money(r.amount)}</td>
+          <td><span class="pill ${esc(r.outcome)}">${esc(r.outcome)}</span>${r.applied ? '<div class="note">automatic</div>' : ''}${r.referTo ? `<div class="note">to ${esc(r.referTo)}</div>` : ''}</td>
+          <td>${r.reasons.length ? r.reasons.map(x => `<div>${esc(x)}</div>`).join('') : '<span class="note">All rules passed</span>'}</td><td>${esc(r.status)}</td></tr>`).join('') || '<tr><td colspan="6" class="note">No decisions yet. They appear as customers apply.</td></tr>'}
+        </tbody></table></div></div>`;
+  } catch (e) { msg(e.message, 'err'); }
+}
+
+// ── Rules ──
+function bandRow(b, i) {
+  return `<tr><td><input type="number" id="band-min-${i}" value="${esc(b.min)}" style="width:90px" aria-label="Score from"></td>
+    <td><select id="band-ref-${i}" aria-label="Goes to">${R.authorityOrder.map(a => `<option ${a === b.refer ? 'selected' : ''}>${esc(a)}</option>`).join('')}</select></td>
+    <td><button class="btn" onclick="removeBand(${i})" ${canEdit() ? '' : 'disabled'}>Remove</button></td></tr>`;
+}
+function renderRules() {
+  const dis = canEdit() ? '' : 'disabled';
+  const sw = (id, on, label) => `<label class="sw"><input type="checkbox" id="${id}" ${on ? 'checked' : ''} ${dis}> ${esc(label)}</label>`;
+  const num = (id, label, v, extra = '') => `<div><label for="${id}">${esc(label)}</label><input type="number" id="${id}" value="${esc(v ?? '')}" ${extra} ${dis}></div>`;
+  $('view-rules').innerHTML = `
+    <div class="card"><h2>Mode</h2><div class="sub">Start in Shadow. Switch to Automatic only after the Overview shows the engine agrees with your people.</div>
+      <div class="modes">${Object.entries(MODE_INFO).map(([k, [t, d]]) => `<label class="mode ${R.mode === k ? 'on' : ''}"><input type="radio" name="mode" value="${k}" ${R.mode === k ? 'checked' : ''} ${dis} onchange="document.querySelectorAll('.mode').forEach(m => m.classList.toggle('on', m.querySelector('input').checked))"><div><b>${esc(t)}</b><span>${esc(d)}</span></div></label>`).join('')}</div></div>
+
+    <div class="card"><h2>Age</h2><div class="sub">Inside the normal range the check passes. Between the hard limit and the normal range a person decides. Outside the hard limits the application is rejected.</div>
+      <div class="grid">${num('age-hardMin', 'Youngest we lend to', R.age.hardMin)}${num('age-min', 'Youngest without a check', R.age.min)}${num('age-max', 'Oldest without a check', R.age.max)}${num('age-hardMax', 'Oldest we lend to', R.age.hardMax)}</div></div>
+
+    <div class="card"><h2>Loan amount</h2><div class="sub">Above these amounts a person decides, even if everything else passes.</div>
+      <div class="grid">${num('amt-first', 'Largest automatic approval, new customer (Rs)', R.amount.firstLoanAutoMax)}${num('amt-repeat', 'Largest automatic approval, repeat customer (Rs)', R.amount.repeatAutoMax)}</div></div>
+
+    <div class="card"><h2>Credit score</h2><div class="sub">Used when a credit score is on the customer's file (from a credit bureau, once connected). A score at or above the clean score passes. Below it, the application goes to the approver level of its band.</div>
+      <div class="grid">${num('cs-auto', 'Clean score (this or higher passes)', R.bureau.autoMinScore)}${num('cs-reject', 'Reject below this score (leave empty to never reject)', R.bureau.rejectBelow)}</div>
+      <div style="margin-top:10px">${sw('cs-require', R.bureau.requireScore, 'Send applications with no credit score to a person (otherwise the rule is skipped)')}</div>
+      <div class="scroll"><table class="bands" style="margin-top:10px;max-width:480px"><thead><tr><th>Score from</th><th>Goes to</th><th></th></tr></thead><tbody id="bands">${R.bureau.bands.map(bandRow).join('')}</tbody></table></div>
+      <button class="btn" style="margin-top:8px" onclick="addBand()" ${dis}>Add a band</button>
+      <div style="margin-top:14px"><label for="auth-order">Approver levels, lowest to highest (comma separated)</label><input id="auth-order" value="${esc(R.authorityOrder.join(', '))}" style="width:100%" ${dis}><div class="note">When several rules send an application on, it goes to the highest level named.</div></div></div>
+
+    <div class="card"><h2>Earlier loans and other checks</h2>
+      <div style="display:grid;gap:10px">
+        ${sw('h-default', R.history.rejectIfDefaulted, 'Reject if an earlier loan was defaulted or written off')}
+        ${sw('h-overdue', R.history.referIfOverdue, 'Send to a person if the customer has an overdue instalment')}
+        ${sw('aml', R.aml.referOnOpenAlert, 'Send to a person if there is any open AML alert')}
+        ${sw('kyc', R.kyc.requireApproved, 'Send to a person if KYC is not approved')}
+        ${sw('phone', R.phone.requireVerified, 'Send to a person if the phone number is not verified')}
+      </div>
+      <div class="grid" style="margin-top:12px">${num('h-open', 'Other open loans allowed', R.history.maxOpenLoans)}</div></div>
+
+    <div class="card"><h2>Not running yet</h2><div class="sub" style="margin:0">Income against EMIs (FOIR) needs the customer's income, which the app does not collect yet. Early warning rules (late payments, enquiries, settlements on the credit record) need a credit bureau connection. Both will be added when that data exists.</div></div>
+
+    <div class="bar"><button class="btn primary" id="save" onclick="saveRules()" ${dis}>Save rules</button><span class="note">${canEdit() ? '' : 'Your role can view the rules but not change them.'}</span></div>`;
+}
+function addBand() { R = collectRules(); R.bureau.bands.push({ min: 0, refer: R.authorityOrder[0] }); renderRules(); }
+function removeBand(i) { R = collectRules(); R.bureau.bands.splice(i, 1); renderRules(); }
+function collectRules() {
+  const n = id => { const v = $(id).value.trim(); return v === '' ? null : Number(v); };
+  const order = $('auth-order').value.split(',').map(s => s.trim()).filter(Boolean);
+  return {
+    mode: document.querySelector('input[name=mode]:checked')?.value || R.mode,
+    age: { hardMin: n('age-hardMin'), min: n('age-min'), max: n('age-max'), hardMax: n('age-hardMax') },
+    kyc: { requireApproved: $('kyc').checked },
+    phone: { requireVerified: $('phone').checked },
+    amount: { firstLoanAutoMax: n('amt-first'), repeatAutoMax: n('amt-repeat') },
+    bureau: { requireScore: $('cs-require').checked, autoMinScore: n('cs-auto'), rejectBelow: n('cs-reject'), bands: [...document.querySelectorAll('#bands tr')].map((_, i) => ({ min: n('band-min-' + i), refer: $('band-ref-' + i).value })) },
+    history: { rejectIfDefaulted: $('h-default').checked, referIfOverdue: $('h-overdue').checked, maxOpenLoans: n('h-open') },
+    aml: { referOnOpenAlert: $('aml').checked },
+    authorityOrder: order,
+  };
+}
+async function saveRules() {
+  const body = collectRules();
+  if (body.mode === 'auto' && R.mode !== 'auto' && !confirm('Applications that pass every rule will now be approved automatically, with no person looking at them. Switch to Automatic?')) return;
+  $('save').disabled = true;
+  try { const d = await api('/admin/decisions/rules', 'PUT', body); R = d.rules; renderRules(); msg(d.message, 'ok'); }
+  catch (e) { msg(e.message, 'err'); }
+  $('save').disabled = !canEdit();
+}
+
+// ── Try an applicant ──
+function renderTry() {
+  const f = (id, label, v) => `<div><label for="${id}">${esc(label)}</label><input type="number" id="${id}" value="${v}"></div>`;
+  const sw = (id, on, label) => `<label class="sw"><input type="checkbox" id="${id}" ${on ? 'checked' : ''}> ${esc(label)}</label>`;
+  $('view-try').innerHTML = `<div class="card"><h2>Try an applicant</h2><div class="sub">Fill in an imagined applicant to see what the engine would do and why. Nothing is saved or sent.</div>
+    <div class="grid">${f('t-amount', 'Loan amount (Rs)', 20000)}${f('t-age', 'Age (0 = no date of birth)', 32)}${f('t-score', 'Credit score (0 = none)', 0)}${f('t-aml', 'Open AML alerts', 0)}${f('t-def', 'Earlier defaulted loans', 0)}${f('t-open', 'Other open loans', 0)}${f('t-od', 'Overdue instalments', 0)}</div>
+    <div style="display:flex;gap:18px;flex-wrap:wrap;margin:12px 0">${sw('t-kyc', true, 'KYC approved')}${sw('t-phone', true, 'Phone verified')}${sw('t-repeat', false, 'Repeat customer (has repaid a loan)')}</div>
+    <div class="bar"><button class="btn primary" onclick="tryIt(false)">Show the decision</button><button class="btn" onclick="tryIt(true)" title="Use the values now on the Rules tab, even if not saved">Use the unsaved rules on the Rules tab</button></div>
+    <div id="try-result" style="margin-top:14px"></div></div>`;
+}
+async function tryIt(unsaved) {
+  const v = id => Number($(id).value || 0);
+  const body = { facts: { amount: v('t-amount'), age: v('t-age'), bureauScore: v('t-score'), openAmlAlerts: v('t-aml'), defaultedLoans: v('t-def'), openLoans: v('t-open'), overdueEmis: v('t-od'), kycApproved: $('t-kyc').checked, phoneVerified: $('t-phone').checked, repeatCustomer: $('t-repeat').checked } };
+  if (unsaved) { if (!$('age-min')) return msg('Open the Rules tab once first, so there are rules to try.', 'err'); body.rules = collectRules(); }
+  try {
+    const d = await api('/admin/decisions/test', 'POST', body);
+    const icon = { pass: '✓', refer: '!', reject: '✕', skip: '–' };
+    $('try-result').innerHTML = `<div style="margin-bottom:8px"><span class="pill ${esc(d.outcome)}" style="font-size:13px;padding:3px 12px">${esc(d.outcome === 'APPROVE' ? 'Approve' : d.outcome === 'REJECT' ? 'Reject' : 'Send to ' + (d.referTo || 'a person'))}</span>
+      ${d.customerReason ? `<span class="note" style="margin-left:8px">Customer is told: ${esc(d.customerReason)}</span>` : ''}</div>
+      ${d.checks.map(c => `<div class="chk"><span class="pill ${esc(c.result)}">${icon[c.result]}</span><b>${esc(c.name)}</b><span>${esc(c.detail)}${c.referTo && c.result === 'refer' ? ` <span class="note">(to ${esc(c.referTo)})</span>` : ''}</span></div>`).join('')}`;
+  } catch (e) { msg(e.message, 'err'); }
+}
+
+window.addEventListener('load', async () => {
+  try { R = (await api('/admin/decisions/rules')).rules; renderRules(); renderTry(); } catch (e) { msg(e.message, 'err'); }
+  loadOverview();
+});
+</script>
+<script src="assets/portal.js"></script>
+</body>
+</html>

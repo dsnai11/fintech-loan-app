@@ -8,6 +8,8 @@ const loanSchema = new mongoose.Schema(
     purpose: { type: String, enum: ['Personal', 'Business', 'Education', 'Medical', 'Other'] },
     planType: { type: String, enum: ['one_time', '3_emi', '6_emi'] },
     productKey: { type: String, default: 'personal' },
+    // What the decision engine found when the application came in (see services/decisionEngine.js)
+    decision: mongoose.Schema.Types.Mixed,
     // The Key Fact Statement the customer was shown when they applied. Later price changes never alter it.
     kfs: mongoose.Schema.Types.Mixed,
     closureType: { type: String, enum: ['repaid', 'foreclosure', 'cooling_off'] },
