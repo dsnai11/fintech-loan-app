@@ -111,18 +111,13 @@ async function loadOverview() {
       <div class="card"><h2>Recent decisions</h2>
         <div class="scroll"><table><thead><tr><th>When</th><th>Customer</th><th>Amount</th><th>Engine</th><th>Why</th><th>Loan now</th></tr></thead><tbody>
         ${d.recent.map(r => `<tr><td>${when(r.at)}</td><td>${esc(r.customer)}</td><td>${money(r.amount)}</td>
-          <td><span class="pill ${esc(r.outcome)}">${esc(r.outcome)}</span>${r.applied ? '<div class="note">automatic</div>' : ''}${r.referTo ? `<div class="note">to ${esc(r.referTo)}</div>` : ''}</td>
+          <td><span class="pill ${esc(r.outcome)}">${esc(r.outcome)}</span>${r.applied ? '<div class="note">automatic</div>' : ''}</td>
           <td>${r.reasons.length ? r.reasons.map(x => `<div>${esc(x)}</div>`).join('') : '<span class="note">All rules passed</span>'}</td><td>${esc(r.status)}</td></tr>`).join('') || '<tr><td colspan="6" class="note">No decisions yet. They appear as customers apply.</td></tr>'}
         </tbody></table></div></div>`;
   } catch (e) { msg(e.message, 'err'); }
 }
 
 // ── Rules ──
-function bandRow(b, i) {
-  return `<tr><td><input type="number" id="band-min-${i}" value="${esc(b.min)}" style="width:90px" aria-label="Score from"></td>
-    <td><select id="band-ref-${i}" aria-label="Goes to">${R.authorityOrder.map(a => `<option ${a === b.refer ? 'selected' : ''}>${esc(a)}</option>`).join('')}</select></td>
-    <td><button class="btn" onclick="removeBand(${i})" ${canEdit() ? '' : 'disabled'}>Remove</button></td></tr>`;
-}
 function renderRules() {
   const dis = canEdit() ? '' : 'disabled';
   const sw = (id, on, label) => `<label class="sw"><input type="checkbox" id="${id}" ${on ? 'checked' : ''} ${dis}> ${esc(label)}</label>`;
@@ -137,12 +132,9 @@ function renderRules() {
     <div class="card"><h2>Loan amount</h2><div class="sub">Above these amounts a person decides, even if everything else passes.</div>
       <div class="grid">${num('amt-first', 'Largest automatic approval, new customer (Rs)', R.amount.firstLoanAutoMax)}${num('amt-repeat', 'Largest automatic approval, repeat customer (Rs)', R.amount.repeatAutoMax)}</div></div>
 
-    <div class="card"><h2>Credit score</h2><div class="sub">Used when a credit score is on the customer's file (from a credit bureau, once connected). A score at or above the clean score passes. Below it, the application goes to the approver level of its band.</div>
+    <div class="card"><h2>Credit score</h2><div class="sub">Used when a credit score is on the customer's file (from a credit bureau, once connected). A score at or above the clean score passes. Below it, a person decides. A score below the reject line is turned down.</div>
       <div class="grid">${num('cs-auto', 'Clean score (this or higher passes)', R.bureau.autoMinScore)}${num('cs-reject', 'Reject below this score (leave empty to never reject)', R.bureau.rejectBelow)}</div>
-      <div style="margin-top:10px">${sw('cs-require', R.bureau.requireScore, 'Send applications with no credit score to a person (otherwise the rule is skipped)')}</div>
-      <div class="scroll"><table class="bands" style="margin-top:10px;max-width:480px"><thead><tr><th>Score from</th><th>Goes to</th><th></th></tr></thead><tbody id="bands">${R.bureau.bands.map(bandRow).join('')}</tbody></table></div>
-      <button class="btn" style="margin-top:8px" onclick="addBand()" ${dis}>Add a band</button>
-      <div style="margin-top:14px"><label for="auth-order">Approver levels, lowest to highest (comma separated)</label><input id="auth-order" value="${esc(R.authorityOrder.join(', '))}" style="width:100%" ${dis}><div class="note">When several rules send an application on, it goes to the highest level named.</div></div></div>
+      <div style="margin-top:10px">${sw('cs-require', R.bureau.requireScore, 'Send applications with no credit score to a person (otherwise the rule is skipped)')}</div></div>
 
     <div class="card"><h2>Earlier loans and other checks</h2>
       <div style="display:grid;gap:10px">
@@ -158,21 +150,17 @@ function renderRules() {
 
     <div class="bar"><button class="btn primary" id="save" onclick="saveRules()" ${dis}>Save rules</button><span class="note">${canEdit() ? '' : 'Your role can view the rules but not change them.'}</span></div>`;
 }
-function addBand() { R = collectRules(); R.bureau.bands.push({ min: 0, refer: R.authorityOrder[0] }); renderRules(); }
-function removeBand(i) { R = collectRules(); R.bureau.bands.splice(i, 1); renderRules(); }
 function collectRules() {
   const n = id => { const v = $(id).value.trim(); return v === '' ? null : Number(v); };
-  const order = $('auth-order').value.split(',').map(s => s.trim()).filter(Boolean);
   return {
     mode: document.querySelector('input[name=mode]:checked')?.value || R.mode,
     age: { hardMin: n('age-hardMin'), min: n('age-min'), max: n('age-max'), hardMax: n('age-hardMax') },
     kyc: { requireApproved: $('kyc').checked },
     phone: { requireVerified: $('phone').checked },
     amount: { firstLoanAutoMax: n('amt-first'), repeatAutoMax: n('amt-repeat') },
-    bureau: { requireScore: $('cs-require').checked, autoMinScore: n('cs-auto'), rejectBelow: n('cs-reject'), bands: [...document.querySelectorAll('#bands tr')].map((_, i) => ({ min: n('band-min-' + i), refer: $('band-ref-' + i).value })) },
+    bureau: { requireScore: $('cs-require').checked, autoMinScore: n('cs-auto'), rejectBelow: n('cs-reject') },
     history: { rejectIfDefaulted: $('h-default').checked, referIfOverdue: $('h-overdue').checked, maxOpenLoans: n('h-open') },
     aml: { referOnOpenAlert: $('aml').checked },
-    authorityOrder: order,
   };
 }
 async function saveRules() {
@@ -201,9 +189,9 @@ async function tryIt(unsaved) {
   try {
     const d = await api('/admin/decisions/test', 'POST', body);
     const icon = { pass: '✓', refer: '!', reject: '✕', skip: '–' };
-    $('try-result').innerHTML = `<div style="margin-bottom:8px"><span class="pill ${esc(d.outcome)}" style="font-size:13px;padding:3px 12px">${esc(d.outcome === 'APPROVE' ? 'Approve' : d.outcome === 'REJECT' ? 'Reject' : 'Send to ' + (d.referTo || 'a person'))}</span>
+    $('try-result').innerHTML = `<div style="margin-bottom:8px"><span class="pill ${esc(d.outcome)}" style="font-size:13px;padding:3px 12px">${esc(d.outcome === 'APPROVE' ? 'Approve' : d.outcome === 'REJECT' ? 'Reject' : 'Needs a person')}</span>
       ${d.customerReason ? `<span class="note" style="margin-left:8px">Customer is told: ${esc(d.customerReason)}</span>` : ''}</div>
-      ${d.checks.map(c => `<div class="chk"><span class="pill ${esc(c.result)}">${icon[c.result]}</span><b>${esc(c.name)}</b><span>${esc(c.detail)}${c.referTo && c.result === 'refer' ? ` <span class="note">(to ${esc(c.referTo)})</span>` : ''}</span></div>`).join('')}`;
+      ${d.checks.map(c => `<div class="chk"><span class="pill ${esc(c.result)}">${icon[c.result]}</span><b>${esc(c.name)}</b><span>${esc(c.detail)}</span></div>`).join('')}`;
   } catch (e) { msg(e.message, 'err'); }
 }
 

@@ -8,7 +8,7 @@ import { notify, templates } from './notificationService.js';
 // The decision engine looks at a new application and says what to do with it:
 //   APPROVE  the application is clean, within every rule
 //   REJECT   a hard rule is broken (shown to the customer in plain words)
-//   REFER    something needs a person; says who, and why
+//   REFER    something needs a person to look at it, and why
 // It runs when an application is submitted. In "shadow" mode it only records what it would have done, so the
 // rules can be checked against real applications before anything is automatic.
 
@@ -22,18 +22,11 @@ export const DEFAULTS = {
   amount: { firstLoanAutoMax: 25000, repeatAutoMax: 100000 }, // above these a person decides
   bureau: {
     requireScore: false, // true: no credit score on file means a person decides
-    autoMinScore: 650, // this score or higher is clean
-    bands: [ // below the clean score, the application goes to this level of approver
-      { min: 600, refer: 'ACM' },
-      { min: 550, refer: 'RCM' },
-      { min: 500, refer: 'NCM' },
-      { min: 0, refer: 'MD' },
-    ],
-    rejectBelow: null, // optional: a score below this is rejected instead of referred
+    autoMinScore: 650, // this score or higher is clean; below it a person decides
+    rejectBelow: null, // optional: a score below this is rejected instead
   },
   history: { rejectIfDefaulted: true, maxOpenLoans: 1, referIfOverdue: true },
   aml: { referOnOpenAlert: true },
-  authorityOrder: ['CM', 'ACM', 'ZCM', 'RCM', 'NCM', 'RH', 'CBO', 'MD'], // lowest to highest, used to pick who a case goes to
 };
 
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -90,25 +83,7 @@ export function validateRules(candidate) {
   out.bureau.requireScore = bool(r.bureau?.requireScore);
   out.bureau.autoMinScore = num(r.bureau?.autoMinScore, 300, 900, 'Clean credit score', errors, { int: true });
   out.bureau.rejectBelow = num(r.bureau?.rejectBelow, 300, 900, 'Reject below score', errors, { int: true, allowNull: true });
-  const bands = Array.isArray(r.bureau?.bands) ? r.bureau.bands : [];
-  out.bureau.bands = [];
-  const order = Array.isArray(r.authorityOrder) ? r.authorityOrder.map(x => String(x).trim()).filter(Boolean) : DEFAULTS.authorityOrder;
-  if (!order.length || new Set(order).size !== order.length || order.length > 20) errors.push('List the approver levels from lowest to highest, with no repeats');
-  out.authorityOrder = order;
-  for (const [i, b] of bands.entries()) {
-    const min = num(b?.min, 0, 900, `Score band ${i + 1} starts at`, errors, { int: true });
-    const refer = String(b?.refer ?? '').trim();
-    if (!refer) errors.push(`Score band ${i + 1} needs an approver level`);
-    else if (!order.includes(refer)) errors.push(`Score band ${i + 1}: "${refer}" is not in the list of approver levels`);
-    if (min !== undefined) out.bureau.bands.push({ min, refer });
-  }
-  out.bureau.bands.sort((a, b) => b.min - a.min);
-  if (!errors.length) {
-    if (!out.bureau.bands.length) errors.push('Add at least one score band');
-    if (out.bureau.bands[out.bureau.bands.length - 1].min !== 0) errors.push('The lowest score band must start at 0, so every score is covered');
-    if (out.bureau.bands[0].min >= out.bureau.autoMinScore) errors.push('Score bands must all be below the clean score');
-    if (out.bureau.rejectBelow !== null && out.bureau.rejectBelow > out.bureau.autoMinScore) errors.push('The reject score cannot be above the clean score');
-  }
+  if (!errors.length && out.bureau.rejectBelow !== null && out.bureau.rejectBelow > out.bureau.autoMinScore) errors.push('The reject score cannot be above the clean score');
 
   out.history.rejectIfDefaulted = bool(r.history?.rejectIfDefaulted);
   out.history.referIfOverdue = bool(r.history?.referIfOverdue);
@@ -133,46 +108,41 @@ const CUSTOMER_REASON = {
   BUREAU_LOW: 'We are not able to offer a loan based on your credit record at this time.',
 };
 
-const outranks = (rules, a, b) => rules.authorityOrder.indexOf(a) > rules.authorityOrder.indexOf(b);
-
 export function evaluate(rules, f) {
   const checks = [];
-  const add = (code, name, result, detail, referTo) => checks.push({ code, name, result, detail, ...(referTo ? { referTo } : {}) });
+  const add = (code, name, result, detail) => checks.push({ code, name, result, detail });
 
   // Age
-  if (!(f.age > 0)) add('AGE', 'Age', 'refer', 'Date of birth is not on file', 'CM');
+  if (!(f.age > 0)) add('AGE', 'Age', 'refer', 'Date of birth is not on file');
   else if (f.age < rules.age.hardMin || f.age > rules.age.hardMax) add('AGE', 'Age', 'reject', `Age ${f.age} is outside ${rules.age.hardMin} to ${rules.age.hardMax}`);
-  else if (f.age < rules.age.min) add('AGE', 'Age', 'refer', `Age ${f.age} is under ${rules.age.min}`, 'RCM');
-  else if (f.age > rules.age.max) add('AGE', 'Age', 'refer', `Age ${f.age} is over ${rules.age.max}`, 'NCM');
+  else if (f.age < rules.age.min) add('AGE', 'Age', 'refer', `Age ${f.age} is under ${rules.age.min}`);
+  else if (f.age > rules.age.max) add('AGE', 'Age', 'refer', `Age ${f.age} is over ${rules.age.max}`);
   else add('AGE', 'Age', 'pass', `Age ${f.age}`);
 
   // Identity and contact
-  if (rules.kyc.requireApproved) add('KYC', 'KYC', f.kycApproved ? 'pass' : 'refer', f.kycApproved ? 'KYC approved' : 'KYC is not approved yet', 'CM');
-  if (rules.phone.requireVerified) add('PHONE', 'Phone number', f.phoneVerified ? 'pass' : 'refer', f.phoneVerified ? 'Verified' : 'Phone number is not verified', 'CM');
+  if (rules.kyc.requireApproved) add('KYC', 'KYC', f.kycApproved ? 'pass' : 'refer', f.kycApproved ? 'KYC approved' : 'KYC is not approved yet');
+  if (rules.phone.requireVerified) add('PHONE', 'Phone number', f.phoneVerified ? 'pass' : 'refer', f.phoneVerified ? 'Verified' : 'Phone number is not verified');
 
   // Compliance
-  if (rules.aml.referOnOpenAlert) add('AML', 'AML alerts', f.openAmlAlerts > 0 ? 'refer' : 'pass', f.openAmlAlerts > 0 ? `${f.openAmlAlerts} open alert(s)` : 'No open alerts', 'Compliance');
+  if (rules.aml.referOnOpenAlert) add('AML', 'AML alerts', f.openAmlAlerts > 0 ? 'refer' : 'pass', f.openAmlAlerts > 0 ? `${f.openAmlAlerts} open alert(s)` : 'No open alerts');
 
   // History with us
   if (rules.history.rejectIfDefaulted && f.defaultedLoans > 0) add('HISTORY_DEFAULT', 'Earlier loans', 'reject', `${f.defaultedLoans} earlier loan(s) defaulted or written off`);
   else add('HISTORY_DEFAULT', 'Earlier loans', 'pass', f.defaultedLoans > 0 ? 'Earlier default is allowed by the rules' : 'No default on record');
-  add('OPEN_LOANS', 'Open loans', f.openLoans > rules.history.maxOpenLoans ? 'refer' : 'pass', `${f.openLoans} other open loan(s), up to ${rules.history.maxOpenLoans} allowed`, 'CM');
-  if (rules.history.referIfOverdue) add('OVERDUE', 'Overdue instalments', f.overdueEmis > 0 ? 'refer' : 'pass', f.overdueEmis > 0 ? `${f.overdueEmis} overdue instalment(s)` : 'None overdue', 'CM');
+  add('OPEN_LOANS', 'Open loans', f.openLoans > rules.history.maxOpenLoans ? 'refer' : 'pass', `${f.openLoans} other open loan(s), up to ${rules.history.maxOpenLoans} allowed`);
+  if (rules.history.referIfOverdue) add('OVERDUE', 'Overdue instalments', f.overdueEmis > 0 ? 'refer' : 'pass', f.overdueEmis > 0 ? `${f.overdueEmis} overdue instalment(s)` : 'None overdue');
 
   // Amount
   const limit = f.repeatCustomer ? rules.amount.repeatAutoMax : rules.amount.firstLoanAutoMax;
-  add('AMOUNT', 'Loan amount', f.amount > limit ? 'refer' : 'pass', `Rs ${f.amount} against an automatic limit of Rs ${limit} for a ${f.repeatCustomer ? 'repeat' : 'new'} customer`, 'CM');
+  add('AMOUNT', 'Loan amount', f.amount > limit ? 'refer' : 'pass', `Rs ${f.amount} against an automatic limit of Rs ${limit} for a ${f.repeatCustomer ? 'repeat' : 'new'} customer`);
 
   // Credit score
   if (f.bureauScore > 0) {
     const s = f.bureauScore;
     if (rules.bureau.rejectBelow !== null && s < rules.bureau.rejectBelow) add('BUREAU_LOW', 'Credit score', 'reject', `Score ${s} is below ${rules.bureau.rejectBelow}`);
     else if (s >= rules.bureau.autoMinScore) add('BUREAU', 'Credit score', 'pass', `Score ${s}`);
-    else {
-      const band = rules.bureau.bands.find(b => s >= b.min);
-      add('BUREAU', 'Credit score', 'refer', `Score ${s} is below ${rules.bureau.autoMinScore}`, band?.refer || 'MD');
-    }
-  } else if (rules.bureau.requireScore) add('BUREAU', 'Credit score', 'refer', 'No credit score on file', 'CM');
+    else add('BUREAU', 'Credit score', 'refer', `Score ${s} is below ${rules.bureau.autoMinScore}`);
+  } else if (rules.bureau.requireScore) add('BUREAU', 'Credit score', 'refer', 'No credit score on file');
   else add('BUREAU', 'Credit score', 'skip', 'No credit score on file. Connect a credit bureau to use this rule.');
 
   // Rules that need data we do not collect yet
@@ -181,16 +151,9 @@ export function evaluate(rules, f) {
 
   const rejects = checks.filter(c => c.result === 'reject');
   const refers = checks.filter(c => c.result === 'refer');
-  let outcome = 'APPROVE';
-  let referTo = null;
-  if (rejects.length) outcome = 'REJECT';
-  else if (refers.length) {
-    outcome = 'REFER';
-    referTo = refers.map(c => c.referTo).filter(Boolean).reduce((top, cur) => (!top || outranks(rules, cur, top) ? cur : top), null);
-  }
+  const outcome = rejects.length ? 'REJECT' : refers.length ? 'REFER' : 'APPROVE';
   return {
     outcome,
-    referTo,
     checks,
     customerReason: rejects.length ? CUSTOMER_REASON[rejects[0].code] || 'We could not approve your application at this time.' : null,
   };
@@ -245,14 +208,14 @@ export async function decideLoan(loan, user, { rules = getRules() } = {}) {
       }
     }
 
-    loan.decision = { outcome: result.outcome, mode: rules.mode, applied, referTo: result.referTo, checks: result.checks, customerReason: result.customerReason, at: new Date() };
+    loan.decision = { outcome: result.outcome, mode: rules.mode, applied, checks: result.checks, customerReason: result.customerReason, at: new Date() };
     loan.markModified('decision');
     await loan.save();
 
     if (applied) {
       const approved = result.outcome === 'APPROVE';
       await audit({ email: 'system:decision-engine', role: 'system' }, approved ? 'LOAN_AUTO_APPROVED' : 'LOAN_AUTO_REJECTED', { type: 'Loan', id: loan._id },
-        { amount: loan.loanAmount, referTo: result.referTo, checks: result.checks.filter(c => c.result !== 'pass' && c.result !== 'skip').map(c => c.code) });
+        { amount: loan.loanAmount, checks: result.checks.filter(c => c.result !== 'pass' && c.result !== 'skip').map(c => c.code) });
       await notify(loan.userId, approved ? templates.approved(loan) : templates.rejected(loan, result.customerReason), { sms: true });
     }
     return loan.decision;

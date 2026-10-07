@@ -28,9 +28,8 @@ const ev = f => evaluate(DEFAULTS, { ...clean, ...f });
 check('a clean applicant is approved', ev({}).outcome === 'APPROVE');
 check('the credit score rule is skipped when there is no score', ev({}).checks.find(c => c.code === 'BUREAU').result === 'skip');
 check('score 650 or more is clean', ev({ bureauScore: 650 }).outcome === 'APPROVE' && ev({ bureauScore: 780 }).outcome === 'APPROVE');
-check('score 620 goes to ACM', ev({ bureauScore: 620 }).outcome === 'REFER' && ev({ bureauScore: 620 }).referTo === 'ACM');
-check('score 570 goes to RCM, 520 to NCM, 480 to MD', ev({ bureauScore: 570 }).referTo === 'RCM' && ev({ bureauScore: 520 }).referTo === 'NCM' && ev({ bureauScore: 480 }).referTo === 'MD');
-check('the highest level needed wins (score 480 and over the amount limit -> MD)', ev({ bureauScore: 480, amount: 40000 }).referTo === 'MD');
+check('a score below 650 needs a person, however low', ev({ bureauScore: 620 }).outcome === 'REFER' && ev({ bureauScore: 480 }).outcome === 'REFER');
+check('and the reason says which score', ev({ bureauScore: 620 }).checks.find(c => c.code === 'BUREAU').detail.includes('620'));
 check('age 19 is referred, age 70 is referred, age 80 is rejected, age 16 is rejected', ev({ age: 19 }).outcome === 'REFER' && ev({ age: 70 }).outcome === 'REFER' && ev({ age: 80 }).outcome === 'REJECT' && ev({ age: 16 }).outcome === 'REJECT');
 check('no date of birth is referred, not guessed', ev({ age: 0 }).outcome === 'REFER');
 check('over the first-loan limit is referred; a repeat customer has a higher limit', ev({ amount: 40000 }).outcome === 'REFER' && ev({ amount: 40000, repeatCustomer: true }).outcome === 'APPROVE');
@@ -46,9 +45,8 @@ check('income and bureau history rules say they are not running yet', ev({}).che
 
 section('VALIDATING THE RULES');
 check('ages out of order refused', validateRules({ ...DEFAULTS, age: { min: 40, max: 30, hardMin: 18, hardMax: 75 } }).errors.length > 0);
-check('a band that is not an approver level is refused', validateRules({ ...DEFAULTS, bureau: { ...DEFAULTS.bureau, bands: [{ min: 600, refer: 'KING' }, { min: 0, refer: 'MD' }] } }).errors.length > 0);
-check('bands that leave scores uncovered are refused', validateRules({ ...DEFAULTS, bureau: { ...DEFAULTS.bureau, bands: [{ min: 600, refer: 'ACM' }] } }).errors.length > 0);
-check('a band above the clean score is refused', validateRules({ ...DEFAULTS, bureau: { ...DEFAULTS.bureau, bands: [{ min: 700, refer: 'ACM' }, { min: 0, refer: 'MD' }] } }).errors.length > 0);
+check('a reject score above the clean score is refused', validateRules({ ...DEFAULTS, bureau: { ...DEFAULTS.bureau, rejectBelow: 700 } }).errors.length > 0);
+check('a clean score outside 300 to 900 is refused', validateRules({ ...DEFAULTS, bureau: { ...DEFAULTS.bureau, autoMinScore: 50 } }).errors.length > 0);
 check('the defaults are valid', validateRules(DEFAULTS).errors.length === 0);
 
 section('RULES API AND ACCESS');
@@ -67,7 +65,7 @@ check('ages out of order are refused (400)', (await call('PUT', '/admin/decision
 
 section('TRYING THE RULES ON AN IMAGINED APPLICANT');
 const t1 = await call('POST', '/admin/decisions/test', tCredit, { facts: { ...clean, bureauScore: 610 } });
-check('the test shows the outcome, who it goes to and each check', t1.s === 200 && t1.d.outcome === 'REFER' && t1.d.referTo === 'ACM' && t1.d.checks.length >= 8, JSON.stringify(t1.d).slice(0, 150));
+check('the test shows the outcome and each check', t1.s === 200 && t1.d.outcome === 'REFER' && t1.d.checks.length >= 8, JSON.stringify(t1.d).slice(0, 150));
 const t2 = await call('POST', '/admin/decisions/test', tCredit, { facts: clean, rules: { amount: { firstLoanAutoMax: 5000, repeatAutoMax: 100000 } } });
 check('unsaved rules can be tried before saving', t2.d.outcome === 'REFER' && (await call('GET', '/admin/decisions/rules', admin)).d.rules.amount.firstLoanAutoMax === 25000);
 check('rubbish facts are refused (400)', (await call('POST', '/admin/decisions/test', admin, { facts: { amount: 'lots' } })).s === 400);
@@ -98,7 +96,7 @@ check('and it is in the audit log as a system action', !!(await AuditLog.findOne
 const c2 = await mk();
 await apply(c2, 40000);
 const l2 = await loanOf(c2);
-check('over the first-loan limit it waits for a person', l2.status === 'submitted' && l2.decision.outcome === 'REFER' && l2.decision.referTo === 'CM');
+check('over the first-loan limit it waits for a person', l2.status === 'submitted' && l2.decision.outcome === 'REFER');
 
 const c3 = await mk({ kycStatus: 'pending' });
 await apply(c3);
@@ -124,7 +122,7 @@ check('an open AML alert waits for a person', (await loanOf(c6)).status === 'sub
 const c7 = await mk({ creditScore: 590 });
 await apply(c7);
 const l7 = await loanOf(c7);
-check('a credit score of 590 waits for RCM', l7.status === 'submitted' && l7.decision.referTo === 'RCM');
+check('a credit score of 590 waits for a person', l7.status === 'submitted' && l7.decision.outcome === 'REFER');
 const c8 = await mk({ creditScore: 700 });
 await apply(c8);
 check('a credit score of 700 is approved', (await loanOf(c8)).status === 'approved');

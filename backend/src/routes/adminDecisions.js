@@ -83,7 +83,6 @@ router.get('/', async (req, res) => {
         outcome: l.decision.outcome,
         applied: !!l.decision.applied,
         mode: l.decision.mode,
-        referTo: l.decision.referTo || null,
         reasons: (l.decision.checks || []).filter(c => c.result === 'refer' || c.result === 'reject').map(c => `${c.name}: ${c.detail}`),
         at: l.decision.at,
       })),

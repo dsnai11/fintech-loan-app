@@ -139,7 +139,8 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date() });
 });
 
-app.use(express.static(join(__dirname, '..', 'public')));
+// Pages and scripts are re-checked on every load, so a new deploy shows up on the next reload.
+app.use(express.static(join(__dirname, '..', 'public'), { setHeaders: res => res.setHeader('Cache-Control', 'no-cache') }));
 
 app.get('/status', (req, res) => {
   res.json({ status: 'FintechLoan API is running', version: '1.0.0' });

@@ -473,6 +473,9 @@
       </div>
     </div>
 
+    <!-- Decision engine status -->
+    <div id="decisionBar" style="display:none; margin-bottom: 14px; padding: 10px 14px; border-radius: 8px; background: #e8eefc; color: #1e3a8a; font-size: 13px;"></div>
+
     <!-- Alert -->
     <div id="alert" class="alert"></div>
 
@@ -799,6 +802,20 @@
       }
     }
 
+    // A one-line reminder of what the decision engine is doing, with a way into its page
+    async function showDecisionBar() {
+      try {
+        const r = await fetch(`${API_BASE}/admin/decisions/rules`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` } });
+        if (!r.ok) return;
+        const mode = (await r.json()).rules.mode;
+        const text = { off: 'The decision engine is off. Every application waits for a person.', shadow: 'The decision engine is in Shadow mode: it records what it would decide, and people decide every loan.', auto: 'The decision engine is on: clean applications are approved automatically.' }[mode];
+        const bar = document.getElementById('decisionBar');
+        bar.innerHTML = text + ' <a href="decisions.html" style="font-weight:600">Open Decisions</a>';
+        bar.style.display = '';
+      } catch (e) { /* the bar is only a convenience */ }
+    }
+    window.addEventListener('load', showDecisionBar);
+
     // What the decision engine found when this application came in
     function showDecision(loan) {
       const wrap = document.getElementById('detail-decision-wrap');
@@ -808,7 +825,7 @@
       if (!d) return;
       const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
       const color = { APPROVE: '#047857', REJECT: '#b91c1c', REFER: '#b45309' }[d.outcome] || '#475569';
-      const label = d.outcome === 'APPROVE' ? 'Approve' : d.outcome === 'REJECT' ? 'Reject' : 'Send to ' + (d.referTo || 'a person');
+      const label = d.outcome === 'APPROVE' ? 'Approve' : d.outcome === 'REJECT' ? 'Reject' : 'Needs a person';
       const how = d.applied ? 'Done automatically.' : d.mode === 'shadow' ? 'Shadow mode: this is what it would do. A person decides.' : 'A person decides.';
       const flags = (d.checks || []).filter(c => c.result === 'refer' || c.result === 'reject');
       box.innerHTML = '<div style="padding:8px 0;font-size:13px"><strong style="color:' + color + '">' + esc(label) + '</strong> <span style="color:#64748b">' + esc(how) + '</span>' +
