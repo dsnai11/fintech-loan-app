@@ -123,6 +123,7 @@ class _BankDetailsScreenState extends State<BankDetailsScreen> {
         tenure: widget.appState.tenure,
         purpose: 'Personal',
         planType: widget.appState.planType,
+        optionalCharges: widget.appState.optionalCharges,
         bankDetails: { 'accountHolder': holder, 'accountNumber': acc, 'ifscCode': ifsc },
         personalDetails: {
           'gender': widget.appState.gender,

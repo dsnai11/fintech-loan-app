@@ -4,7 +4,7 @@ import Loan from '../../src/models/Loan.js';
 import AmlAlert from '../../src/models/AmlAlert.js';
 import Notification from '../../src/models/Notification.js';
 import AuditLog from '../../src/models/AuditLog.js';
-import { evaluate, DEFAULTS, validateRules } from '../../src/services/decisionEngine.js';
+import { evaluate, DEFAULTS, validateRules, computeOffer } from '../../src/services/decisionEngine.js';
 
 const DB = 'fintech-test-decisions';
 await connect(DB);
@@ -144,6 +144,27 @@ const o1 = await mk();
 await apply(o1);
 const lo = await loanOf(o1);
 check('with the engine off nothing is recorded and the loan waits', lo.status === 'submitted' && !lo.decision);
+
+section('YOUR OWN RULES');
+const own = { ...DEFAULTS, custom: [
+  { id: 'big', name: 'Large loan', field: 'amount', op: '>', value: 20000, result: 'refer', message: 'Over 20,000' },
+  { id: 'young', name: 'Under 23', field: 'age', op: '<', value: 23, result: 'reject', message: 'Too young for our policy' },
+  { id: 'nokyc', name: 'KYC missing', field: 'kycApproved', op: '=', value: false, result: 'refer', message: '' },
+] };
+const evOwn = f => evaluate(own, { ...clean, ...f });
+check('a rule of your own that fires sends the application to a person, with your note', evOwn({ amount: 22000 }).outcome === 'REFER' && evOwn({ amount: 22000 }).checks.find(c => c.code === 'CUSTOM_big').detail === 'Over 20,000');
+check('one set to reject rejects, and the customer gets a general reason', evOwn({ age: 22 }).outcome === 'REJECT' && evOwn({ age: 22 }).customerReason.length > 10 && !evOwn({ age: 22 }).customerReason.includes('policy'));
+check('rules that do not fire change nothing', evOwn({}).outcome === 'APPROVE');
+check('yes/no rules work', evOwn({ kycApproved: false }).checks.find(c => c.code === 'CUSTOM_nokyc').result === 'refer');
+check('they sit alongside the built-in rules', evOwn({ amount: 22000, defaultedLoans: 1 }).outcome === 'REJECT');
+const badOwn = r => validateRules({ ...DEFAULTS, custom: [r] }).errors.length > 0;
+check('a rule with no name, an unknown field, a wrong comparison, no value or no action is refused', badOwn({ name: '', field: 'amount', op: '>', value: 1, result: 'refer' }) && badOwn({ name: 'x', field: 'shoe', op: '>', value: 1, result: 'refer' }) && badOwn({ name: 'x', field: 'kycApproved', op: '>', value: true, result: 'refer' }) && badOwn({ name: 'x', field: 'amount', op: '>', value: '', result: 'refer' }) && badOwn({ name: 'x', field: 'amount', op: '>', value: 1, result: 'explode' }));
+const saveOwn = await call('PUT', '/admin/decisions/rules', admin, { custom: [{ name: 'Large loan', field: 'amount', op: '>', value: 20000, result: 'refer', message: 'Over 20,000' }] });
+check('your own rules are saved from the portal', saveOwn.s === 200 && saveOwn.d.rules.custom.length === 1 && saveOwn.d.rules.custom[0].id === 'large_loan');
+const tryOwn = await call('POST', '/admin/decisions/test', admin, { facts: { ...clean, amount: 25000 } });
+check('and show up when you try an applicant', tryOwn.d.outcome === 'REFER' && tryOwn.d.checks.some(c => c.code === 'CUSTOM_large_loan' && c.result === 'refer'));
+check('the editor is told which things a rule can look at', Object.keys((await call('GET', '/admin/decisions/rules', admin)).d.customFields).includes('bureauScore'));
+check('a rule of your own does not change what a customer is offered', computeOffer(own, { age: 32, defaultedLoans: 0, repeatCustomer: false, bureauScore: 700 }, { minAmount: 1000, maxAmount: 500000 }).amount === computeOffer(DEFAULTS, { age: 32, defaultedLoans: 0, repeatCustomer: false, bureauScore: 700 }, { minAmount: 1000, maxAmount: 500000 }).amount);
 
 await srv.stop();
 await disconnect();

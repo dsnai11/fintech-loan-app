@@ -9,6 +9,8 @@ class LoanApplicationState {
   String accountHolder;
   String accountNumber;
   String ifscCode;
+  // Optional add-ons (such as insurance) the customer chose on the offer screen
+  List<String> optionalCharges = [];
 
   LoanApplicationState({
     required this.loanAmount,

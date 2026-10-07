@@ -63,6 +63,7 @@ export async function startServer(db, env = {}) {
         REQUIRE_LOAN_AGREEMENT: '',
         REQUIRE_TERMS: 'false',
         REQUIRE_PHONE_VERIFIED: 'false',
+        OFFER_LIMIT: 'false',
         ...env,
       },
     });

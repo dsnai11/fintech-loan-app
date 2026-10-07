@@ -2,7 +2,8 @@ import express from 'express';
 import Loan from '../models/Loan.js';
 import { adminMiddleware } from '../middleware/auth.js';
 import { audit } from '../services/auditService.js';
-import { getRules, saveRules, validateRules, evaluate, MODES } from '../services/decisionEngine.js';
+import { getRules, saveRules, validateRules, evaluate, computeOffer, MODES, CUSTOM_FIELDS } from '../services/decisionEngine.js';
+import { getPolicy } from '../services/pricingPolicy.js';
 
 // The rules the decision engine follows, a way to try them out, and what it has decided so far.
 const router = express.Router();
@@ -10,7 +11,7 @@ router.use(adminMiddleware);
 
 const FACT_FIELDS = ['amount', 'age', 'bureauScore', 'openAmlAlerts', 'defaultedLoans', 'openLoans', 'overdueEmis'];
 
-router.get('/rules', (req, res) => res.json({ rules: getRules(), modes: MODES }));
+router.get('/rules', (req, res) => res.json({ rules: getRules(), modes: MODES, customFields: CUSTOM_FIELDS }));
 
 router.put('/rules', async (req, res) => {
   try {
@@ -41,7 +42,7 @@ router.post('/test', (req, res) => {
       if (!Number.isFinite(n) || n < 0 || n > 1e9) return res.status(400).json({ error: `${k} is not a valid number` });
       facts[k] = n;
     }
-    res.json({ ...evaluate(rules, facts), mode: rules.mode });
+    res.json({ ...evaluate(rules, facts), offer: computeOffer(rules, facts, getPolicy()), mode: rules.mode });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

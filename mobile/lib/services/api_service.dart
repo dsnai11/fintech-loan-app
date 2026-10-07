@@ -270,20 +270,40 @@ class ApiService {
     }
   }
 
-  Future<List<Map<String, dynamic>>> getQuotes(int amount) async {
+  // The credit check and the loan offer that comes from it, and the offer if there is a valid one already
+  Future<Map<String, dynamic>> checkEligibility({required bool consent}) async {
     try {
-      final response = await _dio.get('/pricing/quotes', queryParameters: {'amount': amount, 'product': SelectedProduct.key});
+      final response = await _dio.post('/loans/check-eligibility', data: {'consent': consent});
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> getMyOffer() async {
+    try {
+      final response = await _dio.get('/loans/my-offer');
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getQuotes(int amount, {List<String> optional = const []}) async {
+    try {
+      final response = await _dio.get('/pricing/quotes', queryParameters: {'amount': amount, 'product': SelectedProduct.key, if (optional.isNotEmpty) 'optional': optional.join(',')});
       return List<Map<String, dynamic>>.from(response.data['quotes']);
     } on DioException catch (e) {
       throw _handleError(e);
     }
   }
 
-  Future<Map<String, dynamic>> getQuote({required int amount, String? plan, int? tenure}) async {
+  Future<Map<String, dynamic>> getQuote({required int amount, String? plan, int? tenure, List<String> optional = const []}) async {
     try {
       final response = await _dio.get('/pricing/quote', queryParameters: {
         'amount': amount,
         'product': SelectedProduct.key,
+        if (optional.isNotEmpty) 'optional': optional.join(','),
         if (plan != null) 'plan': plan,
         if (tenure != null) 'tenure': tenure,
       });
@@ -395,6 +415,7 @@ class ApiService {
     String loanType = 'Personal Loan',
     Map<String, dynamic>? bankDetails,
     Map<String, dynamic>? personalDetails,
+    List<String> optionalCharges = const [],
   }) async {
     try {
       final response = await _dio.post(
@@ -406,6 +427,7 @@ class ApiService {
           'loanType': loanType,
           'planType': planType,
           'productKey': SelectedProduct.key,
+          if (optionalCharges.isNotEmpty) 'optionalCharges': optionalCharges,
           if (bankDetails != null) 'bankDetails': bankDetails,
           if (personalDetails != null) 'personalDetails': personalDetails,
         },

@@ -136,6 +136,11 @@ function renderRules() {
       <div class="grid">${num('cs-auto', 'Clean score (this or higher passes)', R.bureau.autoMinScore)}${num('cs-reject', 'Reject below this score (leave empty to never reject)', R.bureau.rejectBelow)}</div>
       <div style="margin-top:10px">${sw('cs-require', R.bureau.requireScore, 'Send applications with no credit score to a person (otherwise the rule is skipped)')}</div></div>
 
+    <div class="card"><h2>Loan offer</h2><div class="sub">How much a customer is offered after the credit check. This is the amount the app shows, and the most they can apply for. It is separate from the automatic approval limit above: a customer can be offered more than is approved without a person.</div>
+      <div class="grid">${num('of-noscore', 'Offer when there is no credit score (Rs)', R.offer.noScoreLimit)}${num('of-below', 'Offer for a score below the lowest line (Rs, a person decides)', R.offer.belowCleanLimit)}${num('of-repeat', 'At least this for a customer who repaid a loan (Rs)', R.offer.repeatLimit)}${num('of-days', 'Days an offer stays valid', R.offer.validDays)}${num('of-round', 'Round offers down to (Rs)', R.offer.roundTo)}</div>
+      <div class="scroll"><table class="bands" style="margin-top:10px;max-width:480px"><thead><tr><th>Score from</th><th>Offer up to (Rs)</th><th></th></tr></thead><tbody id="olines">${R.offer.scoreLimits.map((l, i) => `<tr><td><input type="number" id="ol-min-${i}" value="${esc(l.min)}" style="width:100px" aria-label="Score from" ${dis}></td><td><input type="number" id="ol-lim-${i}" value="${esc(l.limit)}" style="width:140px" aria-label="Offer up to" ${dis}></td><td><button class="btn" onclick="removeOfferLine(${i})" ${dis}>Remove</button></td></tr>`).join('')}</tbody></table></div>
+      <button class="btn" style="margin-top:8px" onclick="addOfferLine()" ${dis}>Add a line</button></div>
+
     <div class="card"><h2>Earlier loans and other checks</h2>
       <div style="display:grid;gap:10px">
         ${sw('h-default', R.history.rejectIfDefaulted, 'Reject if an earlier loan was defaulted or written off')}
@@ -146,10 +151,31 @@ function renderRules() {
       </div>
       <div class="grid" style="margin-top:12px">${num('h-open', 'Other open loans allowed', R.history.maxOpenLoans)}</div></div>
 
+    <div class="card"><h2>Your own rules</h2><div class="sub">Add a rule of your own, with no code: when something is over, under or equal to a value, send the application to a person or reject it. They run together with the rules above. They do not change the loan offer amount.</div>
+      <div class="scroll"><table class="bands"><thead><tr><th>Name</th><th>When</th><th></th><th>Value</th><th>Then</th><th>Note for your team</th><th></th></tr></thead><tbody id="customs">${(R.custom || []).map((c, i) => customRow(c, i)).join('') || '<tr><td colspan="7" class="note">No rules of your own yet.</td></tr>'}</tbody></table></div>
+      <button class="btn" style="margin-top:8px" onclick="addCustom()" ${dis}>Add a rule</button></div>
+
     <div class="card"><h2>Not running yet</h2><div class="sub" style="margin:0">Income against EMIs (FOIR) needs the customer's income, which the app does not collect yet. Early warning rules (late payments, enquiries, settlements on the credit record) need a credit bureau connection. Both will be added when that data exists.</div></div>
 
     <div class="bar"><button class="btn primary" id="save" onclick="saveRules()" ${dis}>Save rules</button><span class="note">${canEdit() ? '' : 'Your role can view the rules but not change them.'}</span></div>`;
 }
+let FIELDS = {};
+function customRow(c, i) {
+  const dis = canEdit() ? '' : 'disabled';
+  const bool = FIELDS[c.field]?.type === 'boolean';
+  return `<tr><td><input id="cu-name-${i}" value="${esc(c.name)}" maxlength="60" style="width:150px" aria-label="Rule name" ${dis}></td>
+    <td><select id="cu-field-${i}" onchange="customFieldChanged(${i})" aria-label="Looks at" ${dis}>${Object.entries(FIELDS).map(([k, f]) => `<option value="${k}" ${k === c.field ? 'selected' : ''}>${esc(f.label)}</option>`).join('')}</select></td>
+    <td><select id="cu-op-${i}" aria-label="Comparison" ${dis}>${(bool ? ['=', '!='] : ['>', '>=', '<', '<=', '=', '!=']).map(o => `<option ${o === c.op ? 'selected' : ''}>${o}</option>`).join('')}</select></td>
+    <td>${bool ? `<select id="cu-value-${i}" aria-label="Value" ${dis}><option value="true" ${c.value === true ? 'selected' : ''}>Yes</option><option value="false" ${c.value === false ? 'selected' : ''}>No</option></select>` : `<input type="number" id="cu-value-${i}" value="${esc(c.value ?? '')}" style="width:110px" aria-label="Value" ${dis}>`}</td>
+    <td><select id="cu-result-${i}" aria-label="Then" ${dis}><option value="refer" ${c.result === 'refer' ? 'selected' : ''}>Send to a person</option><option value="reject" ${c.result === 'reject' ? 'selected' : ''}>Reject</option></select></td>
+    <td><input id="cu-msg-${i}" value="${esc(c.message || '')}" maxlength="120" style="width:200px" aria-label="Note" ${dis}></td>
+    <td><button class="btn" onclick="removeCustom(${i})" ${dis}>Remove</button></td></tr>`;
+}
+function customFieldChanged(i) { R = collectRules(); const f = FIELDS[R.custom[i].field]; R.custom[i].op = f.type === 'boolean' ? '=' : '>'; R.custom[i].value = f.type === 'boolean' ? true : ''; renderRules(); }
+function addCustom() { R = collectRules(); R.custom.push({ name: '', field: 'amount', op: '>', value: '', result: 'refer', message: '' }); renderRules(); }
+function removeCustom(i) { R = collectRules(); R.custom.splice(i, 1); renderRules(); }
+function addOfferLine() { R = collectRules(); R.offer.scoreLimits.push({ min: 650, limit: 30000 }); renderRules(); }
+function removeOfferLine(i) { R = collectRules(); R.offer.scoreLimits.splice(i, 1); renderRules(); }
 function collectRules() {
   const n = id => { const v = $(id).value.trim(); return v === '' ? null : Number(v); };
   return {
@@ -159,6 +185,8 @@ function collectRules() {
     phone: { requireVerified: $('phone').checked },
     amount: { firstLoanAutoMax: n('amt-first'), repeatAutoMax: n('amt-repeat') },
     bureau: { requireScore: $('cs-require').checked, autoMinScore: n('cs-auto'), rejectBelow: n('cs-reject') },
+    offer: { noScoreLimit: n('of-noscore'), belowCleanLimit: n('of-below'), repeatLimit: n('of-repeat'), validDays: n('of-days'), roundTo: n('of-round'), scoreLimits: [...document.querySelectorAll('#olines tr')].map((_, i) => ({ min: n('ol-min-' + i), limit: n('ol-lim-' + i) })) },
+    custom: [...document.querySelectorAll('#customs tr')].filter(tr => tr.querySelector('input')).map((_, i) => ({ name: $('cu-name-' + i).value, field: $('cu-field-' + i).value, op: $('cu-op-' + i).value, value: FIELDS[$('cu-field-' + i).value]?.type === 'boolean' ? $('cu-value-' + i).value === 'true' : $('cu-value-' + i).value, result: $('cu-result-' + i).value, message: $('cu-msg-' + i).value })),
     history: { rejectIfDefaulted: $('h-default').checked, referIfOverdue: $('h-overdue').checked, maxOpenLoans: n('h-open') },
     aml: { referOnOpenAlert: $('aml').checked },
   };
@@ -191,12 +219,13 @@ async function tryIt(unsaved) {
     const icon = { pass: '✓', refer: '!', reject: '✕', skip: '–' };
     $('try-result').innerHTML = `<div style="margin-bottom:8px"><span class="pill ${esc(d.outcome)}" style="font-size:13px;padding:3px 12px">${esc(d.outcome === 'APPROVE' ? 'Approve' : d.outcome === 'REJECT' ? 'Reject' : 'Needs a person')}</span>
       ${d.customerReason ? `<span class="note" style="margin-left:8px">Customer is told: ${esc(d.customerReason)}</span>` : ''}</div>
+      <div style="margin-bottom:10px;font-size:13px"><b>Loan offer:</b> ${d.offer.status === 'DECLINED' ? 'none. ' + esc(d.offer.reason || '') : money(d.offer.amount) + (d.offer.status === 'REVIEW' ? ' (a person reviews it)' : '')}</div>
       ${d.checks.map(c => `<div class="chk"><span class="pill ${esc(c.result)}">${icon[c.result]}</span><b>${esc(c.name)}</b><span>${esc(c.detail)}</span></div>`).join('')}`;
   } catch (e) { msg(e.message, 'err'); }
 }
 
 window.addEventListener('load', async () => {
-  try { R = (await api('/admin/decisions/rules')).rules; renderRules(); renderTry(); } catch (e) { msg(e.message, 'err'); }
+  try { const first = await api('/admin/decisions/rules'); R = first.rules; FIELDS = first.customFields; renderRules(); renderTry(); } catch (e) { msg(e.message, 'err'); }
   loadOverview();
 });
 </script>

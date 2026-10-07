@@ -56,8 +56,12 @@ export function buildAgreement(loan, user) {
     '',
     '1. KEY FACTS OF YOUR LOAN',
     `Loan amount: ${inr(k.amount)}`,
-    ...(k.processingFee != null ? [`Processing fee (${k.processingFeePercent}%): ${inr(k.processingFee)}`] : []),
-    ...(k.gst != null ? [`GST on the processing fee (${k.gstPercent}%): ${inr(k.gst)}`] : []),
+    ...(k.chargesMode === 'rules' && Array.isArray(k.charges) && k.charges.length
+      ? k.charges.map(c => (c.gstMode === 'included' ? `${c.name}: ${inr(c.total)} (includes GST of ${inr(c.gst)})` : `${c.name}: ${inr(c.charge)}${c.gst ? `, GST ${inr(c.gst)}` : ''}`))
+      : [
+        ...(k.processingFee != null ? [`Processing fee (${k.processingFeePercent}%): ${inr(k.processingFee)}`] : []),
+        ...(k.gst != null ? [`GST on the processing fee (${k.gstPercent}%): ${inr(k.gst)}`] : []),
+      ]),
     ...(k.totalCharges > 0 ? [`Total fees and charges deducted when the loan is paid out: ${inr(k.totalCharges)}`] : []),
     `Amount you receive: ${inr(k.netDisbursed)}`,
     interestLine,

@@ -1,4 +1,5 @@
 import { getConfig, setConfig } from './configService.js';
+import { getChargesConfig, chargeLines } from './chargesEngine.js';
 
 // One place for every number that decides what a loan costs. The NBFC edits it from the admin portal
 // (Pricing page); nothing else in the code should hard-code a rate, fee or charge.
@@ -187,13 +188,29 @@ export function checkRequest(policy, { amount, planType, tenureMonths }, maxAmou
 
 // Everything a customer must be shown before they commit (the Key Fact Statement), worked out in one
 // place so the app, the portal, the agreement and the stored loan can never disagree.
-export function computeQuote(policy, { amount, planType, tenureMonths }) {
+// `ctx` carries what the charges engine needs: the customer's state, the add-ons they chose, and (to try changes
+// before saving them) a charges configuration to use instead of the saved one.
+export function computeQuote(policy, { amount, planType, tenureMonths }, ctx = {}) {
   const plan = planType && planType !== 'standard' ? policy.plans[planType] : null;
   const months = plan ? plan.tenureMonths : tenureMonths;
 
-  const processingFee = Math.round((amount * policy.processingFeePercent) / 100);
-  const gst = Math.round((processingFee * policy.gstPercent) / 100);
-  const netDisbursed = amount - processingFee - gst;
+  // Charges: the lender's charge rules when they are switched on, otherwise the single processing fee.
+  const cfg = ctx.chargesCfg || getChargesConfig();
+  let charges;
+  let addOns = [];
+  if (cfg.enabled) {
+    const r = chargeLines(cfg, { amount, tenureMonths: months, planType: plan ? planType : 'standard', state: ctx.state || '' }, policy.gstPercent, ctx.optional || []);
+    charges = r.lines;
+    addOns = r.addOns;
+  } else {
+    const fee = Math.round((amount * policy.processingFeePercent) / 100);
+    const g = Math.round((fee * policy.gstPercent) / 100);
+    charges = [{ id: 'processing_fee', name: `Processing fee (${policy.processingFeePercent}%)`, optional: false, gstMode: 'extra', basis: 'percent', rate: policy.processingFeePercent, charge: fee, gst: g, total: fee + g }];
+  }
+  const processingFee = charges.reduce((t, c) => t + c.charge, 0); // all charges, before GST
+  const gst = charges.reduce((t, c) => t + c.gst, 0);
+  const totalCharges = charges.reduce((t, c) => t + c.total, 0);
+  const netDisbursed = amount - totalCharges;
 
   let emi;
   if (plan) {
@@ -213,11 +230,14 @@ export function computeQuote(policy, { amount, planType, tenureMonths }) {
     interestRatePercent: plan ? plan.flatInterestPercent : policy.annualRatePercent,
     emi,
     totalInterest: totalRepayable - amount,
-    processingFeePercent: policy.processingFeePercent,
+    chargesMode: cfg.enabled ? 'rules' : 'flat',
+    charges,
+    addOns,
+    processingFeePercent: cfg.enabled ? null : policy.processingFeePercent,
     processingFee,
     gstPercent: policy.gstPercent,
     gst,
-    totalCharges: processingFee + gst,
+    totalCharges,
     netDisbursed,
     totalRepayable,
     totalCostOfCredit: totalRepayable - netDisbursed,
@@ -252,13 +272,13 @@ export function publicPolicy(policy) {
 }
 
 // Sample quotes at the offer amount, for the admin to see the real cost of what they have set.
-export function sampleQuotes(policy) {
+export function sampleQuotes(policy, ctx = {}) {
   const out = [];
   for (const [key, plan] of Object.entries(policy.plans)) {
-    if (plan.enabled) out.push(computeQuote(policy, { amount: policy.offerAmount, planType: key }));
+    if (plan.enabled) out.push(computeQuote(policy, { amount: policy.offerAmount, planType: key }, ctx));
   }
   const months = Math.min(policy.maxTenureMonths, Math.max(policy.minTenureMonths, 12));
-  out.push(computeQuote(policy, { amount: policy.offerAmount, planType: 'standard', tenureMonths: months }));
+  out.push(computeQuote(policy, { amount: policy.offerAmount, planType: 'standard', tenureMonths: months }, ctx));
   return out;
 }
 
@@ -285,4 +305,7 @@ export async function savePolicy(candidate, updatedBy) {
   return { ok: true, policy };
 }
 
-export default { getPolicy, validatePolicy, savePolicy, computeQuote, checkRequest, aprFor, lateFeeFor, publicPolicy, sampleQuotes, missingInstitutionDetails, DEFAULTS };
+// The customer would receive nothing (or less than nothing): the charges are too big for this loan.
+export const quoteProblem = q => (q.netDisbursed < 1 ? 'The charges on this loan are more than the amount. Choose a larger loan.' : null);
+
+export default { quoteProblem, getPolicy, validatePolicy, savePolicy, computeQuote, checkRequest, aprFor, lateFeeFor, publicPolicy, sampleQuotes, missingInstitutionDetails, DEFAULTS };

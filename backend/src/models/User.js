@@ -45,6 +45,11 @@ const userSchema = new mongoose.Schema(
     creditScore: { type: Number, min: 0, max: 900 },
     phoneVerified: { type: Boolean, default: false },
     phoneVerifiedAt: Date,
+    // Credit check and the loan offer worked out from it (see services/offerService.js)
+    creditScoreAt: Date,
+    creditScoreSource: String,
+    bureauConsentAt: Date,
+    offer: mongoose.Schema.Types.Mixed,
     // The terms and conditions the customer last accepted (see services/terms.js)
     termsVersion: { type: Number, default: 0 },
     termsAcceptedAt: Date,

@@ -11,7 +11,9 @@ import 'loan_approved_screen.dart';
 
 class LoanPlanScreen extends StatefulWidget {
   final LoanApplicationState? appState;
-  const LoanPlanScreen({Key? key, this.appState}) : super(key: key);
+  // The offer from the credit check. Without one, the amount is looked up again.
+  final Map<String, dynamic>? offer;
+  const LoanPlanScreen({Key? key, this.appState, this.offer}) : super(key: key);
 
   @override
   State<LoanPlanScreen> createState() => _LoanPlanScreenState();
@@ -19,6 +21,10 @@ class LoanPlanScreen extends StatefulWidget {
 
 class _LoanPlanScreenState extends State<LoanPlanScreen> {
   List<Map<String, dynamic>> _quotes = [];
+  Map<String, dynamic>? _offer;
+  int _amount = 0;
+  int _min = 1000;
+  int _max = 1000;
   int _selected = 0;
   bool _loading = true;
   String? _error;
@@ -38,10 +44,24 @@ class _LoanPlanScreenState extends State<LoanPlanScreen> {
     try {
       final api = context.read<ApiService>();
       final policy = await api.getPricing(product: SelectedProduct.key);
-      final amount = asNum(policy['offerAmount']).toInt();
+      Map<String, dynamic>? offer = widget.offer;
+      if (offer == null) {
+        try {
+          final r = await api.getMyOffer();
+          if (r['offer'] is Map) offer = Map<String, dynamic>.from(r['offer'] as Map);
+        } catch (_) {}
+      }
+      final min = asNum(policy['minAmount']).toInt();
+      final top = offer != null ? asNum(offer['amount']).toInt() : asNum(policy['offerAmount']).toInt();
+      final max = top < min ? min : top;
+      final amount = (_amount >= min && _amount <= max) ? _amount : max;
       final quotes = await api.getQuotes(amount);
       if (!mounted) return;
       setState(() {
+        _offer = offer;
+        _min = min;
+        _max = max;
+        _amount = amount;
         _quotes = quotes;
         _selected = quotes.length > 1 ? 1 : 0;
         _loading = false;
@@ -53,6 +73,58 @@ class _LoanPlanScreenState extends State<LoanPlanScreen> {
         _loading = false;
       });
     }
+  }
+
+  // The amounts on the slider run from the smallest loan to the customer's offer, in steps.
+  int get _step => (_max - _min) >= 20000 ? 1000 : 500;
+  int get _steps => ((_max - _min) / _step).floor().clamp(1, 400);
+  int _amountAt(int k) => k >= _steps ? _max : _min + k * _step;
+
+  Future<void> _reloadQuotes() async {
+    try {
+      final quotes = await context.read<ApiService>().getQuotes(_amount);
+      if (!mounted) return;
+      setState(() {
+        _quotes = quotes;
+        if (_selected >= quotes.length) _selected = 0;
+      });
+    } catch (e) {
+      if (mounted) setState(() => _error = friendlyError(e));
+    }
+  }
+
+  Widget _amountPicker() {
+    final k = (((_amount - _min) / _step).round()).clamp(0, _steps);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 8),
+      decoration: BoxDecoration(color: const Color(0xFFF9FAFB), borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFE5E7EB))),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(_offer != null ? 'YOUR OFFER IS UP TO ${formatMoney(_max)}' : 'CHOOSE YOUR AMOUNT', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 0.8, color: Color(0xFF6B7280))),
+          const SizedBox(height: 6),
+          Text(formatMoney(_amount), style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w900, color: Color(0xFF111827))),
+          if (_max > _min)
+            Slider(
+              value: k.toDouble(),
+              min: 0,
+              max: _steps.toDouble(),
+              divisions: _steps,
+              activeColor: kNavy,
+              label: formatMoney(_amountAt(k)),
+              onChanged: (v) => setState(() => _amount = _amountAt(v.round())),
+              onChangeEnd: (_) => _reloadQuotes(),
+            ),
+          if (_max > _min)
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              Text(formatMoney(_min), style: const TextStyle(fontSize: 11.5, color: Color(0xFF9CA3AF))),
+              Text(formatMoney(_max), style: const TextStyle(fontSize: 11.5, color: Color(0xFF9CA3AF))),
+            ]),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
   }
 
   void _continue() {
@@ -117,6 +189,7 @@ class _LoanPlanScreenState extends State<LoanPlanScreen> {
               ),
             ),
             const SizedBox(height: 16),
+            if (!_loading && _error == null) _amountPicker(),
             if (_loading)
               const Padding(
                 padding: EdgeInsets.all(40),

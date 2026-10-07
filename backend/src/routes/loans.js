@@ -5,10 +5,12 @@ import User from '../models/User.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { audit } from '../services/auditService.js';
 import { screenLoan } from '../services/amlService.js';
-import { getPolicy, computeQuote, checkRequest } from '../services/pricingPolicy.js';
+import { getPolicy, computeQuote, checkRequest, quoteProblem } from '../services/pricingPolicy.js';
+import { contextFor } from '../services/chargeContext.js';
 import { policyFor } from '../services/appSettings.js';
 import { termsRequiredFor } from '../services/terms.js';
 import { decideLoan } from '../services/decisionEngine.js';
+import { makeOffer, activeOffer, publicOffer, offerCap } from '../services/offerService.js';
 import { renderClosureLetter } from '../services/closureLetter.js';
 import { renderStatement } from '../services/loanStatement.js';
 import { repeatEligibility, maxAmountFor } from '../services/repeatLoan.js';
@@ -40,14 +42,23 @@ router.post('/apply-full', authMiddleware, async (req, res) => {
     const policy = policyFor(req.body.productKey ? String(req.body.productKey) : undefined);
     if (!policy) return res.status(400).json({ error: 'That loan product is not available' });
     const request = { amount: Number(loanAmount), planType: planType || undefined, tenureMonths: tenure === undefined ? undefined : Number(tenure) };
-    const problem = checkRequest(policy, request, await maxAmountFor(req.user.userId, policy));
-    if (problem) return res.status(400).json({ error: problem });
-    const quote = computeQuote(policy, request);
-
     const user = await User.findById(req.user.userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
     if (termsRequiredFor(user)) return res.status(403).json({ error: 'Please accept the updated terms and conditions first.', code: 'TERMS_REQUIRED' });
     if (process.env.REQUIRE_PHONE_VERIFIED !== 'false' && !user.phoneVerified) return res.status(403).json({ error: 'Verify your phone number first. Open the app and enter the code we send you.', code: 'PHONE_NOT_VERIFIED' });
+
+    // The most this customer can borrow: the product limit, and their own offer after the credit check.
+    const { cap, offer } = await offerCap(user, getPolicy());
+    if (offer && offer.status === 'DECLINED') return res.status(403).json({ error: offer.reason || 'We are not able to offer you a loan at this time.', code: 'NOT_ELIGIBLE' });
+    const problem = checkRequest(policy, request, Math.min(await maxAmountFor(req.user.userId, policy), cap));
+    if (problem) return res.status(400).json({ error: offer ? `${problem}. Your offer is up to Rs ${offer.amount.toLocaleString('en-IN')}.` : problem, code: 'ABOVE_LIMIT' });
+
+    // The customer's state decides which state charges apply; the add-ons are the ones they ticked.
+    const ctx = contextFor(user, { state: req.body.personalDetails?.state, pincode: req.body.personalDetails?.pincode, optional: req.body.optionalCharges });
+    const quote = computeQuote(policy, request, ctx);
+    if (ctx.optional.some(id => !quote.charges.some(c => c.id === id && c.optional))) return res.status(400).json({ error: 'One of the add-ons you chose is not available for this loan' });
+    const tooBig = quoteProblem(quote);
+    if (tooBig) return res.status(400).json({ error: tooBig });
 
     // Update user profile with personal + bank details
     if (personalDetails) {
@@ -95,7 +106,7 @@ router.post('/apply-full', authMiddleware, async (req, res) => {
       totalAmount: quote.totalRepayable,
       status: 'submitted',
       planType: quote.planType !== 'standard' ? quote.planType : undefined,
-      kfs: { ...quote, productKey: policy.productKey || 'personal', productName: policy.productName || 'Personal Loan' },
+      kfs: { ...quote, chargeState: ctx.state, productKey: policy.productKey || 'personal', productName: policy.productName || 'Personal Loan' },
       disbursalDetails: {
         accountNumber: bankDetails?.accountNumber || '',
         bankName: _inferBankName(bankDetails?.ifscCode),
@@ -126,7 +137,7 @@ router.post('/apply-full', authMiddleware, async (req, res) => {
         gst,
         gstPercent: quote.gstPercent,
         aprPercent: quote.aprPercent,
-        kfs: { ...quote, productKey: policy.productKey || 'personal', productName: policy.productName || 'Personal Loan' },
+        kfs: { ...quote, chargeState: ctx.state, productKey: policy.productKey || 'personal', productName: policy.productName || 'Personal Loan' },
         repaymentSchedule: repaymentHistory.map((r) => ({
           month: r.month,
           dueDate: r.dueDate,
@@ -153,14 +164,23 @@ router.post('/apply', authMiddleware, async (req, res) => {
     const policy = policyFor(req.body.productKey ? String(req.body.productKey) : undefined);
     if (!policy) return res.status(400).json({ error: 'That loan product is not available' });
     const request = { amount: Number(loanAmount), planType: 'standard', tenureMonths: Number(tenure) };
-    const problem = checkRequest(policy, request, await maxAmountFor(req.user.userId, policy));
-    if (problem) return res.status(400).json({ error: problem });
-    const quote = computeQuote(policy, request);
-
     const user = await User.findById(req.user.userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
     if (termsRequiredFor(user)) return res.status(403).json({ error: 'Please accept the updated terms and conditions first.', code: 'TERMS_REQUIRED' });
     if (process.env.REQUIRE_PHONE_VERIFIED !== 'false' && !user.phoneVerified) return res.status(403).json({ error: 'Verify your phone number first. Open the app and enter the code we send you.', code: 'PHONE_NOT_VERIFIED' });
+
+    // The most this customer can borrow: the product limit, and their own offer after the credit check.
+    const { cap, offer } = await offerCap(user, getPolicy());
+    if (offer && offer.status === 'DECLINED') return res.status(403).json({ error: offer.reason || 'We are not able to offer you a loan at this time.', code: 'NOT_ELIGIBLE' });
+    const problem = checkRequest(policy, request, Math.min(await maxAmountFor(req.user.userId, policy), cap));
+    if (problem) return res.status(400).json({ error: offer ? `${problem}. Your offer is up to Rs ${offer.amount.toLocaleString('en-IN')}.` : problem, code: 'ABOVE_LIMIT' });
+
+    // The customer's state decides which state charges apply; the add-ons are the ones they ticked.
+    const ctx = contextFor(user, { state: req.body.personalDetails?.state, pincode: req.body.personalDetails?.pincode, optional: req.body.optionalCharges });
+    const quote = computeQuote(policy, request, ctx);
+    if (ctx.optional.some(id => !quote.charges.some(c => c.id === id && c.optional))) return res.status(400).json({ error: 'One of the add-ons you chose is not available for this loan' });
+    const tooBig = quoteProblem(quote);
+    if (tooBig) return res.status(400).json({ error: tooBig });
 
     const loan = new Loan({
       userId: req.user.userId,
@@ -172,7 +192,7 @@ router.post('/apply', authMiddleware, async (req, res) => {
       interestRate: quote.interestRatePercent,
       monthlyEMI: quote.emi,
       totalAmount: quote.totalRepayable,
-      kfs: { ...quote, productKey: policy.productKey || 'personal', productName: policy.productName || 'Personal Loan' },
+      kfs: { ...quote, chargeState: ctx.state, productKey: policy.productKey || 'personal', productName: policy.productName || 'Personal Loan' },
       disbursalDetails: { disbursedAmount: quote.netDisbursed },
     });
 
@@ -198,7 +218,7 @@ router.post('/apply', authMiddleware, async (req, res) => {
         gst: quote.gst,
         gstPercent: quote.gstPercent,
         aprPercent: quote.aprPercent,
-        kfs: { ...quote, productKey: policy.productKey || 'personal', productName: policy.productName || 'Personal Loan' },
+        kfs: { ...quote, chargeState: ctx.state, productKey: policy.productKey || 'personal', productName: policy.productName || 'Personal Loan' },
       },
     });
   } catch (error) {
@@ -227,6 +247,39 @@ async function statementHtml(loan) {
 }
 const statementReady = loan => ['disbursed', 'closed'].includes(loan.status);
 const isAdminReq = req => req.user.isAdmin || String(req.user.email).toLowerCase() === (process.env.ADMIN_EMAIL || 'admin@lifc.in').toLowerCase();
+
+// The credit check and the loan offer that comes from it. The customer has to agree to the credit check first.
+router.post('/check-eligibility', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (termsRequiredFor(user)) return res.status(403).json({ error: 'Please accept the updated terms and conditions first.', code: 'TERMS_REQUIRED' });
+    if (process.env.REQUIRE_PHONE_VERIFIED !== 'false' && !user.phoneVerified) return res.status(403).json({ error: 'Verify your phone number first. Open the app and enter the code we send you.', code: 'PHONE_NOT_VERIFIED' });
+    if (!user.bureauConsentAt) {
+      if (req.body?.consent !== true) return res.status(400).json({ error: 'We need your permission to check your credit record.', code: 'CONSENT_REQUIRED' });
+      user.bureauConsentAt = new Date();
+      await User.updateOne({ _id: user._id }, { bureauConsentAt: user.bureauConsentAt });
+      await audit(req.user, 'CREDIT_CHECK_CONSENT', { type: 'User', id: user._id }, {}, req);
+    }
+    const policy = getPolicy();
+    const offer = await makeOffer(user, policy, { pullCredit: true });
+    await audit(req.user, 'ELIGIBILITY_CHECKED', { type: 'User', id: user._id }, { status: offer.status, amount: offer.amount, creditCheck: offer.source }, req);
+    res.json({ offer: publicOffer(offer), minAmount: policy.minAmount });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// The customer's current offer, if they have one that is still valid
+router.get('/my-offer', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId).select('offer');
+    const policy = getPolicy();
+    res.json({ offer: publicOffer(activeOffer(user)), minAmount: policy.minAmount, maxAmount: policy.maxAmount });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // What this customer may borrow now, and how to unlock more if they cannot yet
 router.get('/repeat-offer', authMiddleware, async (req, res) => {

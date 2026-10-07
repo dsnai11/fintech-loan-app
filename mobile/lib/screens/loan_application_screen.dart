@@ -73,8 +73,18 @@ class _LoanApplicationScreenState extends State<LoanApplicationScreen> {
       });
       _calculateEMI();
       final offer = await context.read<ApiService>().getRepeatOffer();
-      if (!mounted || offer['eligible'] != true) return;
-      setState(() => _maxAmount = asNum(offer['maxAmount']).toDouble());
+      if (mounted && offer['eligible'] == true) setState(() => _maxAmount = asNum(offer['maxAmount']).toDouble());
+      // The customer's own offer from the credit check is the most they can ask for.
+      final mine = await context.read<ApiService>().getMyOffer();
+      if (mounted && mine['offer'] is Map) {
+        final a = asNum((mine['offer'] as Map)['amount']).toDouble();
+        if (a >= _minAmount) {
+          setState(() {
+            _maxAmount = min(_maxAmount, a);
+            if (_loanAmount > _maxAmount) _loanAmount = _maxAmount;
+          });
+        }
+      }
     } catch (_) {}
   }
 

@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%92%B0%3C/text%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Charges - LIFC Admin</title>
+<style>
+* { box-sizing: border-box; }
+.card { padding: 16px; margin-bottom: 14px; }
+.card h2 { margin: 0 0 4px; }
+.sub { font-size: 12px; color: var(--e-muted); margin-bottom: 12px; line-height: 1.5; }
+.alert { display: none; padding: 12px 16px; margin-bottom: 14px; white-space: pre-line; }
+.alert.show { display: block; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; align-items: end; }
+.grid input, .grid select { width: 100%; }
+.charge { border: 1px solid var(--e-border); border-radius: 10px; padding: 14px; margin-bottom: 12px; background: var(--e-surface-2); }
+.charge.off { opacity: .6; }
+.charge h3 { margin: 0 0 10px; font-size: 14px; display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.sw { display: flex; gap: 8px; align-items: center; font-weight: 500; font-size: 13px; color: var(--e-text); }
+.cond { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--e-border); }
+.cond > b { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--e-muted); display: block; margin-bottom: 8px; }
+.states { max-height: 120px; overflow-y: auto; border: 1px solid var(--e-border); border-radius: 8px; padding: 6px 10px; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 2px 10px; background: var(--e-surface); }
+.states label { font-weight: 400; display: flex; gap: 6px; align-items: center; font-size: 12.5px; }
+.plans { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; }
+.bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; position: sticky; bottom: 0; background: var(--e-bg); padding: 12px 0; }
+.note { font-size: 12px; color: var(--e-muted); }
+.warn { background: var(--e-warn-soft); border: 1px solid var(--e-warn); color: var(--e-warn); border-radius: 8px; padding: 10px 12px; font-size: 13px; margin-bottom: 12px; }
+.scroll { overflow-x: auto; }
+td ul { margin: 0; padding-left: 16px; }
+.apr-high { color: var(--e-danger); font-weight: 700; }
+</style>
+<link rel="stylesheet" href="assets/portal.css">
+</head>
+<body data-shell="app" data-title="Charges" data-sub="The fees each loan carries, by state, loan amount and plan. Everything is taken from the loan when it is paid out.">
+<div class="container">
+  <div id="alert" class="alert" role="alert"></div>
+  <div id="form"></div>
+  <div class="card">
+    <h2>What customers would pay</h2>
+    <div class="sub">Worked out from the charges above, including any you have not saved yet. The yearly cost (APR) counts every charge.</div>
+    <div class="grid" style="max-width:520px"><div><label for="pv-state">State</label><select id="pv-state"><option value="">Any other state</option></select></div>
+      <div><label for="pv-opt" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="pv-opt"> Customer also takes every add-on</label></div></div>
+    <div class="bar" style="position:static;padding-top:8px"><button class="btn" onclick="preview()">Show the cost</button></div>
+    <div class="scroll"><table><thead><tr><th>Loan</th><th>Plan</th><th>Charges</th><th>Total charges</th><th>Customer receives</th><th>Yearly cost (APR)</th></tr></thead><tbody id="pv-rows"></tbody></table></div>
+  </div>
+  <div class="bar"><button class="btn primary" id="save" onclick="save()">Save charges</button><span class="note" id="saved"></span></div>
+</div>
+
+<script>
+const API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
+const token = localStorage.getItem('admin_token');
+if (!token) location.href = 'admin-config.html';
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const money = n => '₹' + Math.round(n || 0).toLocaleString('en-IN');
+const canEdit = () => !window.PortalShell || PortalShell.can('pricing.edit');
+let C = null, STATES = [], PLANS = {};
+
+function msg(text, kind) {
+  const a = $('alert'); a.textContent = text; a.className = 'alert show ' + (kind === 'ok' ? 'ok' : 'err');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  if (kind === 'ok') setTimeout(() => a.classList.remove('show'), 5000);
+}
+async function api(path, method = 'GET', body) {
+  const r = await fetch(API + path, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.errors ? d.errors.join('\n') : d.error || 'Something went wrong');
+  return d;
+}
+
+async function load() {
+  try {
+    const d = await api('/admin/charges');
+    C = d.config; STATES = d.states; PLANS = d.plans;
+    $('pv-state').innerHTML = '<option value="">Any other state</option>' + STATES.map(s => `<option>${esc(s)}</option>`).join('');
+    render();
+  } catch (e) { msg(e.message, 'err'); }
+}
+
+function chargeCard(c, i) {
+  const k = c.conditions || {};
+  const dis = canEdit() ? '' : 'disabled';
+  const v = x => (x === null || x === undefined ? '' : x);
+  return `<div class="charge ${c.enabled ? '' : 'off'}">
+    <h3><span>${esc(c.name || 'New charge')}</span><span><button class="btn danger" onclick="removeCharge(${i})" ${dis}>Remove</button></span></h3>
+    <div class="grid">
+      <div><label for="c${i}-name">Name customers see</label><input id="c${i}-name" value="${esc(c.name)}" maxlength="60" ${dis}></div>
+      <div><label for="c${i}-basis">Charged as</label><select id="c${i}-basis" ${dis}><option value="percent" ${c.basis === 'percent' ? 'selected' : ''}>Percentage of the loan</option><option value="fixed" ${c.basis === 'fixed' ? 'selected' : ''}>Fixed amount (Rs)</option></select></div>
+      <div><label for="c${i}-amount">Percentage or amount</label><input type="number" step="any" id="c${i}-amount" value="${esc(c.amount)}" ${dis}></div>
+      <div><label for="c${i}-gst">GST</label><select id="c${i}-gst" ${dis}><option value="extra" ${c.gst === 'extra' ? 'selected' : ''}>Added on top</option><option value="included" ${c.gst === 'included' ? 'selected' : ''}>Already included in the amount</option><option value="none" ${c.gst === 'none' ? 'selected' : ''}>No GST</option></select></div>
+    </div>
+    <div style="display:flex;gap:20px;flex-wrap:wrap;margin-top:10px">
+      <label class="sw"><input type="checkbox" id="c${i}-on" ${c.enabled ? 'checked' : ''} ${dis} onchange="this.closest('.charge').classList.toggle('off', !this.checked)"> Switched on</label>
+      <label class="sw"><input type="checkbox" id="c${i}-opt" ${c.optional ? 'checked' : ''} ${dis}> The customer chooses it (an add-on, off unless they tick it)</label>
+    </div>
+    <div class="cond"><b>Only when</b>
+      <div class="grid">
+        <div><label for="c${i}-amin">Loan is at least (Rs)</label><input type="number" id="c${i}-amin" value="${esc(v(k.amountMin))}" ${dis}></div>
+        <div><label for="c${i}-amax">Loan is at most (Rs)</label><input type="number" id="c${i}-amax" value="${esc(v(k.amountMax))}" ${dis}></div>
+        <div><label for="c${i}-tmin">Tenure is at least (months)</label><input type="number" id="c${i}-tmin" value="${esc(v(k.tenureMin))}" ${dis}></div>
+        <div><label for="c${i}-tmax">Tenure is at most (months)</label><input type="number" id="c${i}-tmax" value="${esc(v(k.tenureMax))}" ${dis}></div>
+      </div>
+      <label style="margin:10px 0 4px;display:block">In these states (none ticked = every state)</label>
+      <div class="states">${STATES.map((s, j) => `<label><input type="checkbox" data-state="${i}" value="${esc(s)}" ${k.states?.includes(s) ? 'checked' : ''} ${dis}> ${esc(s)}</label>`).join('')}</div>
+      <label style="margin:10px 0 4px;display:block">For these repayment plans (none ticked = every plan)</label>
+      <div class="plans">${[...Object.entries(PLANS), ['standard', 'Standard loan']].map(([key, label]) => `<label class="sw"><input type="checkbox" data-plan="${i}" value="${esc(key)}" ${k.plans?.includes(key) ? 'checked' : ''} ${dis}> ${esc(label)}</label>`).join('')}</div>
+    </div>
+    <div class="grid" style="margin-top:10px"><div style="grid-column:1/-1"><label for="c${i}-group">Same group (only the most specific charge in a group applies, for example a state charge replacing the general one)</label><input id="c${i}-group" value="${esc(c.group || '')}" placeholder="optional, for example file_charge" ${dis}></div>
+      <div style="grid-column:1/-1"><label for="c${i}-note">Note for your team (customers do not see it)</label><input id="c${i}-note" value="${esc(c.note || '')}" maxlength="300" ${dis}></div></div>
+    ${c.note && /insurance/i.test(c.note) ? '<div class="warn" style="margin:10px 0 0">Insurance is normally the customer\'s choice. Tick "The customer chooses it" unless your compliance team confirms it can be compulsory.</div>' : ''}
+  </div>`;
+}
+
+function render() {
+  const dis = canEdit() ? '' : 'disabled';
+  $('form').innerHTML = `
+    <div class="card"><h2>Charge rules</h2>
+      <div class="sub">Switch the rules on to replace the single processing fee on the Pricing page. While they are off, the Pricing page fee applies exactly as before.</div>
+      <label class="sw"><input type="checkbox" id="enabled" ${C.enabled ? 'checked' : ''} ${dis}> Use these charge rules</label>
+      <div class="bar" style="position:static;padding-bottom:0"><button class="btn" onclick="loadPreset()" ${dis}>Load the starter set from the BRE sheet</button><span class="note">Fills the list below. Nothing is saved until you press Save.</span></div>
+    </div>
+    <div id="list">${C.charges.map(chargeCard).join('') || '<div class="card note">No charges yet. Add one, or load the starter set.</div>'}</div>
+    <button class="btn" onclick="addCharge()" ${dis}>Add a charge</button>`;
+  $('save').disabled = !canEdit();
+  $('saved').textContent = canEdit() ? '' : 'Your role can view the charges but not change them.';
+}
+
+function collect() {
+  const num = id => { const x = $(id).value.trim(); return x === '' ? null : Number(x); };
+  return {
+    enabled: $('enabled').checked,
+    charges: C.charges.map((c, i) => ({
+      id: c.id, name: $(`c${i}-name`).value, enabled: $(`c${i}-on`).checked, optional: $(`c${i}-opt`).checked,
+      basis: $(`c${i}-basis`).value, amount: Number($(`c${i}-amount`).value), gst: $(`c${i}-gst`).value,
+      group: $(`c${i}-group`).value, note: $(`c${i}-note`).value,
+      conditions: {
+        amountMin: num(`c${i}-amin`), amountMax: num(`c${i}-amax`), tenureMin: num(`c${i}-tmin`), tenureMax: num(`c${i}-tmax`),
+        states: [...document.querySelectorAll(`[data-state="${i}"]:checked`)].map(x => x.value),
+        plans: [...document.querySelectorAll(`[data-plan="${i}"]:checked`)].map(x => x.value),
+      },
+    })),
+  };
+}
+function addCharge() { C = collect(); C.charges.push({ name: '', enabled: true, optional: false, basis: 'percent', amount: 0, gst: 'extra', group: '', note: '', conditions: { states: [], plans: [] } }); render(); }
+function removeCharge(i) { C = collect(); C.charges.splice(i, 1); render(); }
+async function loadPreset() {
+  if (C.charges.length && !confirm('Replace the charges below with the starter set?')) return;
+  try { const d = await api('/admin/charges/preset'); const enabled = $('enabled').checked; C = { enabled, charges: d.charges.map(c => ({ ...c, enabled: true, optional: false, conditions: { states: [], plans: [], ...c.conditions } })) }; render(); msg('Starter set loaded. Check the cost below, then save.', 'ok'); }
+  catch (e) { msg(e.message, 'err'); }
+}
+
+async function preview() {
+  try {
+    const d = await api('/admin/charges/preview', 'POST', { config: { ...collect(), enabled: true }, state: $('pv-state').value, optional: $('pv-opt').checked ? C.charges.filter(c => c.optional).map(c => c.id || c.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')) : [] });
+    $('pv-rows').innerHTML = d.rows.map(r => `<tr><td>${money(r.amount)}</td><td>${esc(r.plan)}</td>
+      <td><ul>${r.charges.map(c => `<li>${esc(c.name)}: ${money(c.total)}${c.gst ? ` <span class="note">(GST ${money(c.gst)}${c.gstMode === 'included' ? ' included' : ''})</span>` : ''}</li>`).join('') || '<li class="note">none</li>'}</ul>
+        ${r.addOns.length ? `<div class="note">Add-ons offered: ${r.addOns.map(a => esc(a.name) + ' ' + money(a.total)).join(', ')}</div>` : ''}</td>
+      <td>${money(r.totalCharges)}</td><td>${money(r.netDisbursed)}</td><td class="${r.aprPercent > 60 ? 'apr-high' : ''}">${r.aprPercent}%</td></tr>`).join('');
+  } catch (e) { msg(e.message, 'err'); }
+}
+
+async function save() {
+  const body = collect();
+  if (body.enabled && !C.enabled && !confirm('Customers will be charged by these rules from now on instead of the single processing fee. Switch them on?')) return;
+  $('save').disabled = true;
+  try { const d = await api('/admin/charges', 'PUT', body); C = d.config; render(); msg(d.message, 'ok'); $('saved').textContent = 'Saved ' + new Date().toLocaleTimeString('en-IN'); }
+  catch (e) { msg(e.message, 'err'); }
+  $('save').disabled = !canEdit();
+}
+load();
+</script>
+<script src="assets/portal.js"></script>
+</body>
+</html>

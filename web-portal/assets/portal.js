@@ -38,6 +38,7 @@
     { href: 'analytics.html', label: 'Analytics', icon: 'chart', any: ['reports.view'] },
     { group: 'Administration' },
     { href: 'pricing.html', label: 'Pricing and controls', icon: 'tag', any: ['pricing.view'] },
+    { href: 'charges.html', label: 'Charges', icon: 'tag', any: ['pricing.view'] },
     { href: 'app-settings.html', label: 'Customer app', icon: 'phoneapp', any: ['appsettings.edit'] },
     { href: 'staff.html', label: 'Staff', icon: 'staff', any: ['staff.manage'] },
     { href: 'roles.html', label: 'Roles and permissions', icon: 'key', any: ['super'] },

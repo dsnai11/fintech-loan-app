@@ -27,6 +27,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   Map<String, dynamic>? _pricing;
   num? _repeatMax;
+  Map<String, dynamic>? _myOffer; // the offer from the customer's credit check, if still valid
   bool _phoneUnverified = false;
   Map<String, dynamic>? _loan; // the loan that matters right now, if any
   List<Map<String, dynamic>> _emis = [];
@@ -48,6 +49,8 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) setState(() => _pricing = p);
       final offer = await context.read<ApiService>().getRepeatOffer();
       if (mounted) setState(() => _repeatMax = offer['eligible'] == true ? asNum(offer['maxAmount']) : null);
+      final mine = await context.read<ApiService>().getMyOffer();
+      if (mounted) setState(() => _myOffer = mine['offer'] is Map ? Map<String, dynamic>.from(mine['offer'] as Map) : null);
     } catch (_) {}
   }
 
@@ -158,7 +161,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _section(String title) => Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF111827)));
 
   Widget _hero(AppSettings settings) {
-    final max = _repeatMax ?? asNum(_pricing?['maxAmount'] ?? 0);
+    final hasOffer = _myOffer != null && _myOffer!['status'] != 'DECLINED';
+    final max = hasOffer ? asNum(_myOffer!['amount']) : (_repeatMax ?? asNum(_pricing?['maxAmount'] ?? 0));
     final plans = (_pricing?['plans'] as Map?)?.values.map((p) => asNum((p as Map)['tenureMonths']).toInt()).toList() ?? <int>[];
     plans.sort();
     final repay = plans.isEmpty ? 'Repay in easy instalments' : 'Repay in ${plans.join(', ')} month${plans.length == 1 && plans.first == 1 ? '' : 's'}';
@@ -173,7 +177,7 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(_repeatMax != null ? 'WELCOME BACK. YOUR LIMIT' : 'PERSONAL LOAN UP TO', style: const TextStyle(color: Colors.white70, fontSize: 11.5, fontWeight: FontWeight.w700, letterSpacing: 1)),
+          Text(hasOffer ? 'YOUR OFFER' : (_repeatMax != null ? 'WELCOME BACK. YOUR LIMIT' : 'PERSONAL LOAN UP TO'), style: const TextStyle(color: Colors.white70, fontSize: 11.5, fontWeight: FontWeight.w700, letterSpacing: 1)),
           const SizedBox(height: 8),
           Text(max == 0 ? '₹ —' : formatMoney(max), style: const TextStyle(color: Colors.white, fontSize: 38, fontWeight: FontWeight.w900, height: 1.05)),
           const SizedBox(height: 8),
@@ -184,7 +188,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: ElevatedButton(
               onPressed: () => _apply('personal', 'Personal Loan'),
               style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: kNavy, padding: const EdgeInsets.symmetric(vertical: 15), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
-              child: Text(_loan != null && (_loan!['status'] == 'disbursed' || _loan!['status'] == 'defaulted') ? 'Apply for another loan' : 'Check your offer', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+              child: Text(_loan != null && (_loan!['status'] == 'disbursed' || _loan!['status'] == 'defaulted') ? 'Apply for another loan' : (hasOffer ? 'Get your loan' : 'Check your offer'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
             ),
           ),
         ],
