@@ -25,7 +25,7 @@ export const namesCompatible = (a, b) => {
 };
 
 // One open alert per rule + customer + loan, so re-running a check does not pile up duplicates.
-async function raise(rule, severity, user, loan, detail) {
+export async function raise(rule, severity, user, loan, detail) {
   const filter = { rule, userId: user._id, status: 'OPEN', ...(loan ? { loanId: loan._id } : {}) };
   const existing = await AmlAlert.findOne(filter);
   if (existing) return existing;

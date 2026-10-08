@@ -1,11 +1,15 @@
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:io' show Platform;
+import 'dart:math';
 import 'selected_product.dart';
+import 'app_settings.dart' show kAppVersion;
 
 class ApiService {
   late Dio _dio;
   static const String baseUrl = 'https://fintech-loan-app-production.up.railway.app/api';
   String? _token;
+  String? _installId;
 
   ApiService() {
     _dio = Dio(BaseOptions(
@@ -23,6 +27,10 @@ class ApiService {
           if (_token != null) {
             options.headers['Authorization'] = 'Bearer $_token';
           }
+          // A random id made when the app is first opened. It tells us when one phone is used by several accounts.
+          options.headers['X-Install-Id'] = await _installIdValue();
+          options.headers['X-App-Version'] = kAppVersion;
+          try { options.headers['X-Platform'] = Platform.isAndroid ? 'android' : Platform.isIOS ? 'ios' : 'other'; } catch (_) {}
           return handler.next(options);
         },
         onError: (error, handler) {
@@ -32,6 +40,19 @@ class ApiService {
     );
 
     _loadToken();
+  }
+
+  Future<String> _installIdValue() async {
+    if (_installId != null) return _installId!;
+    final prefs = await SharedPreferences.getInstance();
+    var id = prefs.getString('install_id');
+    if (id == null) {
+      final r = Random.secure();
+      id = List.generate(32, (_) => r.nextInt(16).toRadixString(16)).join();
+      await prefs.setString('install_id', id);
+    }
+    _installId = id;
+    return id;
   }
 
   Future<void> _loadToken() async {

@@ -4,6 +4,7 @@ import { bureauConfigured, providerName as bureauProvider, missingSettings as bu
 import { aiConfigured, providerName as assistantProvider, missingProviderSettings as assistantMissing } from './assistantService.js';
 import { pushConfigured, providerName as pushProvider, missingSettings as pushMissing } from './pushService.js';
 import { availability as mandateAvailability } from './mandateService.js';
+import { availability as bankAvailability } from './bankVerifyService.js';
 import { signingMethod, esignMode, providerName as esignProvider, PROVIDERS as ESIGNS } from './signingService.js';
 import { modeNow as aaMode, providerName as aaProvider, PROVIDERS as AAS } from './aaService.js';
 import { modeNow as digilockerMode, providerName as digilockerProvider, PROVIDERS as DIGILOCKERS } from './digilockerService.js';
@@ -128,6 +129,19 @@ export const INTEGRATIONS = [
       const m = aaMode();
       if (m === 'aa') return { mode: 'live', provider: p };
       return m === 'sandbox' ? { mode: 'test', note: 'A stand-in consent page and made-up statements are used. Results are marked as test data.' } : { mode: 'unavailable', note: 'No provider is set up, so the income check says it is not available.' };
+    },
+  },
+  {
+    id: 'bankverify', label: 'Bank account check (Rs 1 deposit)', purpose: 'Checks that a customer\'s bank account is real, live and in their name before money is sent to it.',
+    fields: [
+      field('BANK_VERIFY_PROVIDER', 'Provider', { options: ['', 'razorpay'], hint: 'Razorpay account validation needs a RazorpayX account. Leave empty for test mode.' }),
+      field('RAZORPAYX_ACCOUNT_NUMBER', 'RazorpayX account number'),
+      field('REQUIRE_BANK_VERIFIED', 'Pay out only to verified accounts', { options: ['false', 'true'], hint: 'true = a loan cannot be paid out until the account is verified. Switch on only when the provider is live.' }),
+    ],
+    envOnly: ['RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET'],
+    status: () => {
+      const a = bankAvailability();
+      return { mode: a.mode, provider: a.mode === 'live' ? 'razorpay' : undefined, note: a.note };
     },
   },
   {

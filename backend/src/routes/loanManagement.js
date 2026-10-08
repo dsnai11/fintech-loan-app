@@ -190,6 +190,10 @@ router.post('/:loanId/disburse', adminMiddleware, async (req, res) => {
         return res.status(403).json({ error: 'Four-eyes rule: a different person must release this payout. You approved this loan.', code: 'FOUR_EYES' });
       }
     }
+    {
+      const { required, isVerified } = await import('../services/bankVerifyService.js');
+      if (required() && !isVerified(loan.userId)) return res.status(409).json({ error: 'The customer\'s bank account has not been verified, so the money cannot be sent yet. Ask them to check it in the app, or verify it by hand on their record.', code: 'BANK_NOT_VERIFIED' });
+    }
     const result = await PaymentService.initiateTransfer(loan._id, loan, req.user.email);
 
     res.json({

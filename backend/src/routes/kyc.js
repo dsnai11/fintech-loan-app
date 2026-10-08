@@ -5,6 +5,7 @@ import { getConfig } from '../services/configService.js';
 import { audit } from '../services/auditService.js';
 import { sendCode, verifyCode } from '../services/phoneVerification.js';
 import { flagDuplicatePan, flagNameMismatch, namesCompatible } from '../services/amlService.js';
+import { verifyBank } from '../services/bankVerifyService.js';
 
 const router = express.Router();
 
@@ -125,29 +126,13 @@ router.post('/bank', authMiddleware, async (req, res) => {
       if (r.ok) { const d = await r.json(); bankName = d.BANK || bankName; branchInfo = { branch: d.BRANCH, city: d.CITY, state: d.STATE }; }
     } catch (_) {}
 
-    const bankProvider  = getConfig('BANK_VERIFY_PROVIDER');
-    const paymentKeyId  = getConfig('PAYMENT_KEY_ID');
-    const paymentSecret = getConfig('PAYMENT_KEY_SECRET');
-    let verified = false;
-    let mode = 'ifsc_lookup';
-
-    if (bankProvider === 'razorpay' && paymentKeyId && paymentSecret) {
-      const auth = Buffer.from(`${paymentKeyId}:${paymentSecret}`).toString('base64');
-      const r = await fetch('https://api.razorpay.com/v1/payouts', {
-        method: 'POST',
-        headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/json', 'X-Payout-Idempotency': `bv-${Date.now()}` },
-        body: JSON.stringify({ account_number: paymentKeyId, fund_account: { account_type: 'bank_account', bank_account: { name: accountHolder, ifsc: ifscCode.toUpperCase(), account_number: accountNumber }, contact: { name: accountHolder, type: 'customer' } }, amount: 100, currency: 'INR', mode: 'IMPS', purpose: 'payout', queue_if_low_balance: false }),
-      }).then(x => x.json()).catch(() => null);
-      verified = !!r?.id;
-      mode = verified ? 'razorpay_penny_drop' : 'ifsc_lookup';
-    } else if (bankProvider === 'cashfree' && getConfig('CASHFREE_APP_ID')) {
-      verified = true; // Cashfree bank verify needs their API — mark true for now
-      mode = 'cashfree';
-    }
-
-    await User.findByIdAndUpdate(req.user.userId, {
+    // Save the account, then check it with the bank through the payment provider (or the test mode)
+    const saved = await User.findByIdAndUpdate(req.user.userId, {
       bankAccount: { accountNumber, ifscCode: ifscCode.toUpperCase(), bankName, accountHolder: accountHolder || '' },
-    });
+    }, { new: true });
+    const check = await verifyBank(saved, req);
+    const verified = check.status === 'verified';
+    const mode = check.mode;
 
     res.json({
       message: 'Bank details saved',
@@ -155,7 +140,24 @@ router.post('/bank', authMiddleware, async (req, res) => {
       branch: branchInfo,
       verified,
       mode,
+      status: check.status,
+      nameAtBank: check.nameAtBank || null,
+      note: check.note || null,
     });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Run the bank check again (for example after the provider was set up)
+router.post('/bank/verify', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId);
+    if (!user?.bankAccount?.accountNumber) return res.status(400).json({ error: 'Add your bank account first.' });
+    const recent = user.bankVerification?.at && Date.now() - new Date(user.bankVerification.at).getTime() < 60 * 1000;
+    if (recent) return res.status(429).json({ error: 'Please wait a minute before checking again.' });
+    const check = await verifyBank(user, req);
+    res.json({ verified: check.status === 'verified', status: check.status, nameAtBank: check.nameAtBank || null, note: check.note || null, mode: check.mode });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

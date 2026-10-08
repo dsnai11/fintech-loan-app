@@ -182,7 +182,7 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const date = d => d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 const dateTime = d => new Date(d).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
-const RULES = { WATCHLIST_MATCH: 'Watchlist match', LARGE_LOAN: 'Large loan', RAPID_REAPPLICATION: 'Rapid re-application', SHARED_BANK_ACCOUNT: 'Shared bank account', EARLY_CLOSURE: 'Early closure', DUPLICATE_PAN: 'Duplicate PAN', KYC_NAME_MISMATCH: 'KYC name mismatch' };
+const RULES = { WATCHLIST_MATCH: 'Watchlist match', LARGE_LOAN: 'Large loan', RAPID_REAPPLICATION: 'Rapid re-application', SHARED_BANK_ACCOUNT: 'Shared bank account', EARLY_CLOSURE: 'Early closure', DUPLICATE_PAN: 'Duplicate PAN', KYC_NAME_MISMATCH: 'KYC name mismatch', DUPLICATE_SELFIE: 'Same photo on another account', DUPLICATE_AADHAAR: 'Same Aadhaar on another account', SHARED_DEVICE: 'Same phone, several accounts', SHARED_IP: 'Many accounts, one internet address', NEW_DEVICE: 'Applied from a new phone' };
 
 function msg(text, kind) {
   const a = $('alert'); a.textContent = text; a.className = 'alert show ' + kind;

@@ -9,6 +9,7 @@ import { getPolicy, computeQuote, checkRequest, quoteProblem } from '../services
 import { contextFor } from '../services/chargeContext.js';
 import { policyFor } from '../services/appSettings.js';
 import { topUp } from '../services/topupService.js';
+import { recordDevice } from '../services/deviceService.js';
 import { timelineFor } from '../services/loanTimeline.js';
 import { incomeBasis } from '../services/aaService.js';
 import { termsRequiredFor } from '../services/terms.js';
@@ -217,6 +218,7 @@ router.post('/apply', authMiddleware, async (req, res) => {
     user.loanHistory.push(loan._id);
     await user.save();
     await audit(req.user, 'LOAN_APPLIED', { type: 'Loan', id: loan._id }, { amount: loan.loanAmount, tenure: loan.tenure }, req);
+    await recordDevice(req, user._id, 'apply');
     await screenLoan(loan, user);
     await decideLoan(loan, user);
 

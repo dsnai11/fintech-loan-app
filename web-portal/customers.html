@@ -165,13 +165,16 @@ function setupCard(c) {
     <div class="kv" style="margin-bottom:14px">
       <div><b>Identity (DigiLocker)</b>${d ? `${pill(d.status === 'verified' ? 'approved' : 'pending')} ${d.mode === 'sandbox' ? '<span class="muted">test mode</span>' : ''}<div class="muted">Name: ${yn(d.nameMatch)} · Date of birth: ${yn(d.dobMatch)}${d.aadhaarLast4 ? ' · Aadhaar ends ' + esc(d.aadhaarLast4) : ''}</div>${flagList(d.flags)}` : '<span class="muted">Not done</span>'}</div>
       <div><b>Personal details</b>${steps.profile ? `${esc(c.gender)}, born ${date(c.dateOfBirth)}<div class="muted">${a ? esc([a.street, a.city, a.state, a.zipCode].filter(Boolean).join(', ')) : ''}</div><div class="muted">${e ? esc(e.status || '') + (e.company ? ', ' + esc(e.company) : '') + (e.monthlyIncome ? ', ' + inr(e.monthlyIncome) + ' a month' : '') : ''}</div>` : '<span class="muted">Not done</span>'}</div>
-      <div><b>Bank account</b>${c.bankAccount ? esc(c.bankAccount.holder + ', ' + c.bankAccount.number + ', ' + c.bankAccount.ifsc) : '<span class="muted">Not done</span>'}</div>
+      <div><b>Bank account</b>${c.bankAccount ? esc(c.bankAccount.holder + ', ' + c.bankAccount.number + ', ' + c.bankAccount.ifsc) : '<span class="muted">Not done</span>'}
+        ${c.bankAccount ? (() => { const bv = c.bankVerification; const ok = bv && bv.current && bv.status === 'verified'; return `<div class="muted">${!bv || !bv.current ? 'Not checked with the bank' : ok ? 'Verified' + (bv.mode === 'manual' ? ' by hand' : bv.mode === 'test' ? ' (test mode)' : ' with the bank') + (bv.nameAtBank ? ', name at bank: ' + esc(bv.nameAtBank) : '') : (bv.status === 'name_mismatch' ? 'Name at the bank is different: ' + esc(bv.nameAtBank || '') : bv.status === 'failed' ? 'The bank says the account is not valid' : 'Not verified')}${bv && bv.note && !ok ? ' · ' + esc(bv.note) : ''}</div>${!ok && (!window.PortalShell || PortalShell.can('kyc.decide')) ? `<button class="btn" style="margin-top:6px" onclick="verifyBankByHand('${esc(c.id)}')">Verify by hand</button>` : ''}`; })() : ''}</div>
     </div>
     <div style="margin-bottom:14px"><b style="font-size:11px;color:var(--muted);text-transform:uppercase">Income check (bank statements)</b>
       ${ic ? `<div style="margin-top:6px">${ic.mode === 'sandbox' ? '<span class="pill warn">test data</span> ' : ''}${ic.stale ? '<span class="pill warn">older than 90 days</span> ' : ''}${ic.salaryDetected ? `Salary of about <b>${inr(ic.estimatedMonthlyIncome)}</b> a month (seen in ${ic.incomeStabilityPercent}% of months)` : `<b>No regular salary seen.</b> Average money in: ${inr(ic.avgMonthlyCredits)} a month`}
         <div class="muted">${ic.months} months, ${esc(ic.from)} to ${esc(ic.to)}${ic.bank ? ' · ' + esc(ic.bank) : ''} · checked ${date(ic.at)}</div>
         <div class="muted">Loan repayments seen: ${inr(ic.monthlyObligations)} a month · Bounced payments: ${ic.bounces}${ic.avgBalance != null ? ' · Average balance ' + inr(ic.avgBalance) + ' (lowest ' + inr(ic.minBalance) + ')' : ''}${ic.lowBalancePercent ? ' · Under Rs 1,000 on ' + ic.lowBalancePercent + '% of entries' : ''}</div>
         ${e && e.monthlyIncome && ic.estimatedMonthlyIncome ? `<div class="muted">Declared income: ${inr(e.monthlyIncome)} a month</div>` : ''}</div>` : '<div class="muted" style="margin-top:6px">The customer has not shared their bank statements</div>'}</div>
+    <div style="margin-bottom:14px"><b style="font-size:11px;color:var(--muted);text-transform:uppercase">Phones this customer used</b>
+      ${(c.devices || []).length ? (c.devices || []).map(dv => `<div class="muted" style="margin-top:4px">${esc(dv.platform || 'phone')} · app ${esc(dv.appVersion || '?')} · first seen ${date(dv.firstSeenAt)}, last ${date(dv.lastSeenAt)} · ends ${esc(dv.idEnds)}${dv.otherAccounts ? ` · <b style="color:#991B1B">also used by ${dv.otherAccounts} other account(s)</b>` : ''}</div>`).join('') : '<div class="muted" style="margin-top:4px">No phone recorded yet</div>'}</div>
     <b style="font-size:11px;color:var(--muted);text-transform:uppercase">Photo and blink check</b>
     ${s ? `<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;margin-top:8px">
         <div><img id="selfie-before" alt="Photo before the blinks" style="width:150px;height:200px;object-fit:cover;border-radius:10px;background:#e5e7eb"><div class="muted">Before</div></div>
@@ -181,6 +184,16 @@ function setupCard(c) {
           <div class="muted" style="margin-top:6px">Compare the two photos with the person on the Aadhaar record. The blink check runs on the phone, so look at the photos too.</div>
           ${decide ? `<div style="margin-top:10px;display:flex;gap:8px"><button class="btn primary" onclick="selfieDecision('${esc(c.id)}','accept')">Accept photo</button><button class="btn" onclick="selfieDecision('${esc(c.id)}','reject')">Ask them to retake</button></div>` : ''}
         </div></div>` : '<div class="muted" style="margin-top:6px">No photo yet</div>'}</div>`;
+}
+async function verifyBankByHand(id) {
+  const note = prompt('How did you check the account (for example, a cancelled cheque or passbook page)?');
+  if (!note || !note.trim()) return;
+  try {
+    const r = await fetch(API + `/admin/customers/${encodeURIComponent(id)}/bank-verification`, { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify({ note }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) return fail(d.error || 'Could not save');
+    openCustomer(id);
+  } catch (err) { fail(err.message); }
 }
 async function loadSelfie(id) {
   for (const frame of ['before', 'after']) {

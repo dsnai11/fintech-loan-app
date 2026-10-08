@@ -11,6 +11,7 @@ import { sendPlainEmail } from '../services/notificationService.js';
 import { lockedSeconds, recordFailure, recordSuccess, lockMessage } from '../services/loginGuard.js';
 import { isStaffRole, permissionsOf, ensureRoles } from '../services/permissions.js';
 import { checkCode, attach } from '../services/referralService.js';
+import { recordDevice } from '../services/deviceService.js';
 
 // Checked against when the email is unknown, so a wrong email and a wrong password take the same time.
 const DUMMY_HASH = bcrypt.hashSync('not-a-real-password', 10);
@@ -66,6 +67,7 @@ router.post('/signup', async (req, res) => {
     }
     if (process.env.REQUIRE_TERMS !== 'false') await audit({ email: user.email, role: 'customer' }, 'TERMS_ACCEPTED', { type: 'User', id: user._id }, { version: currentVersion(), at: 'signup' }, req);
     const token = generateToken(user._id, user.email);
+    await recordDevice(req, user._id, 'signup');
 
     res.status(201).json({
       message: 'User registered successfully',
@@ -121,6 +123,7 @@ router.post('/login', async (req, res) => {
     const role = user.email === adminEmail ? 'super_admin' : isStaffRole(user.role) ? user.role : 'customer';
     const token = generateToken(user._id, user.email, isAdmin);
     if (isAdmin) await audit({ email: user.email, role: user.email === adminEmail ? 'super_admin' : user.role }, 'ADMIN_LOGIN', { type: 'User', id: user._id }, {}, req);
+    if (!isAdmin) await recordDevice(req, user._id, 'login');
 
     res.json({
       message: 'Login successful',

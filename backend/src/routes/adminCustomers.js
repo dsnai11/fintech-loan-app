@@ -1,4 +1,6 @@
 import { view as incomeView } from '../services/aaService.js';
+import { devicesOf } from '../services/deviceService.js';
+import { view as bankView, markManually } from '../services/bankVerifyService.js';
 import express from 'express';
 import mongoose from 'mongoose';
 import User from '../models/User.js';
@@ -66,6 +68,8 @@ router.get('/:id', async (req, res) => {
         setup: setupStatus(user),
         digilocker: user.kycDigilocker ? { status: user.kycDigilocker.status, mode: user.kycDigilocker.mode, at: user.kycDigilocker.at, nameMatch: user.kycDigilocker.nameMatch, dobMatch: user.kycDigilocker.dobMatch, aadhaarLast4: user.kycDigilocker.aadhaarLast4, panFound: user.kycDigilocker.panFound, flags: user.kycDigilocker.flags || [] } : null,
         incomeCheck: incomeView(user.incomeCheck),
+        bankVerification: bankView(user),
+        devices: await devicesOf(user._id),
         selfie: user.selfie ? { status: user.selfie.status, capturedAt: user.selfie.capturedAt, blinks: user.selfie.blinks, method: user.selfie.method, flag: user.selfie.flag || null, reviewedBy: user.selfie.reviewedBy || null, reviewNote: user.selfie.reviewNote || null } : null,
       },
       summary: {
@@ -85,6 +89,19 @@ router.get('/:id', async (req, res) => {
 });
 
 // The customer's selfie, for the KYC review. Viewing it is logged.
+// Staff confirm the account by hand (for example from a cancelled cheque or a passbook page), with a note
+router.post('/:id/bank-verification', async (req, res) => {
+  try {
+    const note = String(req.body?.note || '').trim();
+    if (!note) return res.status(400).json({ error: 'Write how you checked the account.' });
+    const user = await User.findById(req.params.id);
+    if (!user?.bankAccount?.accountNumber) return res.status(409).json({ error: 'This customer has no bank account saved.' });
+    res.json({ bankVerification: bankView({ ...user.toObject(), bankVerification: await markManually(user, req.user.email, note) }) });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 router.get('/:id/selfie', async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid customer id' });
