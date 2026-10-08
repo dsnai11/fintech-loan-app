@@ -74,11 +74,24 @@ function card(i) {
     <div class="sub">${esc(i.purpose)}</div>
     ${s.note || miss ? `<div class="state ${s.mode}">${esc(s.note || '')}${miss}</div>` : ''}
     ${i.envOnly ? `<div class="env note">Set these in Railway (Variables), not here: ${i.envOnly.map(k => `<code>${esc(k)}</code>`).join(' ')}</div>` : ''}
-    ${i.fields.length ? `<div class="grid">${i.fields.map(f => fieldHtml(i, f)).join('')}</div><div style="margin-top:12px"><button class="btn primary" onclick="save('${i.id}')">Save ${esc(i.label)} settings</button></div>` : ''}
+    ${i.fields.length ? `<div class="grid">${i.fields.map(f => fieldHtml(i, f)).join('')}</div><div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" onclick="save('${i.id}')">Save ${esc(i.label)} settings</button>${i.id === 'push' ? '<button class="btn" onclick="checkPush()">Check push set-up</button>' : ''}</div>${i.id === 'push' ? '<div id="push-report" style="margin-top:12px"></div>' : ''}` : ''}
   </div>`;
 }
 
 let D = null;
+// Tries the connection to Google without sending anything to customers
+async function checkPush() {
+  const box = $('push-report');
+  box.innerHTML = '<div class="note">Checking...</div>';
+  try {
+    const r = await api('/admin/integrations/push-check');
+    const sent = r.lastSend ? `Last send: ${esc(r.lastSend.result)}${r.lastSend.detail ? ' (' + esc(r.lastSend.detail) + ')' : ''} at ${new Date(r.lastSend.at).toLocaleString('en-IN')}` : 'Nothing has been sent since the server last started.';
+    box.innerHTML = `<div class="state ${r.ok ? 'live' : 'misconfigured'}"><b>${r.ok ? 'Everything needed for push is in place.' : 'Something is missing.'}</b></div>` +
+      r.checks.map(c => `<div class="note" style="margin:6px 0"><b style="color:${c.ok ? '#166534' : '#92400E'}">${c.ok ? '✓' : '✕'} ${esc(c.name)}</b> ${esc(c.detail)}</div>`).join('') +
+      `<div class="note" style="margin-top:8px">${sent}</div>` +
+      (r.recent.length ? `<div class="note" style="margin-top:6px">Latest notifications and their push result: ${r.recent.map(n => esc(n.type) + ' → ' + esc(n.push)).join(', ')}</div>` : '');
+  } catch (e) { box.innerHTML = `<div class="state misconfigured">${esc(e.message)}</div>`; }
+}
 async function load() {
   try {
     D = await api('/admin/integrations');

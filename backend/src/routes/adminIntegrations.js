@@ -3,12 +3,25 @@ import { adminMiddleware } from '../middleware/auth.js';
 import { audit } from '../services/auditService.js';
 import { setManyConfig } from '../services/configService.js';
 import { integrationsView, editableKeys } from '../services/integrations.js';
+import { checkSetup } from '../services/pushService.js';
+import Notification from '../models/Notification.js';
 
 // Whether each outside service is live or in test mode, and the settings that switch it over.
 const router = express.Router();
 router.use(adminMiddleware);
 
 router.get('/', (req, res) => res.json(integrationsView()));
+
+// Tests the push connection without sending anything to customers, and shows what happened to the latest notifications
+router.get('/push-check', async (req, res) => {
+  try {
+    const r = await checkSetup();
+    const recent = await Notification.find({}).sort({ createdAt: -1 }).limit(5).select('type channels.push createdAt').lean();
+    res.json({ ...r, recent: recent.map(n => ({ type: n.type, push: n.channels?.push || 'skipped', at: n.createdAt })) });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 
 router.put('/', async (req, res) => {
   try {

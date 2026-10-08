@@ -68,6 +68,9 @@ const ann0 = await pc('POST', '/admin/announcements', padmin, { title: 'Hello', 
 check('an announcement still goes to the notification bell, and no push is attempted', ann0.s === 201 && ann0.d.pushQueued === false && (await Notification.countDocuments({ type: 'ANNOUNCEMENT' })) === 3, JSON.stringify(ann0.d));
 const st0 = await pc('GET', '/admin/integrations', padmin);
 check('the Integrations page shows push as not set up', st0.d.integrations.find(i => i.id === 'push').status.mode === 'off');
+const chk0 = await pc('GET', '/admin/integrations/push-check', padmin);
+check('the portal check says what is missing when nothing is set up', chk0.s === 200 && chk0.d.ok === false && chk0.d.checks[0].ok === false && /Pick fcm/.test(chk0.d.checks[0].detail), JSON.stringify(chk0.d.checks));
+check('customers cannot run the check (403)', (await pc('GET', '/admin/integrations/push-check', ta)).s === 403);
 await plain.stop();
 
 section('FIREBASE CONNECTED');
@@ -80,6 +83,9 @@ check('the app is now told push is available', (await call('GET', '/push/prefere
 await call('POST', '/push/register', ta, { token: DEAD_A, platform: 'ios' });
 await call('POST', '/push/register', tb, { token: TOKEN_B, platform: 'android' });
 check('the announcement form can see how many phones are registered', (await call('GET', '/admin/announcements/count?audience=all', padmin)).d.devices === 2);
+
+const chk1 = await call('GET', '/admin/integrations/push-check', padmin);
+check('with Firebase connected the check passes: key readable, Google accepts it, phones registered', chk1.d.ok === true && chk1.d.checks.map(c => c.name).join() === 'Provider chosen,Settings filled in,Private key is readable,Google accepts the key,Phones registered', JSON.stringify(chk1.d.checks));
 
 section('AN ANNOUNCEMENT AS A PUSH');
 const ann = await call('POST', '/admin/announcements', padmin, { title: 'Festival offer', message: 'Apply this week', audience: 'all', expectedCount: 3, push: true });

@@ -42,6 +42,8 @@ const tokenUrl = () => getConfig('FCM_TOKEN_URL') || 'https://oauth2.googleapis.
 const apiBase = () => getConfig('FCM_API_BASE') || 'https://fcm.googleapis.com';
 
 let cached = { token: null, until: 0 };
+let lastSend = null; // what happened the last time we tried to send: { at, result, detail }
+const remember = (result, detail = '') => { lastSend = { at: new Date().toISOString(), result, detail: String(detail).slice(0, 200) }; };
 
 async function accessToken() {
   if (cached.token && Date.now() < cached.until - 60000) return cached.token;
@@ -74,14 +76,16 @@ async function sendOne(token, { title, body, data }) {
       body: JSON.stringify({ message: { token, notification: { title, body }, data: flatten(data), android: { priority: 'HIGH' }, apns: { payload: { aps: { sound: 'default' } } } } }),
       signal: AbortSignal.timeout(10000),
     });
-    if (res.ok) return 'sent';
+    if (res.ok) { remember('sent'); return 'sent'; }
     const text = await res.text();
-    if (res.status === 404 || /UNREGISTERED|registration-token-not-registered/.test(text)) return 'gone';
+    if (res.status === 404 || /UNREGISTERED|registration-token-not-registered/.test(text)) { remember('gone', 'The phone no longer has the app'); return 'gone'; }
     if (res.status === 401) forgetAccessToken();
     console.error('Push rejected:', res.status, text.slice(0, 160));
+    remember('rejected', `Firebase answered ${res.status}: ${text.replace(/\s+/g, ' ').slice(0, 140)}`);
     return 'failed';
   } catch (e) {
     console.error('Push failed:', e.message);
+    remember('failed', e.message);
     return 'failed';
   }
 }
@@ -128,6 +132,30 @@ export async function registerDevice(userId, { token, platform, appVersion }) {
   // keep only the newest few
   const all = await DeviceToken.find({ userId }).sort({ lastSeenAt: -1 }).select('_id');
   if (all.length > MAX_DEVICES) await DeviceToken.deleteMany({ _id: { $in: all.slice(MAX_DEVICES).map(d => d._id) } });
+}
+
+// For the portal's "Check push set-up": tries the connection to Google without sending anything to anyone.
+export async function checkSetup() {
+  const checks = [];
+  const add = (name, ok, detail) => checks.push({ name, ok, detail });
+  const p = providerName();
+  add('Provider chosen', p === PROVIDER, p === PROVIDER ? 'fcm' : p ? `"${p}" is not a push provider here. Choose fcm.` : 'No provider is chosen. Pick fcm and save.');
+  const missing = missingSettings();
+  add('Settings filled in', p === PROVIDER && !missing.length, missing.length ? `Missing: ${missing.join(', ')}` : p === PROVIDER ? `Project ${getConfig('FCM_PROJECT_ID')}` : 'Choose the provider first');
+  let keyOk = false;
+  if (p === PROVIDER && !missing.length) {
+    const key = String(getConfig('FCM_PRIVATE_KEY')).replace(/\\n/g, '\n');
+    try { crypto.createPrivateKey(key); keyOk = true; } catch (e) { keyOk = false; }
+    add('Private key is readable', keyOk, keyOk ? 'The key text is complete and well formed' : 'The key text is not a complete private key. Paste everything from -----BEGIN PRIVATE KEY----- to -----END PRIVATE KEY-----, including both lines.');
+  }
+  if (keyOk) {
+    try { forgetAccessToken(); await accessToken(); add('Google accepts the key', true, 'Google gave us permission to send. The email, project and key match.'); }
+    catch (e) { add('Google accepts the key', false, `${e.message}. The email or key may be wrong, or the key was deleted in Firebase. Create a new key and paste it again.`); }
+  }
+  const phones = await DeviceToken.countDocuments();
+  const people = (await DeviceToken.distinct('userId')).length;
+  add('Phones registered', phones > 0, phones ? `${phones} phone(s) for ${people} customer(s)` : 'No phone has registered yet. On the phone: install the newest app, sign in, open Profile, Notifications, and tap "Turn on notifications".');
+  return { ok: checks.every(c => c.ok), checks, lastSend, platforms: await DeviceToken.aggregate([{ $group: { _id: '$platform', n: { $sum: 1 } } }]) };
 }
 
 export const unregisterDevice = (userId, token) => DeviceToken.deleteOne({ userId, token });
