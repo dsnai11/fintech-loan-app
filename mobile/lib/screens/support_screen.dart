@@ -48,6 +48,7 @@ class _SupportScreenState extends State<SupportScreen> {
       final a = await context.read<ApiService>().getAssistantInfo();
       if (mounted) setState(() => _assistant = a);
     } catch (_) {} // without it the screen works as before, with no assistant
+  }
 
   @override
   void dispose() {
