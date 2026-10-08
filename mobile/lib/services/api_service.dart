@@ -241,6 +241,23 @@ class ApiService {
     }
   }
 
+  // The home screen's branding and the offer banners meant for this customer
+  Future<Map<String, dynamic>> getHomeContent() async {
+    try {
+      final response = await _dio.get('/app-home');
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  // Tells the company a banner was shown or tapped (for the counts in the portal). Never blocks the screen.
+  Future<void> sendBannerEvent(String id, String type) async {
+    try {
+      await _dio.post('/app-home/event', data: {'id': id, 'type': type});
+    } catch (_) {}
+  }
+
   // Messages with the support team
   Future<Map<String, dynamic>?> getSupportThread() async {
     try {

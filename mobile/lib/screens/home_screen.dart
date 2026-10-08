@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../widgets/home_banners.dart';
 import '../services/auth_service.dart';
 import '../services/api_service.dart';
 import '../services/app_settings.dart';
@@ -31,6 +34,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Map<String, dynamic>? _myOffer; // the offer from the customer's credit check, if still valid
   bool _phoneUnverified = false;
   Map<String, dynamic>? _setup; // what is still to do in the account set-up
+  Map<String, dynamic>? _home; // branding and offer banners from the web portal
   Map<String, dynamic>? _loan; // the loan that matters right now, if any
   List<Map<String, dynamic>> _emis = [];
 
@@ -42,7 +46,47 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _refresh() async {
-    await Future.wait([_loadPricing(), _loadPhoneStatus(), _loadLoan()]);
+    await Future.wait([_loadPricing(), _loadPhoneStatus(), _loadLoan(), _loadHome()]);
+  }
+
+  Future<void> _loadHome() async {
+    try {
+      final h = await context.read<ApiService>().getHomeContent();
+      if (mounted) setState(() => _home = h);
+    } catch (_) {} // without it the screen simply shows no banners and the standard header
+  }
+
+  // What a banner's button does
+  Future<void> _bannerAction(String action, String url) async {
+    switch (action) {
+      case 'apply':
+        _apply('personal', 'Personal Loan');
+        break;
+      case 'calculator':
+        Navigator.of(context).push(MaterialPageRoute(builder: (_) => const EmiCalculatorScreen()));
+        break;
+      case 'loans':
+        widget.onOpenTab?.call(1);
+        break;
+      case 'messages':
+        if (context.read<AppSettings>().support) {
+          widget.onOpenTab?.call(2);
+        } else {
+          Navigator.of(context).push(MaterialPageRoute(builder: (_) => const HelpScreen()));
+        }
+        break;
+      case 'help':
+        Navigator.of(context).push(MaterialPageRoute(builder: (_) => const HelpScreen()));
+        break;
+      case 'url':
+        final uri = Uri.tryParse(url);
+        if (uri != null && uri.scheme == 'https') {
+          try {
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+          } catch (_) {}
+        }
+        break;
+    }
   }
 
   Future<void> _loadPricing() async {
@@ -107,38 +151,77 @@ class _HomeScreenState extends State<HomeScreen> {
     final settings = context.watch<AppSettings>();
     final user = context.watch<AuthService>().user;
     final first = (user?['firstName'] ?? '').toString().trim();
-    return Scaffold(
-      backgroundColor: kBg,
-      body: SafeArea(
-        bottom: false,
-        child: RefreshIndicator(
-          color: kNavy,
-          onRefresh: _refresh,
-          child: ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
-            children: [
-              _topBar(first),
-              const SizedBox(height: 18),
-              if (_phoneUnverified) _verifyPhoneCard(),
-              if (_setup != null && !setupComplete(_setup)) _setupCard(),
-              if (settings.banner != null) _banner(settings.banner!),
-              _hero(settings),
-              const SizedBox(height: 18),
-              if (_loan != null) ...[_loanCard(_loan!), const SizedBox(height: 18)],
-              _shortcuts(settings),
-              const SizedBox(height: 22),
-              _section('Loan offers'),
-              const SizedBox(height: 10),
-              if (settings.products.isEmpty)
-                _offerCard('Personal Loan', _productLine({'key': 'personal', 'maxAmount': _pricing?['maxAmount'], 'description': ''}), () => _apply('personal', 'Personal Loan')),
-              for (final p in settings.products)
-                _offerCard((p['name'] ?? '').toString(), _productLine(p), () => _apply((p['key'] ?? 'personal').toString(), (p['name'] ?? 'Personal Loan').toString())),
-              const SizedBox(height: 22),
-              _howItWorks(),
-              const SizedBox(height: 22),
-              _footer(),
-            ],
+    final brand = _home?['brand'] is Map ? Map<String, dynamic>.from(_home!['brand'] as Map) : null;
+    final banners = (_home?['banners'] is List) ? (_home!['banners'] as List).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList() : <Map<String, dynamic>>[];
+    final autoplay = (_home?['carousel'] is Map) ? (((_home!['carousel'] as Map)['autoplaySeconds'] as num?) ?? 4).toInt() : 4;
+    final serverTime = DateTime.tryParse('${_home?['serverTime']}') ?? DateTime.now();
+    final top = brandColors(brand, kNavy, const Color(0xFF9B1B30)).first;
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle(statusBarColor: top, statusBarIconBrightness: Brightness.light, statusBarBrightness: Brightness.dark),
+      child: Scaffold(
+        backgroundColor: kBg,
+        body: SafeArea(
+          bottom: false,
+          child: RefreshIndicator(
+            color: kNavy,
+            onRefresh: _refresh,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: EdgeInsets.zero,
+              children: [
+                BrandHeader(
+                  first: first,
+                  brand: brand,
+                  trailing: const NotificationBell(),
+                  logo: Image.asset('assets/images/lifc_logo.jpg', fit: BoxFit.contain),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (_phoneUnverified) _verifyPhoneCard(),
+                      if (_setup != null && !setupComplete(_setup)) _setupCard(),
+                      if (settings.banner != null) _banner(settings.banner!),
+                      _hero(settings),
+                    ],
+                  ),
+                ),
+                if (banners.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  OfferBanners(
+                    key: ValueKey(banners.map((b) => b['id']).join(',')),
+                    banners: banners,
+                    brand: brand,
+                    autoplaySeconds: autoplay,
+                    serverTime: serverTime,
+                    onAction: _bannerAction,
+                    onEvent: (id, type) => context.read<ApiService>().sendBannerEvent(id, type),
+                  ),
+                ],
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (_loan != null) ...[_loanCard(_loan!), const SizedBox(height: 18)],
+                      _shortcuts(settings),
+                      const SizedBox(height: 22),
+                      _section('Loan offers'),
+                      const SizedBox(height: 10),
+                      if (settings.products.isEmpty)
+                        _offerCard('Personal Loan', _productLine({'key': 'personal', 'maxAmount': _pricing?['maxAmount'], 'description': ''}), () => _apply('personal', 'Personal Loan')),
+                      for (final p in settings.products)
+                        _offerCard((p['name'] ?? '').toString(), _productLine(p), () => _apply((p['key'] ?? 'personal').toString(), (p['name'] ?? 'Personal Loan').toString())),
+                      const SizedBox(height: 22),
+                      _howItWorks(),
+                      const SizedBox(height: 22),
+                      _footer(),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -146,25 +229,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ── Pieces ────────────────────────────────────────────────────────────────
-
-  Widget _topBar(String first) {
-    return Row(
-      children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(10),
-          child: Image.asset('assets/images/lifc_logo.jpg', height: 40, width: 40, fit: BoxFit.contain),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Hi, ${first.isEmpty ? 'there' : first}', style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: Color(0xFF111827))),
-            const Text('Laxmi India Finance', style: TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
-          ]),
-        ),
-        const NotificationBell(),
-      ],
-    );
-  }
 
   Widget _section(String title) => Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF111827)));
 

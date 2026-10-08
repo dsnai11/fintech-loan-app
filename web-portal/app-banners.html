@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%8E%81%3C/text%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Offers and branding - LIFC Admin</title>
+<style>
+* { box-sizing: border-box; }
+.card { padding: 16px; margin-bottom: 14px; }
+.card h2 { margin: 0 0 4px; }
+.sub { font-size: 12px; color: var(--e-muted); margin-bottom: 12px; line-height: 1.5; }
+.note { font-size: 12px; color: var(--e-muted); }
+.alert { display: none; padding: 12px 16px; margin-bottom: 14px; white-space: pre-line; }
+.alert.show { display: block; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; align-items: end; }
+.grid input, .grid select, .full { width: 100%; }
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 18px; align-items: start; }
+@media (max-width: 1100px) { .layout { grid-template-columns: minmax(0, 1fr); } .previewcol { position: static !important; } }
+.previewcol { position: sticky; top: 14px; }
+.tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+.tabs button { border: 1px solid var(--e-border); background: var(--e-surface); color: var(--e-text); padding: 8px 14px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px; }
+.tabs button.on { background: var(--e-primary); color: #fff; border-color: var(--e-primary); }
+.bn { border: 1px solid var(--e-border); border-radius: 10px; padding: 14px; margin-bottom: 12px; background: var(--e-surface-2); }
+.bn.sel { border-color: var(--e-primary); box-shadow: 0 0 0 2px var(--e-primary-soft); }
+.bn-head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.bn-head .sw { width: 38px; height: 26px; border-radius: 7px; flex: none; }
+.bn-head b { flex: 1; min-width: 140px; font-size: 14px; overflow-wrap: anywhere; }
+.stat { font-size: 12px; color: var(--e-muted); }
+.row { display: flex; gap: 6px; flex-wrap: wrap; }
+.row .btn { padding: 5px 9px; font-size: 12px; }
+.chk { display: flex; gap: 8px; align-items: center; margin: 0; font-weight: 500; }
+.bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; position: sticky; bottom: 0; background: var(--e-bg); padding: 12px 0; z-index: 3; }
+.tpl { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.tpl select { min-width: 220px; }
+.trow { display: flex; gap: 8px; margin-bottom: 8px; }
+.trow input { flex: 1; min-width: 0; }
+.warnbox { background: var(--e-warn-soft); color: var(--e-warn); border-radius: 8px; padding: 10px 14px; font-size: 12.5px; line-height: 1.5; margin-bottom: 14px; }
+
+/* the phone preview */
+.phone { width: 320px; max-width: 100%; margin: 0 auto; border: 8px solid #111827; border-radius: 34px; background: #F4F5F7; overflow: hidden; box-shadow: 0 12px 30px rgba(0,0,0,.25); color: #111827; }
+.ph-top { padding: 16px 16px 14px; color: #fff; position: relative; overflow: hidden; }
+.ph-top .hi { font-size: 17px; font-weight: 800; position: relative; }
+.ph-top .tg { font-size: 12px; opacity: .85; position: relative; }
+.ph-top .reg { font-size: 10px; opacity: .7; position: relative; margin-top: 2px; }
+.orb { position: absolute; border-radius: 50%; background: rgba(255,255,255,.10); animation: drift 7s ease-in-out infinite; }
+.ph-body { padding: 12px; }
+.trust { display: flex; gap: 6px; margin-bottom: 12px; overflow: hidden; }
+.trust span { flex: 1; background: #fff; border-radius: 10px; padding: 7px 6px; font-size: 9.5px; text-align: center; line-height: 1.25; color: #374151; font-weight: 600; }
+.slide { position: relative; overflow: hidden; border-radius: 18px; padding: 16px; color: #fff; min-height: 150px; display: flex; flex-direction: column; justify-content: center; }
+.slide .tag { align-self: flex-start; font-size: 9.5px; font-weight: 800; letter-spacing: .08em; background: rgba(255,255,255,.22); padding: 3px 8px; border-radius: 20px; margin-bottom: 8px; position: relative; }
+.slide h4 { margin: 0 0 4px; font-size: 18px; line-height: 1.2; position: relative; padding-right: 54px; overflow-wrap: anywhere; }
+.slide p { margin: 0 0 12px; font-size: 12px; opacity: .92; line-height: 1.4; position: relative; padding-right: 40px; overflow-wrap: anywhere; }
+.slide .ico { position: absolute; right: 14px; top: 14px; width: 46px; height: 46px; border-radius: 14px; background: rgba(255,255,255,.2); display: grid; place-items: center; font-size: 24px; }
+.slide .cta { align-self: flex-start; background: #fff; color: #111827; border: 0; border-radius: 10px; padding: 8px 14px; font-weight: 800; font-size: 12px; position: relative; }
+.slide .cd { position: absolute; right: 12px; bottom: 12px; background: rgba(0,0,0,.28); border-radius: 8px; padding: 4px 8px; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.slide.an-shimmer::after { content: ''; position: absolute; inset: 0; background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,.38) 50%, transparent 70%); transform: translateX(-100%); animation: shm 2.6s ease-in-out infinite; pointer-events: none; }
+.slide.an-pulse .cta { animation: pls 1.5s ease-in-out infinite; }
+.slide.an-float .ico { animation: flt 2.4s ease-in-out infinite; }
+.slide .conf i { position: absolute; top: -10px; width: 7px; height: 11px; border-radius: 2px; opacity: .9; animation: fall 3.2s linear infinite; }
+.dots { display: flex; gap: 6px; justify-content: center; margin: 10px 0 2px; }
+.dots b { width: 7px; height: 7px; border-radius: 50%; background: #D1D5DB; cursor: pointer; }
+.dots b.on { width: 18px; border-radius: 4px; background: #111827; }
+.fake { background: #fff; border-radius: 14px; padding: 12px; margin-top: 10px; font-size: 12px; color: #6B7280; }
+.fake b { display: block; color: #111827; font-size: 13px; margin-bottom: 2px; }
+@keyframes shm { 0% { transform: translateX(-100%); } 60%, 100% { transform: translateX(100%); } }
+@keyframes pls { 0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255,255,255,.7); } 50% { transform: scale(1.06); box-shadow: 0 0 0 9px rgba(255,255,255,0); } }
+@keyframes flt { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-7px) rotate(3deg); } }
+@keyframes fall { 0% { transform: translateY(0) rotate(0); opacity: 0; } 10% { opacity: .9; } 100% { transform: translateY(190px) rotate(360deg); opacity: 0; } }
+@keyframes drift { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(14px, 8px); } }
+@media (prefers-reduced-motion: reduce) { .slide *, .slide::after, .orb { animation: none !important; } .slide::after { display: none; } }
+</style>
+<link rel="stylesheet" href="assets/portal.css">
+</head>
+<body data-shell="app" data-title="Offers and branding" data-sub="The live, animated offer banners and company branding on the customer app's home screen.">
+<div class="container">
+  <div id="alert" class="alert" role="alert"></div>
+  <div class="warnbox"><b>Before you publish an offer:</b> every claim in a banner must be true for every customer who can see it. Do not promise approval, an interest rate or a limit unless the Pricing and Decisions pages really give it. Your compliance team should approve the wording. All changes are recorded in the audit log.</div>
+  <div class="tabs" role="tablist">
+    <button id="tab-banners" class="on" onclick="tab('banners')">Offer banners</button>
+    <button id="tab-brand" onclick="tab('brand')">Branding</button>
+  </div>
+  <div class="layout">
+    <div>
+      <div id="pane-banners"></div>
+      <div id="pane-brand" style="display:none"></div>
+    </div>
+    <div class="previewcol">
+      <div class="note" style="text-align:center;margin-bottom:8px">Live preview (the sample customer is “Asha” with a ₹50,000 offer)</div>
+      <div class="phone" id="phone"></div>
+      <label class="chk" style="justify-content:center;margin-top:10px"><input type="checkbox" id="rotate" onchange="setRotate()"> Rotate the banners like the app does</label>
+    </div>
+  </div>
+  <div class="bar"><button class="btn primary" id="save" onclick="save()">Save and publish</button><span class="note" id="saved">Customers see changes the next time their home screen loads.</span></div>
+</div>
+
+<script>
+const API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
+const token = localStorage.getItem('admin_token');
+if (!token) location.href = 'admin-config.html';
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+let H = null, STATS = {}, sel = 0, timer = null, ticker = null;
+
+const THEMES = { brand: 'Company colours', sunrise: 'Sunrise', ocean: 'Ocean', emerald: 'Emerald', royal: 'Royal', gold: 'Gold', midnight: 'Midnight', custom: 'My own colours' };
+const GRAD = { sunrise: ['#F97316', '#DB2777'], ocean: ['#2563EB', '#0891B2'], emerald: ['#059669', '#0D9488'], royal: ['#7C3AED', '#4338CA'], gold: ['#D97706', '#92400E'], midnight: ['#1F2937', '#0B1220'] };
+const ICONS = { rupee: ['₹', 'Rupee'], gift: ['🎁', 'Gift'], bolt: ['⚡', 'Lightning'], star: ['⭐', 'Star'], shield: ['🛡️', 'Shield'], clock: ['⏰', 'Clock'], rocket: ['🚀', 'Rocket'], heart: ['❤️', 'Heart'], calendar: ['📅', 'Calendar'], party: ['🎉', 'Party'] };
+const ANIMS = { none: 'None', shimmer: 'Shimmer (a light sweeps across)', pulse: 'Pulse (the button glows)', float: 'Float (the icon bobs)', confetti: 'Confetti' };
+const ACTIONS = { none: 'Nothing (information only)', apply: 'Start a loan application', calculator: 'Open the EMI calculator', loans: 'Open My loans', messages: 'Open Messages', help: 'Open Help', url: 'Open a web page' };
+const AUDS = { all: 'Everyone', new: 'New customers (no loan yet)', repeat: 'Repeat customers (repaid a loan)', has_loan: 'Customers with a loan running', no_loan: 'Customers with no loan running' };
+const TRUST = { receipt: 'Receipt', lock: 'Lock', check: 'Tick', shield: 'Shield', bolt: 'Lightning', heart: 'Heart', star: 'Star' };
+const TRUST_EMOJI = { receipt: '🧾', lock: '🔒', check: '✅', shield: '🛡️', bolt: '⚡', heart: '❤️', star: '⭐' };
+
+const inDays = n => new Date(Date.now() + n * 864e5).toISOString();
+const TEMPLATES = {
+  welcome: { title: 'Welcome, {{name}}', subtitle: 'Finish your set-up to see your loan offer.', badge: 'WELCOME', theme: 'brand', icon: 'rocket', animation: 'shimmer', audience: 'new', cta: { text: 'Check your offer', action: 'apply', url: '' } },
+  offer: { title: 'Your offer: {{offer}}', subtitle: 'Every charge is shown before you accept.', badge: 'JUST FOR YOU', theme: 'emerald', icon: 'rupee', animation: 'pulse', audience: 'all', cta: { text: 'Get your loan', action: 'apply', url: '' } },
+  festive: { title: 'Festival season, made easier', subtitle: 'Quick personal loans with every charge shown first.', badge: 'LIMITED TIME', theme: 'sunrise', icon: 'party', animation: 'confetti', audience: 'all', showCountdown: true, endsAt: 'in7', cta: { text: 'Apply now', action: 'apply', url: '' } },
+  ontime: { title: 'Pay on time, borrow better', subtitle: 'Repaying on time can help you get a higher limit next time.', badge: 'GOOD TO KNOW', theme: 'royal', icon: 'star', animation: 'float', audience: 'has_loan', cta: { text: 'View my loan', action: 'loans', url: '' } },
+  back: { title: 'Welcome back, {{name}}', subtitle: 'Apply for another loan whenever you need one.', badge: 'WELCOME BACK', theme: 'ocean', icon: 'heart', animation: 'shimmer', audience: 'repeat', cta: { text: 'Apply again', action: 'apply', url: '' } },
+  help: { title: 'Questions? Message us', subtitle: 'Our team replies right here in the app.', badge: 'WE HELP', theme: 'midnight', icon: 'shield', animation: 'none', audience: 'all', cta: { text: 'Message us', action: 'messages', url: '' } },
+};
+
+function msg(text, kind) {
+  const a = $('alert'); a.textContent = text; a.className = 'alert show ' + (kind === 'ok' ? 'ok' : 'err');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+async function api(path, method = 'GET', body) {
+  const r = await fetch(API + path, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.errors ? d.errors.join('\n') : d.error || 'Something went wrong');
+  return d;
+}
+
+function tab(t) {
+  for (const k of ['banners', 'brand']) { $('pane-' + k).style.display = k === t ? '' : 'none'; $('tab-' + k).classList.toggle('on', k === t); }
+}
+
+async function load() {
+  try {
+    const d = await api('/app-home/admin');
+    H = d.home; STATS = d.stats || {};
+    renderAll();
+  } catch (e) { msg(e.message, 'err'); }
+}
+
+// ── helpers ──────────────────────────────────────────────────────────────
+const grad = b => {
+  const g = b.theme === 'custom' ? [b.color1 || '#374151', b.color2 || '#111827'] : b.theme === 'brand' ? [H.brand.primaryColor, H.brand.secondaryColor] : GRAD[b.theme] || GRAD.sunrise;
+  return `linear-gradient(135deg, ${g[0]}, ${g[1]})`;
+};
+const toLocal = iso => { if (!iso) return ''; const d = new Date(iso); const p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
+const fromLocal = v => (v ? new Date(v).toISOString() : '');
+const fill = s => String(s || '').replace(/\{\{\s*name\s*\}\}/g, 'Asha').replace(/\{\{\s*offer\s*\}\}/g, '₹50,000').replace(/\{\{\s*maxLoan\s*\}\}/g, '₹5,00,000');
+function setPath(o, path, v) { const ks = path.split('.'); while (ks.length > 1) o = o[ks.shift()]; o[ks[0]] = v; }
+function opts(map, cur) { return Object.entries(map).map(([k, v]) => `<option value="${esc(k)}" ${k === cur ? 'selected' : ''}>${esc(Array.isArray(v) ? v[1] : v)}</option>`).join(''); }
+
+// ── banner editor ────────────────────────────────────────────────────────
+function bannerCard(b, i) {
+  const st = STATS[b.id], ctr = st && st.views ? (100 * st.clicks / st.views).toFixed(1) + '%' : '–';
+  const f = (k, v) => `data-i="${i}" data-k="${k}" value="${esc(v)}"`;
+  return `<div class="bn ${i === sel ? 'sel' : ''}" onclick="pin(${i})">
+    <div class="bn-head"><span class="sw" style="background:${grad(b)}"></span><b>${esc(b.title || 'New banner')}</b>
+      <span class="stat">${st ? `${st.views} views · ${st.clicks} taps · ${ctr} (30 days)` : 'No views yet'}</span>
+      <label class="chk"><input type="checkbox" ${b.enabled ? 'checked' : ''} data-i="${i}" data-k="enabled" data-t="bool" oninput="edit(event)"> On</label>
+      <span class="row"><button class="btn" onclick="move(${i},-1)" aria-label="Move up">↑</button><button class="btn" onclick="move(${i},1)" aria-label="Move down">↓</button><button class="btn" onclick="dup(${i})">Copy</button><button class="btn danger" onclick="removeB(${i})">Remove</button></span></div>
+    <div class="grid">
+      <div style="grid-column: span 2"><label>Headline (up to 60)</label><input maxlength="60" ${f('title', b.title)} oninput="edit(event)"></div>
+      <div><label>Small tag, like LIMITED TIME</label><input maxlength="20" ${f('badge', b.badge)} oninput="edit(event)"></div>
+      <div style="grid-column: 1 / -1"><label>Line below the headline (up to 140)</label><input maxlength="140" class="full" ${f('subtitle', b.subtitle)} oninput="edit(event)"></div>
+      <div><label>Look</label><select data-i="${i}" data-k="theme" onchange="edit(event, true)">${opts(THEMES, b.theme)}</select></div>
+      ${b.theme === 'custom' ? `<div><label>Colour 1</label><input type="color" ${f('color1', b.color1 || '#374151')} oninput="edit(event)"></div><div><label>Colour 2</label><input type="color" ${f('color2', b.color2 || '#111827')} oninput="edit(event)"></div>` : ''}
+      <div><label>Icon</label><select data-i="${i}" data-k="icon" onchange="edit(event)">${opts(ICONS, b.icon)}</select></div>
+      <div><label>Animation</label><select data-i="${i}" data-k="animation" onchange="edit(event)">${opts(ANIMS, b.animation)}</select></div>
+      <div><label>Button text</label><input maxlength="24" ${f('cta.text', b.cta.text)} oninput="edit(event)"></div>
+      <div><label>Button does</label><select data-i="${i}" data-k="cta.action" onchange="edit(event, true)">${opts(ACTIONS, b.cta.action)}</select></div>
+      ${b.cta.action === 'url' ? `<div style="grid-column: span 2"><label>Web address (https://)</label><input class="full" ${f('cta.url', b.cta.url)} oninput="edit(event)" placeholder="https://"></div>` : ''}
+      <div><label>Shown to</label><select data-i="${i}" data-k="audience" onchange="edit(event)">${opts(AUDS, b.audience)}</select></div>
+      <div><label>Starts (optional)</label><input type="datetime-local" data-i="${i}" data-k="startsAt" data-t="date" value="${esc(toLocal(b.startsAt))}" oninput="edit(event)"></div>
+      <div><label>Ends (optional)</label><input type="datetime-local" data-i="${i}" data-k="endsAt" data-t="date" value="${esc(toLocal(b.endsAt))}" oninput="edit(event)"></div>
+      <div><label class="chk"><input type="checkbox" ${b.showCountdown ? 'checked' : ''} data-i="${i}" data-k="showCountdown" data-t="bool" oninput="edit(event)"> Show a live countdown to the end</label></div>
+      <div style="grid-column: span 2"><label>Picture link (optional, https://)</label><input class="full" ${f('imageUrl', b.imageUrl)} oninput="edit(event)" placeholder="a picture shown behind the text"></div>
+    </div>
+    <div class="note" style="margin-top:8px">You can put <code>{{name}}</code>, <code>{{offer}}</code> (the customer's own offer) or <code>{{maxLoan}}</code> in the text. A banner using <code>{{offer}}</code> is simply skipped for customers who have no offer.</div>
+  </div>`;
+}
+
+function renderBanners() {
+  $('pane-banners').innerHTML = `<div class="card"><h2>Offer banners</h2>
+    <div class="sub">These slide across the top of the customer's home screen, in this order. Switch one off, or set dates, to stop it showing. Rotation speed is on the Branding tab.</div>
+    <div class="tpl" style="margin-bottom:14px"><button class="btn primary" onclick="addB()">Add a banner</button>
+      <select id="tpl"><option value="">Start from a ready-made one…</option><option value="welcome">Welcome (new customers)</option><option value="offer">Your personal offer</option><option value="festive">Festive offer with countdown</option><option value="ontime">Pay on time</option><option value="back">Welcome back (repeat customers)</option><option value="help">Need help? Message us</option></select>
+      <button class="btn" onclick="addB($('tpl').value)">Add</button></div>
+    ${H.banners.length ? H.banners.map(bannerCard).join('') : '<div class="note">No banners yet. Add one above and watch the preview.</div>'}</div>`;
+}
+
+function renderBrand() {
+  const b = H.brand;
+  $('pane-brand').innerHTML = `<div class="card"><h2>Company branding</h2>
+    <div class="sub">The colours and words around the top of the home screen. The company name and registration number come from the Pricing page, so they always match your legal details.</div>
+    <div class="grid">
+      <div style="grid-column: 1 / -1"><label>Tagline under the greeting (up to 80)</label><input class="full" maxlength="80" value="${esc(b.tagline)}" data-b="tagline" oninput="editBrand(event)"></div>
+      <div><label>Main colour</label><input type="color" value="${esc(b.primaryColor)}" data-b="primaryColor" oninput="editBrand(event)"></div>
+      <div><label>Second colour</label><input type="color" value="${esc(b.secondaryColor)}" data-b="secondaryColor" oninput="editBrand(event)"></div>
+      <div><label>Banner rotation (seconds, 0 = off)</label><input type="number" min="0" max="30" value="${esc(H.carousel.autoplaySeconds)}" data-c="autoplaySeconds" oninput="editBrand(event)"></div>
+    </div>
+    <div style="margin-top:12px;display:grid;gap:8px">
+      <label class="chk"><input type="checkbox" ${b.heroAnimation ? 'checked' : ''} data-b="heroAnimation" data-t="bool" oninput="editBrand(event)"> Soft moving shapes behind the greeting</label>
+      <label class="chk"><input type="checkbox" ${b.showRegistration ? 'checked' : ''} data-b="showRegistration" data-t="bool" oninput="editBrand(event)"> Show the NBFC registration number under the company name (only shown if it is filled in on the Pricing page)</label>
+    </div></div>
+  <div class="card"><h2>Trust strip</h2>
+    <div class="sub">Up to four short points shown in a row under the greeting. Only say things that are true and that your compliance team has agreed to.</div>
+    <div id="trust">${b.trustStrip.map((t, i) => `<div class="trow"><select data-ti="${i}" data-k="icon" onchange="editTrust(event)">${opts(TRUST, t.icon)}</select><input maxlength="40" value="${esc(t.text)}" data-ti="${i}" data-k="text" oninput="editTrust(event)"><button class="btn danger" onclick="delTrust(${i})">Remove</button></div>`).join('')}</div>
+    ${b.trustStrip.length < 4 ? '<button class="btn" onclick="addTrust()">Add a point</button>' : ''}</div>`;
+}
+
+function renderAll() { renderBanners(); renderBrand(); drawPhone(); }
+
+function edit(e, rerender) {
+  const el = e.target, i = +el.dataset.i, k = el.dataset.k;
+  const v = el.dataset.t === 'bool' ? el.checked : el.dataset.t === 'date' ? fromLocal(el.value) : el.value;
+  setPath(H.banners[i], k, v);
+  sel = i;
+  if (rerender) renderBanners(); else if (k === 'title') el.closest('.bn').querySelector('b').textContent = v || 'New banner';
+  if (k === 'theme' || k === 'color1' || k === 'color2') { const sw = el.closest('.bn').querySelector('.sw'); if (sw) sw.style.background = grad(H.banners[i]); }
+  drawPhone();
+}
+function editBrand(e) {
+  const el = e.target;
+  const v = el.dataset.t === 'bool' ? el.checked : el.value;
+  if (el.dataset.c) H.carousel[el.dataset.c] = v === '' ? 0 : Number(v); else H.brand[el.dataset.b] = v;
+  renderBannersSwatches(); drawPhone();
+}
+function renderBannersSwatches() { document.querySelectorAll('#pane-banners .bn').forEach((c, i) => { const sw = c.querySelector('.sw'); if (sw && H.banners[i]) sw.style.background = grad(H.banners[i]); }); }
+function editTrust(e) { const el = e.target; H.brand.trustStrip[+el.dataset.ti][el.dataset.k] = el.value; drawPhone(); }
+function addTrust() { H.brand.trustStrip.push({ icon: 'check', text: '' }); renderBrand(); drawPhone(); }
+function delTrust(i) { H.brand.trustStrip.splice(i, 1); renderBrand(); drawPhone(); }
+
+function pin(i) { if (sel !== i) { sel = i; document.querySelectorAll('#pane-banners .bn').forEach((c, j) => c.classList.toggle('sel', j === i)); drawPhone(); } }
+function addB(tpl) {
+  const t = tpl ? JSON.parse(JSON.stringify(TEMPLATES[tpl])) : { title: 'New offer', subtitle: '', badge: '', theme: 'brand', icon: 'rupee', animation: 'shimmer', audience: 'all', cta: { text: 'Apply now', action: 'apply', url: '' } };
+  if (t.endsAt === 'in7') t.endsAt = inDays(7);
+  if (H.banners.length >= 12) return msg('You can have up to 12 banners.', 'err');
+  H.banners.push({ id: 'b' + Date.now().toString(36), enabled: true, color1: '', color2: '', startsAt: '', endsAt: '', showCountdown: false, imageUrl: '', ...t });
+  sel = H.banners.length - 1; renderAll();
+}
+function dup(i) { const c = JSON.parse(JSON.stringify(H.banners[i])); c.id = 'b' + Date.now().toString(36); c.title = (c.title + ' copy').slice(0, 60); H.banners.splice(i + 1, 0, c); sel = i + 1; renderAll(); }
+function removeB(i) { if (!confirm('Remove this banner? Its view and tap counts stay in the records.')) return; H.banners.splice(i, 1); sel = Math.max(0, Math.min(sel, H.banners.length - 1)); renderAll(); }
+function move(i, d) { const j = i + d; if (j < 0 || j >= H.banners.length) return; [H.banners[i], H.banners[j]] = [H.banners[j], H.banners[i]]; sel = j; renderAll(); }
+
+// ── the phone preview ────────────────────────────────────────────────────
+const CONF = ['#FBBF24', '#F472B6', '#34D399', '#60A5FA', '#fff', '#F87171'];
+function slideHtml(b) {
+  const conf = b.animation === 'confetti' ? `<div class="conf">${Array.from({ length: 16 }, (_, n) => `<i style="left:${(n * 6.3 + 3) % 98}%;background:${CONF[n % CONF.length]};animation-delay:${(n % 8) * 0.4}s;animation-duration:${2.6 + (n % 5) * 0.4}s"></i>`).join('')}</div>` : '';
+  const bg = b.imageUrl ? `background:linear-gradient(rgba(0,0,0,.35),rgba(0,0,0,.35)),url('${esc(b.imageUrl.replace(/['")\\]/g, ''))}') center/cover,${grad(b)}` : `background:${grad(b)}`;
+  return `<div class="slide an-${esc(b.animation)}" style="${bg}">${conf}
+    ${b.badge ? `<span class="tag">${esc(b.badge)}</span>` : ''}
+    <span class="ico">${ICONS[b.icon] ? ICONS[b.icon][0] : '₹'}</span>
+    <h4>${esc(fill(b.title))}</h4>${b.subtitle ? `<p>${esc(fill(b.subtitle))}</p>` : ''}
+    ${b.cta.text && b.cta.action !== 'none' ? `<button class="cta" type="button">${esc(b.cta.text)}</button>` : ''}
+    ${b.showCountdown && b.endsAt ? `<span class="cd" data-end="${esc(b.endsAt)}"></span>` : ''}</div>`;
+}
+let rot = 0;
+function drawPhone() {
+  if (!H) return;
+  const br = H.brand, on = H.banners.filter(b => b.enabled);
+  const cur = H.banners[sel] && H.banners[sel].enabled ? H.banners[sel] : on[0];
+  const orbs = br.heroAnimation ? '<i class="orb" style="width:90px;height:90px;right:-20px;top:-30px"></i><i class="orb" style="width:50px;height:50px;right:70px;bottom:-20px;animation-delay:-3s"></i><i class="orb" style="width:36px;height:36px;left:40%;top:6px;animation-delay:-5s"></i>' : '';
+  $('phone').innerHTML = `<div class="ph-top" style="background:linear-gradient(135deg,${esc(br.primaryColor)},${esc(br.secondaryColor)})">${orbs}
+      <div class="hi">Hi, Asha</div><div class="tg">${esc(br.tagline || 'Laxmi India Finance')}</div>${br.showRegistration ? '<div class="reg">NBFC · Reg. no. (from the Pricing page)</div>' : ''}</div>
+    <div class="ph-body">
+      ${br.trustStrip.filter(t => t.text).length ? `<div class="trust">${br.trustStrip.filter(t => t.text).map(t => `<span>${TRUST_EMOJI[t.icon] || ''}<br>${esc(t.text)}</span>`).join('')}</div>` : ''}
+      ${cur ? slideHtml(cur) : '<div class="fake">No banner is switched on, so customers see no banner.</div>'}
+      ${on.length > 1 ? `<div class="dots">${on.map(b => `<b class="${b === cur ? 'on' : ''}" onclick="sel=H.banners.indexOf(H.banners.find(x=>x.id==='${esc(b.id)}'));drawPhone()"></b>`).join('')}</div>` : ''}
+      <div class="fake"><b>Your offer</b>The loan card and the rest of the home screen carry on below.</div>
+    </div>`;
+  tick();
+}
+function tick() {
+  document.querySelectorAll('#phone .cd').forEach(el => {
+    const ms = new Date(el.dataset.end) - Date.now();
+    if (!(ms > 0)) { el.textContent = 'Ended'; return; }
+    const s = Math.floor(ms / 1000), d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60), x = s % 60, p = n => String(n).padStart(2, '0');
+    el.textContent = 'Ends in ' + (d ? d + 'd ' : '') + p(h) + ':' + p(m) + ':' + p(x);
+  });
+}
+function setRotate() {
+  clearInterval(timer);
+  if (!$('rotate').checked) return;
+  timer = setInterval(() => {
+    const on = H.banners.map((b, i) => b.enabled ? i : -1).filter(i => i >= 0);
+    if (on.length < 2) return;
+    sel = on[(on.indexOf(sel) + 1) % on.length]; drawPhone();
+    document.querySelectorAll('#pane-banners .bn').forEach((c, j) => c.classList.toggle('sel', j === sel));
+  }, Math.max(2, H.carousel.autoplaySeconds || 4) * 1000);
+}
+
+async function save() {
+  $('save').disabled = true;
+  try {
+    const d = await api('/app-home/admin', 'PUT', H);
+    H = d.home; renderAll();
+    msg(d.message, 'ok');
+    $('saved').textContent = 'Saved ' + new Date().toLocaleTimeString('en-IN');
+  } catch (e) { msg(e.message, 'err'); }
+  $('save').disabled = false;
+}
+ticker = setInterval(tick, 1000);
+load();
+</script>
+<script src="assets/portal.js"></script>
+</body>
+</html>
