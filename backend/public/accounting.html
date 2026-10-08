@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%93%92%3C/text%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Accounting - LIFC Admin</title>
+<style>
+* { box-sizing: border-box; }
+.card { padding: 16px; margin-bottom: 14px; }
+.card h2 { margin: 0 0 4px; font-size: 15px; }
+.sub { font-size: 12px; color: var(--e-muted); margin-bottom: 12px; line-height: 1.5; }
+.note { font-size: 12px; color: var(--e-muted); }
+.alert { display: none; padding: 12px 16px; margin-bottom: 14px; white-space: pre-line; }
+.alert.show { display: block; }
+.warn { background: var(--e-warn-soft); color: var(--e-warn); border-radius: 8px; padding: 10px 14px; font-size: 12.5px; line-height: 1.5; margin-bottom: 14px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 14px; }
+.tile { background: var(--e-surface); border: 1px solid var(--e-border); border-radius: 12px; padding: 14px; }
+.tile .l { font-size: 12px; color: var(--e-muted); font-weight: 600; }
+.tile .v { font-size: 20px; font-weight: 800; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--e-muted); border-bottom: 1px solid var(--e-border); white-space: nowrap; }
+td { padding: 8px; border-bottom: 1px solid var(--e-border); vertical-align: top; }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; align-items: end; }
+.grid input, .grid select { width: 100%; }
+</style>
+<link rel="stylesheet" href="assets/portal.css">
+</head>
+<body data-shell="app" data-title="Accounting" data-sub="Books, GST and tax on payments to individuals, for the accounts team.">
+<div class="container">
+  <div id="alert" class="alert" role="alert"></div>
+  <div class="warn"><b>For your accountant to check.</b> The vouchers use a starting layout: the loan is an asset, interest, fees and late fees are income, GST is a liability, and insurance and stamp duty are passed on. How your company actually books each item, and whether any tax is deducted on a payment, is for your accountant and tax adviser to decide. Change the ledger names below to match your books.</div>
+  <div class="card"><div class="row"><label for="from" style="margin:0">From</label><input type="date" id="from"><label for="to" style="margin:0">To</label><input type="date" id="to"><button class="btn primary" onclick="load()">Show</button></div>
+    <div class="note" style="margin-top:6px">Dates are India dates. The default is last month.</div></div>
+  <div class="tiles" id="tiles"></div>
+  <div class="card"><h2>Download</h2><div class="sub">Each download is recorded in the audit log.</div>
+    <div class="row"><button class="btn" onclick="dl('tally')">Tally import file (XML)</button><button class="btn" onclick="dl('vouchers')">Vouchers for any accounting software (CSV)</button><button class="btn" onclick="dl('gst')">GST on fees (CSV)</button><button class="btn" onclick="dl('tds')">Payments to individuals and tax (CSV)</button></div></div>
+  <div class="card"><h2>GST on fees</h2><div class="sub" id="gstnote"></div><div class="scroll" id="gst"></div></div>
+  <div class="card"><h2>Payments to individuals</h2><div class="sub">Rewards paid to customers and commissions paid to partners, with the tax rate set below.</div><div class="scroll" id="pay"></div></div>
+  <div class="card"><h2>Settings</h2><div id="settings"></div></div>
+</div>
+<script>
+const API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
+const token = localStorage.getItem('admin_token');
+if (!token) location.href = 'admin-config.html';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const inr = n => '₹' + (Math.round((n || 0) * 100) / 100).toLocaleString('en-IN');
+const LEDGERS = { bank: 'Bank', loans: 'Loans given (asset)', interest: 'Interest income', fee: 'Fee income', lateFee: 'Late fee income', gstOutput: 'GST payable', passThrough: 'Insurance and stamp duty payable', closureIncome: 'Early-closure fee income', writeOff: 'Bad debts written off', settlementLoss: 'Settlement waiver' };
+const TDS = { referral: 'Referral rewards', loyalty: 'On-time rewards', partner: 'Partner commission' };
+let D = null;
+function msg(text, kind) { const a = $('alert'); a.textContent = text; a.className = 'alert show ' + (kind === 'ok' ? 'ok' : 'err'); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+async function api(path, method = 'GET', body) {
+  const r = await fetch(API + path, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.errors ? d.errors.join('\n') : d.error || 'Something went wrong');
+  return d;
+}
+const q = () => `from=${$('from').value}&to=${$('to').value}`;
+function draw() {
+  const s = D.summary, g = D.gst;
+  $('from').value = D.from; $('to').value = D.to;
+  $('tiles').innerHTML = [['Vouchers', s.vouchers], ['Loans paid out', inr(s.disbursed)], ['Money received', inr(s.received)], ['GST on fees', inr(g.totals.gst)], ['Paid to individuals', inr(s.payments.amount)], ['Tax deducted', inr(s.payments.tds)]].map(x => `<div class="tile"><div class="l">${x[0]}</div><div class="v">${x[1]}</div></div>`).join('');
+  $('gstnote').textContent = g.companyState ? `Company state: ${g.companyState}. Customers in the same state are charged CGST and SGST, others IGST.` : 'Set the company state below to split the GST into CGST, SGST and IGST.';
+  $('gst').innerHTML = g.rows.length ? `<table><thead><tr><th>Customer state</th><th class="n">Loans</th><th class="n">Taxable value</th><th class="n">GST</th><th class="n">CGST</th><th class="n">SGST</th><th class="n">IGST</th></tr></thead><tbody>${g.rows.map(r => `<tr><td>${esc(r.state)}</td><td class="n">${r.loans}</td><td class="n">${inr(r.taxable)}</td><td class="n">${inr(r.gst)}</td><td class="n">${inr(r.cgst)}</td><td class="n">${inr(r.sgst)}</td><td class="n">${inr(r.igst)}</td></tr>`).join('')}</tbody></table>` : '<div class="note">No loans paid out in this period.</div>';
+  $('pay').innerHTML = D.payments.length ? `<table><thead><tr><th>Date</th><th>Kind</th><th>Name</th><th>PAN</th><th class="n">Paid</th><th class="n">Tax %</th><th class="n">Tax</th><th class="n">Net</th><th>Reference</th></tr></thead><tbody>${D.payments.map(p => `<tr><td>${esc(p.date)}</td><td>${esc(p.kind)}</td><td>${esc(p.name)}</td><td>${esc(p.pan || 'not on file')}</td><td class="n">${inr(p.amount)}</td><td class="n">${p.rate}</td><td class="n">${inr(p.tds)}</td><td class="n">${inr(p.net)}</td><td class="note">${esc(p.reference)}</td></tr>`).join('')}</tbody></table>` : '<div class="note">No payments in this period.</div>';
+  const st = D.settings, dis = D.canEdit ? '' : 'disabled';
+  $('settings').innerHTML = `<div class="grid"><div><label for="cs">Company state (for GST)</label><select id="cs" ${dis}><option value="">Not set</option>${D.states.map(x => `<option ${x === st.companyState ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></div></div>
+    <h3 style="font-size:13px;margin:14px 0 6px">Ledger names (as in your books)</h3><div class="grid">${Object.entries(LEDGERS).map(([k, l]) => `<div><label for="l-${k}">${l}</label><input id="l-${k}" value="${esc(st.ledgers[k])}" ${dis}></div>`).join('')}</div>
+    <h3 style="font-size:13px;margin:14px 0 6px">Tax deducted on payments to individuals (%). Confirm with your tax adviser.</h3><div class="grid">${Object.entries(TDS).map(([k, l]) => `<div><label for="t-${k}">${l}</label><input id="t-${k}" type="number" step="0.1" value="${st.tds[k]}" ${dis}></div>`).join('')}</div>
+    ${D.canEdit ? '<div style="margin-top:12px"><button class="btn primary" onclick="save()">Save settings</button></div>' : '<div class="note" style="margin-top:8px">Your role can look but not change these.</div>'}`;
+}
+async function load() { try { D = await api('/admin/accounting?' + ($('from').value ? q() : '')); draw(); } catch (e) { msg(e.message, 'err'); } }
+async function save() {
+  const body = { companyState: $('cs').value, ledgers: Object.fromEntries(Object.keys(LEDGERS).map(k => [k, $('l-' + k).value])), tds: Object.fromEntries(Object.keys(TDS).map(k => [k, Number($('t-' + k).value)])) };
+  try { await api('/admin/accounting/settings', 'PUT', body); msg('Saved.', 'ok'); load(); } catch (e) { msg(e.message, 'err'); }
+}
+async function dl(kind) {
+  try {
+    const r = await fetch(API + `/admin/accounting/export/${kind}?` + q(), { headers: { Authorization: 'Bearer ' + token } });
+    if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'Could not download'); }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(await r.blob());
+    a.download = (r.headers.get('Content-Disposition') || '').match(/filename="([^"]+)"/)?.[1] || kind;
+    document.body.appendChild(a); a.click(); a.remove();
+  } catch (e) { msg(e.message, 'err'); }
+}
+load();
+</script>
+<script src="assets/portal.js"></script>
+</body>
+</html>
