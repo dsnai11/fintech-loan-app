@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%8F%9B%3C/text%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Regulatory - LIFC Admin</title>
+<style>
+* { box-sizing: border-box; }
+.card { padding: 16px; margin-bottom: 14px; }
+.card h2 { margin: 0 0 4px; font-size: 15px; }
+.sub { font-size: 12px; color: var(--e-muted); margin-bottom: 12px; line-height: 1.5; }
+.note { font-size: 12px; color: var(--e-muted); }
+.alert { display: none; padding: 12px 16px; margin-bottom: 14px; white-space: pre-line; }
+.alert.show { display: block; }
+.warn { background: var(--e-warn-soft); color: var(--e-warn); border-radius: 8px; padding: 10px 14px; font-size: 12.5px; line-height: 1.5; margin-bottom: 14px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 14px; }
+.tile { background: var(--e-surface); border: 1px solid var(--e-border); border-radius: 12px; padding: 14px; }
+.tile .l { font-size: 12px; color: var(--e-muted); font-weight: 600; }
+.tile .v { font-size: 22px; font-weight: 800; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--e-muted); border-bottom: 1px solid var(--e-border); white-space: nowrap; }
+td { padding: 8px; border-bottom: 1px solid var(--e-border); vertical-align: top; }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; align-items: end; }
+.grid input { width: 100%; }
+.tag { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 20px; background: #E0ECFF; color: #1D4ED8; white-space: nowrap; }
+.tag.SMA0, .tag.SMA1 { background: #FEF3C7; color: #92400E; }
+.tag.SMA2 { background: #FFEDD5; color: #9A3412; }
+.tag.SUBSTANDARD, .tag.DOUBTFUL, .tag.LOSS { background: #FEE2E2; color: #991B1B; }
+.tag.STANDARD { background: #DCFCE7; color: #166534; }
+</style>
+<link rel="stylesheet" href="assets/portal.css">
+</head>
+<body data-shell="app" data-title="Regulatory" data-sub="Loan classification (SMA and NPA), provisioning, and the files for credit bureaus and CKYC.">
+<div class="container">
+  <div id="alert" class="alert" role="alert"></div>
+  <div class="warn"><b>Compliance must confirm these rules.</b> The day counts and provision percentages are starting values based on common RBI practice for NBFCs. They depend on the company's RBI category and board-approved policy. Check them, edit them below if needed, and have finance confirm before anything is reported. The bureau file holds the data in one clear layout; each bureau (CIBIL, Experian, Equifax, CRIF) gives its own file format once the company is a member, and the columns map across.</div>
+  <div class="tiles" id="tiles"></div>
+
+  <div class="card"><h2>By class</h2><div class="sub">A borrower with more than one loan is classified on the worst of them. Outstanding is the principal still to be paid.</div><div class="scroll" id="classes"></div></div>
+  <div class="card"><h2>Accounting stages</h2><div class="sub">Stage 1 is performing, Stage 2 is a significant rise in risk, Stage 3 is credit-impaired.</div><div class="scroll" id="stages"></div></div>
+
+  <div class="card"><h2>Loans</h2>
+    <div class="row" style="margin-bottom:10px"><label for="flt" style="margin:0">Show</label><select id="flt" onchange="load()"><option value="">All</option></select></div>
+    <div class="scroll" id="loans"></div>
+  </div>
+
+  <div class="card"><h2>Files</h2><div class="sub">Each download is recorded in the audit log. Aadhaar numbers are never in these files, only the last four digits.</div>
+    <div class="row">
+      <button class="btn" onclick="download('classification')">Classification and provisions (CSV)</button>
+      <button class="btn" onclick="download('bureau')">Credit bureau accounts (CSV)</button>
+      <button class="btn" onclick="download('ckyc')">CKYC customers (CSV)</button>
+    </div>
+    <div id="ckyc" style="margin-top:14px"></div>
+  </div>
+
+  <div class="card"><h2>Rules</h2><div class="sub">Days past due where each class starts, and the provision percentage held against what is outstanding.</div>
+    <div class="grid" id="policy"></div>
+    <div style="margin-top:12px"><button class="btn primary" id="savePolicy" onclick="savePolicy()">Save rules</button></div>
+  </div>
+</div>
+<script>
+const API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
+const token = localStorage.getItem('admin_token');
+if (!token) location.href = 'admin-config.html';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const inr = n => '₹' + Math.round(n || 0).toLocaleString('en-IN');
+const ORDER = ['STANDARD', 'SMA0', 'SMA1', 'SMA2', 'SUBSTANDARD', 'DOUBTFUL', 'LOSS'];
+const DAYS = [['sma0From', 'SMA-0 starts (days)'], ['sma1From', 'SMA-1 starts'], ['sma2From', 'SMA-2 starts'], ['npaFrom', 'NPA starts'], ['doubtfulFrom', 'Doubtful starts'], ['stage2From', 'Stage 2 starts'], ['stage3From', 'Stage 3 starts']];
+let D = null;
+
+function msg(text, kind) {
+  const a = $('alert'); a.textContent = text; a.className = 'alert show ' + (kind === 'ok' ? 'ok' : 'err');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+async function api(path, method = 'GET', body) {
+  const r = await fetch(API + path, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.errors ? d.errors.join('\n') : d.error || 'Something went wrong');
+  return d;
+}
+function draw() {
+  const t = D.totals;
+  $('tiles').innerHTML = [['Loans', t.loans], ['Outstanding', inr(t.outstanding)], ['NPA', inr(t.npa)], ['Gross NPA', t.grossNpaPercent + '%'], ['Provision held', inr(t.provision)], ['Cover on NPA', t.provisionCoveragePercent == null ? '-' : t.provisionCoveragePercent + '%']]
+    .map(x => `<div class="tile"><div class="l">${x[0]}</div><div class="v">${x[1]}</div></div>`).join('');
+  $('classes').innerHTML = `<table><thead><tr><th>Class</th><th class="n">Loans</th><th class="n">Outstanding</th><th class="n">Provision %</th><th class="n">Provision</th></tr></thead><tbody>${ORDER.map(c => `<tr><td><span class="tag ${c}">${esc(D.summary[c].label)}</span></td><td class="n">${D.summary[c].loans}</td><td class="n">${inr(D.summary[c].outstanding)}</td><td class="n">${D.policy.rates[c]}%</td><td class="n">${inr(D.summary[c].provision)}</td></tr>`).join('')}</tbody></table>`;
+  $('stages').innerHTML = `<table><thead><tr><th>Stage</th><th class="n">Loans</th><th class="n">Outstanding</th><th class="n">Provision</th></tr></thead><tbody>${[1, 2, 3].map(s => `<tr><td>Stage ${s}</td><td class="n">${D.stages[s].loans}</td><td class="n">${inr(D.stages[s].outstanding)}</td><td class="n">${inr(D.stages[s].provision)}</td></tr>`).join('')}</tbody></table>`;
+  const f = $('flt');
+  if (f.options.length === 1) ORDER.forEach(c => f.add(new Option(D.summary[c].label, c)));
+  $('loans').innerHTML = D.loans.length ? `<table><thead><tr><th>Customer</th><th class="n">Days past due</th><th>Class</th><th class="n">Stage</th><th class="n">Overdue</th><th class="n">Outstanding</th><th class="n">Provision</th></tr></thead><tbody>${D.loans.map(l => `<tr><td>${esc(l.customer)}<div class="note">${esc(l.phone || '')}${l.carriedFromOtherLoan ? ' · class carried from another loan' : ''}</div></td><td class="n">${l.dpd}</td><td><span class="tag ${l.class}">${esc(l.classLabel)}</span></td><td class="n">${l.stage}</td><td class="n">${inr(l.overdueAmount)}</td><td class="n">${inr(l.outstanding)}</td><td class="n">${inr(l.provision)}</td></tr>`).join('')}</tbody></table>${D.shown >= 500 ? '<div class="note">Showing the first 500. Download the file for all of them.</div>' : ''}` : '<div class="note">No loans in this class.</div>';
+  $('policy').innerHTML = DAYS.map(d => `<div><label for="p-${d[0]}">${d[1]}</label><input id="p-${d[0]}" type="number" min="1" value="${D.policy[d[0]]}"></div>`).join('') + ORDER.map(c => `<div><label for="r-${c}">Provision % · ${esc(D.summary[c].label)}</label><input id="r-${c}" type="number" min="0" max="100" step="0.1" value="${D.policy.rates[c]}"></div>`).join('');
+  $('savePolicy').style.display = D.canEditPolicy ? '' : 'none';
+  if (!D.canEditPolicy) document.querySelectorAll('#policy input').forEach(i => (i.disabled = true));
+}
+async function load() {
+  try { D = await api('/admin/regulatory/classification' + ($('flt').value ? '?class=' + $('flt').value : '')); draw(); } catch (e) { msg(e.message, 'err'); }
+}
+async function loadCkyc() {
+  try {
+    const r = await api('/admin/regulatory/ckyc/readiness');
+    $('ckyc').innerHTML = `<div><b>CKYC readiness:</b> ${r.ready} of ${r.borrowers} borrowers have every detail the upload needs.</div>` +
+      (r.missing.length ? `<div class="note" style="margin-top:4px">Missing: ${r.missing.map(m => `${esc(m.label)} (${m.count})`).join(', ')}.</div>` : '') +
+      `<div class="note" style="margin-top:4px">Not collected in the app yet: ${r.notCollected.map(esc).join('; ')}.</div>`;
+  } catch (e) { $('ckyc').textContent = ''; }
+}
+async function savePolicy() {
+  const body = { rates: {} };
+  DAYS.forEach(d => (body[d[0]] = Number($('p-' + d[0]).value)));
+  ORDER.forEach(c => (body.rates[c] = Number($('r-' + c).value)));
+  try { const r = await api('/admin/regulatory/policy', 'PUT', body); msg(r.message, 'ok'); load(); } catch (e) { msg(e.message, 'err'); }
+}
+async function download(kind) {
+  try {
+    const r = await fetch(API + '/admin/regulatory/export/' + kind, { headers: { Authorization: 'Bearer ' + token } });
+    if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'Could not download'); }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(await r.blob());
+    a.download = (r.headers.get('Content-Disposition') || '').match(/filename="([^"]+)"/)?.[1] || kind + '.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+  } catch (e) { msg(e.message, 'err'); }
+}
+load(); loadCkyc();
+</script>
+<script src="assets/portal.js"></script>
+</body>
+</html>

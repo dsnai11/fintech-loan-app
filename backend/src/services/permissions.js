@@ -139,6 +139,8 @@ const RULES = [
   [/^\/api\/admin\/collections\/[^/]+\/(letter|claim|release)(\/|$)/, 'collections.act', 'collections.act'],
   [/^\/api\/admin\/collections\/(run-escalations|[^/]+\/(default|write-off|recovery|assign))(\/|$)/, 'collections.view', 'collections.manage'],
   [/^\/api\/admin\/collections(\/|$)/, 'collections.view', 'collections.act'],
+  [/^\/api\/admin\/regulatory\/export(\/|$)/, 'audit.view', 'audit.view'],
+  [/^\/api\/admin\/regulatory(\/|$)/, 'reports.view', 'reports.view'], // saving the rules is checked in the route
   [/^\/api\/admin\/mandates(\/|$)/, 'collections.view', 'collections.view'], // changes are checked in the route
   [/^\/api\/admin\/compliance\/audit(\/|$)/, 'audit.view', 'audit.view'],
   [/^\/api\/admin\/compliance\/kyc(\/|$)/, 'kyc.view', 'kyc.decide'],
