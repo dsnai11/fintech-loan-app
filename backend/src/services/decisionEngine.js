@@ -38,6 +38,11 @@ export const CUSTOM_FIELDS = {
   bureauEnquiries90: { label: 'Credit enquiries in the last 90 days (bureau)', type: 'number' },
   bureauMaxDpd: { label: 'Most days past due in the last 12 months (bureau)', type: 'number' },
   bureauActiveLoans: { label: 'Live loans on the credit record (bureau)', type: 'number' },
+  incomeVerified: { label: 'Income checked from bank statements', type: 'boolean' },
+  verifiedMonthlyIncome: { label: 'Monthly income seen in bank statements (Rs, 0 if not checked)', type: 'number' },
+  bankBounces: { label: 'Bounced or returned payments in the bank statements', type: 'number' },
+  bankObligations: { label: 'Monthly loan repayments seen in bank statements (Rs)', type: 'number' },
+  avgBankBalance: { label: 'Average bank balance (Rs, 0 if not checked)', type: 'number' },
 };
 const OPS = ['>', '>=', '<', '<=', '=', '!='];
 
@@ -90,6 +95,8 @@ export const DEFAULTS = {
   accountAge: { enabled: false, minDays: 1 }, // a brand-new account goes to a person
   // Checks that use the credit bureau's report. They only run when the bureau returns these details.
   bureauReport: { enabled: false, maxEnquiries90: 5, maxDpd: 30, rejectDpd: null, maxActiveLoans: 4 },
+  // Income seen in the customer's bank statements (shared by the customer through Account Aggregator).
+  incomeCheck: { enabled: false, requireAbove: null, maxBounces: 2, maxDeclaredGapPercent: 30, minVerifiedIncome: null, maxObligationShare: null, useVerifiedIncome: true },
   custom: [], // the lender's own rules: { id, name, field, op, value, result: 'refer' | 'reject', message }
 };
 
@@ -235,6 +242,14 @@ export function validateRules(candidate) {
   out.bureauReport.rejectDpd = num(br.rejectDpd, 1, 365, 'Days past due that reject', errors, { int: true, allowNull: true });
   out.bureauReport.maxActiveLoans = num(br.maxActiveLoans ?? DEFAULTS.bureauReport.maxActiveLoans, 0, 50, 'Most live loans on the credit record', errors, { int: true });
   if (!errors.length && out.bureauReport.rejectDpd !== null && out.bureauReport.rejectDpd < out.bureauReport.maxDpd) errors.push('The days past due that reject cannot be fewer than the days that send to a person');
+  const ic = r.incomeCheck || {};
+  out.incomeCheck.enabled = bool(ic.enabled);
+  out.incomeCheck.requireAbove = num(ic.requireAbove, 1000, 10000000, 'Loan amount above which the bank check is needed', errors, { int: true, allowNull: true });
+  out.incomeCheck.maxBounces = num(ic.maxBounces ?? DEFAULTS.incomeCheck.maxBounces, 0, 100, 'Most bounced payments allowed', errors, { int: true });
+  out.incomeCheck.maxDeclaredGapPercent = num(ic.maxDeclaredGapPercent ?? DEFAULTS.incomeCheck.maxDeclaredGapPercent, 0, 500, 'How far above the statements the declared income may be (percent)', errors, { int: true });
+  out.incomeCheck.minVerifiedIncome = num(ic.minVerifiedIncome, 1000, 10000000, 'Lowest monthly income seen in the statements', errors, { int: true, allowNull: true });
+  out.incomeCheck.maxObligationShare = num(ic.maxObligationShare, 1, 200, 'Most of the income that may go to repayments (percent)', errors, { allowNull: true });
+  out.incomeCheck.useVerifiedIncome = ic.useVerifiedIncome === undefined ? DEFAULTS.incomeCheck.useVerifiedIncome : bool(ic.useVerifiedIncome);
   return { errors, rules: out };
 }
 
@@ -361,6 +376,24 @@ export function evaluate(rules, f) {
     add(result === 'reject' ? 'BUREAU_DPD' : 'EWS', 'Early warning (bureau history)', result, reasons.length ? reasons.join('; ') : 'Nothing worrying on the credit record');
   }
 
+  const ic = rules.incomeCheck;
+  if (!ic.enabled) add('INCOME', 'Income check (bank statements)', 'skip', 'Switched off. Turn it on to use income seen in the bank statements a customer shares.');
+  else if (!f.incomeVerified) {
+    if (ic.requireAbove !== null && f.amount > ic.requireAbove) add('INCOME', 'Income check (bank statements)', 'refer', `The loan is above Rs ${ic.requireAbove.toLocaleString('en-IN')} and the customer has not shared their bank statements yet`);
+    else add('INCOME', 'Income check (bank statements)', 'skip', 'The customer has not shared their bank statements, so income is as they declared it.');
+  } else {
+    const reasons = [];
+    const income = f.verifiedMonthlyIncome;
+    if (f.bankBounces > ic.maxBounces) reasons.push(`${f.bankBounces} bounced or returned payments in the statements`);
+    if (income > 0 && f.declaredIncome > income * (1 + ic.maxDeclaredGapPercent / 100)) reasons.push(`declared income Rs ${Math.round(f.declaredIncome).toLocaleString('en-IN')} is well above the Rs ${Math.round(income).toLocaleString('en-IN')} seen in the statements`);
+    if (ic.minVerifiedIncome !== null && income < ic.minVerifiedIncome) reasons.push(income > 0 ? `income seen in the statements (Rs ${Math.round(income).toLocaleString('en-IN')}) is below Rs ${ic.minVerifiedIncome.toLocaleString('en-IN')}` : 'no regular income could be seen in the statements');
+    if (ic.maxObligationShare !== null && income > 0) {
+      const share = Math.round(((f.emi + (f.bankObligations || 0)) / income) * 1000) / 10;
+      if (share > ic.maxObligationShare) reasons.push(`repayments including this loan would be ${share}% of income, against a limit of ${ic.maxObligationShare}%`);
+    }
+    add('INCOME', 'Income check (bank statements)', reasons.length ? 'refer' : 'pass', reasons.length ? reasons.join('; ') : `The bank statements support the income${f.incomeCheckTest ? ' (test data)' : ''}`);
+  }
+
   const rejects = checks.filter(c => c.result === 'reject');
   const refers = checks.filter(c => c.result === 'refer');
   const outcome = rejects.length ? 'REJECT' : refers.length ? 'REFER' : 'APPROVE';
@@ -388,6 +421,27 @@ function daysLate(emis, now = Date.now()) {
   return worst;
 }
 
+// What the customer's bank statements showed, if they shared them lately. Older results no longer count.
+const INCOME_CHECK_DAYS = 90;
+function bankFacts(user) {
+  const c = user.incomeCheck;
+  const fresh = c && c.at && Date.now() - new Date(c.at).getTime() <= INCOME_CHECK_DAYS * DAY;
+  return {
+    incomeVerified: !!fresh,
+    incomeCheckTest: !!(fresh && c.mode === 'sandbox'),
+    verifiedMonthlyIncome: fresh ? c.estimatedMonthlyIncome || 0 : 0,
+    bankBounces: fresh ? c.bounces || 0 : 0,
+    bankObligations: fresh ? c.monthlyObligations || 0 : 0,
+    avgBankBalance: fresh ? c.avgBalance || 0 : 0,
+  };
+}
+// The income the rules use: what the statements show, when the lender chose that and the statements show a regular income
+function incomeFor(user, rules) {
+  const b = bankFacts(user);
+  if (rules.incomeCheck?.enabled && rules.incomeCheck.useVerifiedIncome && b.incomeVerified && b.verifiedMonthlyIncome > 0) return b.verifiedMonthlyIncome;
+  return user.employment?.monthlyIncome || 0;
+}
+
 export async function gatherFacts(loan, user, rules = getRules()) {
   const others = await Loan.find({ userId: user._id, _id: { $ne: loan._id } }).select('status closureType createdAt');
   const now = Date.now();
@@ -411,13 +465,15 @@ export async function gatherFacts(loan, user, rules = getRules()) {
     repeatCustomer: others.some(l => l.status === 'closed' && l.closureType !== 'cooling_off'),
     bureauScore: user.creditScore || 0, // filled by a credit bureau integration
     selfieStatus: user.selfie?.status || 'none',
-    monthlyIncome: user.employment?.monthlyIncome || 0,
+    monthlyIncome: incomeFor(user, rules),
+    declaredIncome: user.employment?.monthlyIncome || 0,
+    ...bankFacts(user),
     emi: loan.monthlyEMI || 0,
     applicationsRecent: within(rules.velocity.days).length + 1,
     rejectionsRecent: within(rules.rejections.days).filter(l => l.status === 'rejected').length,
     maxDaysLate: daysLate(emis, now),
     accountAgeDays: user.createdAt ? Math.floor((now - new Date(user.createdAt).getTime()) / DAY) : 0,
-    amountToIncomeMonths: user.employment?.monthlyIncome > 0 ? Math.round((loan.loanAmount / user.employment.monthlyIncome) * 10) / 10 : 0,
+    amountToIncomeMonths: incomeFor(user, rules) > 0 ? Math.round((loan.loanAmount / incomeFor(user, rules)) * 10) / 10 : 0,
     state: user.address?.state || '',
     pincode: user.address?.zipCode || '',
     bureauReportKnown: !!report,
@@ -520,6 +576,7 @@ export const SUGGESTED_START = {
   incomeMultiple: { enabled: true, maxMonths: 3 },
   accountAge: { enabled: true, minDays: 1 },
   bureauReport: { enabled: true, maxEnquiries90: 5, maxDpd: 30, rejectDpd: 90, maxActiveLoans: 4 },
+  incomeCheck: { enabled: true, requireAbove: 50000, maxBounces: 2, maxDeclaredGapPercent: 30, minVerifiedIncome: null, maxObligationShare: 60, useVerifiedIncome: true },
 };
 
 export default { getRules, saveRules, validateRules, evaluate, computeOffer, gatherUserFacts, gatherFacts, decideLoan, DEFAULTS, MODES, SUGGESTED_START };

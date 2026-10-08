@@ -10,7 +10,7 @@ import { getPolicy } from '../services/pricingPolicy.js';
 const router = express.Router();
 router.use(adminMiddleware);
 
-const FACT_FIELDS = ['amount', 'age', 'bureauScore', 'openAmlAlerts', 'defaultedLoans', 'openLoans', 'overdueEmis', 'monthlyIncome', 'emi', 'applicationsRecent', 'rejectionsRecent', 'maxDaysLate', 'accountAgeDays', 'bureauEnquiries90', 'bureauMaxDpd', 'bureauActiveLoans'];
+const FACT_FIELDS = ['amount', 'age', 'bureauScore', 'openAmlAlerts', 'defaultedLoans', 'openLoans', 'overdueEmis', 'monthlyIncome', 'emi', 'applicationsRecent', 'rejectionsRecent', 'maxDaysLate', 'accountAgeDays', 'bureauEnquiries90', 'bureauMaxDpd', 'bureauActiveLoans', 'declaredIncome', 'verifiedMonthlyIncome', 'bankBounces', 'bankObligations', 'avgBankBalance'];
 
 router.get('/rules', (req, res) => res.json({ rules: getRules(), modes: MODES, customFields: CUSTOM_FIELDS, suggested: SUGGESTED_START }));
 
@@ -43,7 +43,7 @@ router.post('/test', (req, res) => {
       rules = v.rules;
     }
     const f = req.body?.facts || {};
-    const facts = { kycApproved: f.kycApproved === true, phoneVerified: f.phoneVerified === true, repeatCustomer: f.repeatCustomer === true, bureauReportKnown: f.bureauReportKnown === true, state: String(f.state ?? '').slice(0, 40), pincode: String(f.pincode ?? '').slice(0, 6) };
+    const facts = { kycApproved: f.kycApproved === true, phoneVerified: f.phoneVerified === true, repeatCustomer: f.repeatCustomer === true, bureauReportKnown: f.bureauReportKnown === true, incomeVerified: f.incomeVerified === true, state: String(f.state ?? '').slice(0, 40), pincode: String(f.pincode ?? '').slice(0, 6) };
     for (const k of FACT_FIELDS) {
       const n = Number(f[k] ?? 0);
       if (!Number.isFinite(n) || n < 0 || n > 1e9) return res.status(400).json({ error: `${k} is not a valid number` });

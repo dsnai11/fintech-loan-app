@@ -4,6 +4,7 @@ import { bureauConfigured, providerName as bureauProvider, missingSettings as bu
 import { aiConfigured, providerName as assistantProvider, missingProviderSettings as assistantMissing } from './assistantService.js';
 import { pushConfigured, providerName as pushProvider, missingSettings as pushMissing } from './pushService.js';
 import { availability as mandateAvailability } from './mandateService.js';
+import { modeNow as aaMode, providerName as aaProvider, PROVIDERS as AAS } from './aaService.js';
 import { modeNow as digilockerMode, providerName as digilockerProvider, PROVIDERS as DIGILOCKERS } from './digilockerService.js';
 
 // One place that says, for every outside service, whether the app is using the real thing or its test mode, and
@@ -115,6 +116,17 @@ export const INTEGRATIONS = [
       const m = digilockerMode();
       if (m === 'digilocker') return { mode: 'live', provider: p };
       return m === 'sandbox' ? { mode: 'test', note: 'A stand-in DigiLocker page is used. KYC is never auto-approved in test mode.' } : { mode: 'unavailable', note: 'No provider is set up, so the KYC step says it is not available.' };
+    },
+  },
+  {
+    id: 'aa', label: 'Bank statements (Account Aggregator)', purpose: 'Lets a customer share their bank statements so their income can be checked. Only a summary is kept; the statements are not.',
+    fields: [field('AA_PROVIDER', 'Provider', { options: ['', ...Object.keys(AAS)], hint: 'The provider adapter is installed once you have an account with an Account Aggregator partner (Finvu, OneMoney, Setu, Perfios).' })],
+    status: () => {
+      const p = aaProvider();
+      if (p && !AAS[p]) return { mode: 'misconfigured', provider: p, note: `No adapter for "${p}" is installed yet, so ${production() ? 'customers see "not available"' : 'the test page is used'}. Ask for it to be added.` };
+      const m = aaMode();
+      if (m === 'aa') return { mode: 'live', provider: p };
+      return m === 'sandbox' ? { mode: 'test', note: 'A stand-in consent page and made-up statements are used. Results are marked as test data.' } : { mode: 'unavailable', note: 'No provider is set up, so the income check says it is not available.' };
     },
   },
   {

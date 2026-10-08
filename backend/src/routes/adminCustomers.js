@@ -1,3 +1,4 @@
+import { view as incomeView } from '../services/aaService.js';
 import express from 'express';
 import mongoose from 'mongoose';
 import User from '../models/User.js';
@@ -64,6 +65,7 @@ router.get('/:id', async (req, res) => {
         employment: user.employment ? { status: user.employment.status, company: user.employment.company, monthlyIncome: user.employment.monthlyIncome } : null,
         setup: setupStatus(user),
         digilocker: user.kycDigilocker ? { status: user.kycDigilocker.status, mode: user.kycDigilocker.mode, at: user.kycDigilocker.at, nameMatch: user.kycDigilocker.nameMatch, dobMatch: user.kycDigilocker.dobMatch, aadhaarLast4: user.kycDigilocker.aadhaarLast4, panFound: user.kycDigilocker.panFound, flags: user.kycDigilocker.flags || [] } : null,
+        incomeCheck: incomeView(user.incomeCheck),
         selfie: user.selfie ? { status: user.selfie.status, capturedAt: user.selfie.capturedAt, blinks: user.selfie.blinks, method: user.selfie.method, flag: user.selfie.flag || null, reviewedBy: user.selfie.reviewedBy || null, reviewNote: user.selfie.reviewNote || null } : null,
       },
       summary: {

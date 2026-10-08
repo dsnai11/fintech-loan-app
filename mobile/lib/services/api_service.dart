@@ -323,6 +323,42 @@ class ApiService {
     }
   }
 
+  // Sharing bank statements to check income
+  Future<Map<String, dynamic>> getIncomeCheck() async {
+    try {
+      final response = await _dio.get('/income-check/mine');
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> startIncomeCheck() async {
+    try {
+      final response = await _dio.post('/income-check/start');
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> incomeCheckStatus(String sessionId) async {
+    try {
+      final response = await _dio.get('/income-check/status/$sessionId');
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<void> removeIncomeCheck() async {
+    try {
+      await _dio.delete('/income-check/mine');
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   // Auto-debit of EMIs
   Future<Map<String, dynamic>> getMyMandates() async {
     try {

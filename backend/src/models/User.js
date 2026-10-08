@@ -55,6 +55,7 @@ const userSchema = new mongoose.Schema(
     kycDigilocker: mongoose.Schema.Types.Mixed,
     selfieAttempts: mongoose.Schema.Types.Mixed,
     offer: mongoose.Schema.Types.Mixed,
+    incomeCheck: mongoose.Schema.Types.Mixed, // what the customer's shared bank statements showed (a summary only; the statements are not kept)
     bureauReport: mongoose.Schema.Types.Mixed, // { enquiries90, maxDpd, activeLoans, at } from the credit bureau, when it gives them
     pushPrefs: mongoose.Schema.Types.Mixed, // which kinds of push notification the customer switched off: { offers: false }
     referralCode: { type: String, unique: true, sparse: true }, // shared with friends

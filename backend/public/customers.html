@@ -157,7 +157,7 @@ if (pre) { document.addEventListener('DOMContentLoaded', () => { $('q').value = 
 const FLAGS = { name_differs: 'Name differs from the account', date_of_birth_differs: 'Date of birth differs', pan_differs: 'PAN differs from the account', pan_on_another_account: 'PAN is on another account', same_aadhaar_on_another_account: 'Same Aadhaar on another account', no_date_of_birth: 'No date of birth returned', same_photo_on_another_account: 'Same photo on another account' };
 const yn = v => (v === true ? 'Matches' : v === false ? 'Does not match' : 'Not compared');
 function setupCard(c) {
-  const d = c.digilocker, s = c.selfie, a = c.address, e = c.employment;
+  const d = c.digilocker, s = c.selfie, a = c.address, e = c.employment, ic = c.incomeCheck;
   const steps = c.setup || {};
   const decide = !window.PortalShell || PortalShell.can('kyc.decide');
   const flagList = list => (list || []).map(f => `<div class="muted">! ${esc(FLAGS[f] || f)}</div>`).join('');
@@ -167,6 +167,11 @@ function setupCard(c) {
       <div><b>Personal details</b>${steps.profile ? `${esc(c.gender)}, born ${date(c.dateOfBirth)}<div class="muted">${a ? esc([a.street, a.city, a.state, a.zipCode].filter(Boolean).join(', ')) : ''}</div><div class="muted">${e ? esc(e.status || '') + (e.company ? ', ' + esc(e.company) : '') + (e.monthlyIncome ? ', ' + inr(e.monthlyIncome) + ' a month' : '') : ''}</div>` : '<span class="muted">Not done</span>'}</div>
       <div><b>Bank account</b>${c.bankAccount ? esc(c.bankAccount.holder + ', ' + c.bankAccount.number + ', ' + c.bankAccount.ifsc) : '<span class="muted">Not done</span>'}</div>
     </div>
+    <div style="margin-bottom:14px"><b style="font-size:11px;color:var(--muted);text-transform:uppercase">Income check (bank statements)</b>
+      ${ic ? `<div style="margin-top:6px">${ic.mode === 'sandbox' ? '<span class="pill warn">test data</span> ' : ''}${ic.stale ? '<span class="pill warn">older than 90 days</span> ' : ''}${ic.salaryDetected ? `Salary of about <b>${inr(ic.estimatedMonthlyIncome)}</b> a month (seen in ${ic.incomeStabilityPercent}% of months)` : `<b>No regular salary seen.</b> Average money in: ${inr(ic.avgMonthlyCredits)} a month`}
+        <div class="muted">${ic.months} months, ${esc(ic.from)} to ${esc(ic.to)}${ic.bank ? ' · ' + esc(ic.bank) : ''} · checked ${date(ic.at)}</div>
+        <div class="muted">Loan repayments seen: ${inr(ic.monthlyObligations)} a month · Bounced payments: ${ic.bounces}${ic.avgBalance != null ? ' · Average balance ' + inr(ic.avgBalance) + ' (lowest ' + inr(ic.minBalance) + ')' : ''}${ic.lowBalancePercent ? ' · Under Rs 1,000 on ' + ic.lowBalancePercent + '% of entries' : ''}</div>
+        ${e && e.monthlyIncome && ic.estimatedMonthlyIncome ? `<div class="muted">Declared income: ${inr(e.monthlyIncome)} a month</div>` : ''}</div>` : '<div class="muted" style="margin-top:6px">The customer has not shared their bank statements</div>'}</div>
     <b style="font-size:11px;color:var(--muted);text-transform:uppercase">Photo and blink check</b>
     ${s ? `<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;margin-top:8px">
         <div><img id="selfie-before" alt="Photo before the blinks" style="width:150px;height:200px;object-fit:cover;border-radius:10px;background:#e5e7eb"><div class="muted">Before</div></div>

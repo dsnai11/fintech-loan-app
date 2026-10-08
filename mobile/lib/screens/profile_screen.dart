@@ -1,3 +1,4 @@
+import 'income_check_screen.dart';
 import 'account_setup_card.dart';
 import 'package:flutter/material.dart' hide Text;
 import '../widgets/tr_text.dart';
@@ -287,6 +288,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           AccountSetupCard(profile: _profile ?? const {}, onChanged: _fetchProfile),
           const SizedBox(height: 12),
 
+          const IncomeCheckRow(),
           const ReferEarnRow(),
           const NotificationSettingsRow(),
           const LanguageRow(),
