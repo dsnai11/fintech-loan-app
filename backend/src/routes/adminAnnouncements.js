@@ -6,6 +6,7 @@ import Notification from '../models/Notification.js';
 import Announcement from '../models/Announcement.js';
 import { adminMiddleware } from '../middleware/auth.js';
 import { audit } from '../services/auditService.js';
+import { pushToMany, pushConfigured, deviceCount } from '../services/pushService.js';
 
 // Send one message to many customers at once (it appears in their in-app notifications).
 const router = express.Router();
@@ -46,7 +47,7 @@ router.get('/count', async (req, res) => {
   try {
     const ids = await audienceIds(String(req.query.audience));
     if (!ids) return bad(res, 400, 'Choose who should get it');
-    res.json({ count: ids.length });
+    res.json({ count: ids.length, pushAvailable: pushConfigured(), devices: await deviceCount(ids) });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -68,9 +69,12 @@ router.post('/', async (req, res) => {
     for (let i = 0; i < ids.length; i += 1000) {
       await Notification.insertMany(ids.slice(i, i + 1000).map(userId => ({ userId, type: 'ANNOUNCEMENT', title, message })), { ordered: false });
     }
-    const record = await Announcement.create({ title, message, audience, recipients: ids.length, sentBy: req.user.email });
+    const wantsPush = req.body?.push === true && pushConfigured();
+    const record = await Announcement.create({ title, message, audience, recipients: ids.length, sentBy: req.user.email, push: wantsPush });
     await audit(req.user, 'ANNOUNCEMENT_SENT', { type: 'Announcement', id: record._id }, { audience, recipients: ids.length, title }, req);
-    res.status(201).json({ recipients: ids.length });
+    // Pushes go out in the background; the sender is not kept waiting
+    if (wantsPush) pushToMany(ids, { title, body: message, type: 'ANNOUNCEMENT' }).then(n => Announcement.updateOne({ _id: record._id }, { pushed: n })).catch(e => console.error('Announcement push failed:', e.message));
+    res.status(201).json({ recipients: ids.length, pushQueued: wantsPush });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

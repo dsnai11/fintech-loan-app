@@ -1,6 +1,7 @@
 import { getConfig } from './configService.js';
 import { smsConfigured } from './smsService.js';
 import { bureauConfigured, providerName as bureauProvider, missingSettings as bureauMissing, PROVIDERS as BUREAUS } from './bureauService.js';
+import { pushConfigured, providerName as pushProvider, missingSettings as pushMissing } from './pushService.js';
 import { modeNow as digilockerMode, providerName as digilockerProvider, PROVIDERS as DIGILOCKERS } from './digilockerService.js';
 
 // One place that says, for every outside service, whether the app is using the real thing or its test mode, and
@@ -37,6 +38,22 @@ export const INTEGRATIONS = [
       field('EMAIL_PASSWORD', 'Password or app password', { secret: true }),
     ],
     status: () => (getConfig('EMAIL_USER') && getConfig('EMAIL_PASSWORD') ? { mode: 'live', provider: getConfig('EMAIL_SERVICE') || 'gmail' } : { mode: 'off', note: 'No email account is set up. Emails are skipped; customers still get in-app notifications.' }),
+  },
+  {
+    id: 'push', label: 'Push notifications (Firebase)', purpose: 'Sends loan, EMI and offer alerts to customers\' phones, even when the app is closed.',
+    fields: [
+      field('PUSH_PROVIDER', 'Provider', { options: ['', 'fcm'], hint: 'Create a free Firebase project, then paste its service-account details below. Leave empty for in-app notifications only.' }),
+      field('FCM_PROJECT_ID', 'Firebase project ID'),
+      field('FCM_CLIENT_EMAIL', 'Service account email'),
+      field('FCM_PRIVATE_KEY', 'Service account private key', { secret: true, long: true }),
+    ],
+    status: () => {
+      const p = pushProvider();
+      if (p && p !== 'fcm') return { mode: 'misconfigured', provider: p, note: `"${p}" is not a push provider here. Choose fcm.` };
+      if (p && pushMissing().length) return { mode: 'misconfigured', provider: p, missing: pushMissing(), note: 'Fill in the missing settings.' };
+      if (pushConfigured()) return { mode: 'live', provider: 'fcm', note: 'Customers\' phones also need the app build with Firebase added (see the setup steps).' };
+      return { mode: 'off', note: 'Not set up. Alerts still appear in the app\'s notification bell.' };
+    },
   },
   {
     id: 'bureau', label: 'Credit bureau', purpose: 'The credit score behind each customer\'s loan offer.',

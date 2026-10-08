@@ -15,6 +15,7 @@ const notificationSchema = new mongoose.Schema(
     channels: {
       email: { type: String, enum: ['sent', 'failed', 'skipped'], default: 'skipped' },
       sms: { type: String, enum: ['sent', 'failed', 'skipped'], default: 'skipped' },
+      push: { type: String, enum: ['sent', 'failed', 'skipped'], default: 'skipped' },
     },
   },
   { timestamps: true }

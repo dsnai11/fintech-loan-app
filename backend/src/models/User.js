@@ -55,6 +55,7 @@ const userSchema = new mongoose.Schema(
     kycDigilocker: mongoose.Schema.Types.Mixed,
     selfieAttempts: mongoose.Schema.Types.Mixed,
     offer: mongoose.Schema.Types.Mixed,
+    pushPrefs: mongoose.Schema.Types.Mixed, // which kinds of push notification the customer switched off: { offers: false }
     referralCode: { type: String, unique: true, sparse: true }, // shared with friends
     referredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     language: { type: String, default: 'en' }, // the language the customer chose in the app

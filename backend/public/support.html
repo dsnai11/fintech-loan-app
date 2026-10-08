@@ -68,6 +68,7 @@
       </div>
       <label for="a-msg">Message (up to 500 characters)</label>
       <textarea id="a-msg" maxlength="500" style="width:100%;min-height:80px;margin-bottom:10px"></textarea>
+      <label class="chk" id="a-push-row" style="display:none;gap:8px;align-items:center;margin:0 0 10px"><input type="checkbox" id="a-push" checked> <span>Also send as a push notification to phones <span class="sub" id="a-devices" style="margin:0"></span></span></label>
       <button class="btn primary" onclick="sendAnnouncement()">Send announcement</button>
     </div>
     <div class="card"><h2 style="margin:0 0 10px;font-size:15px">Sent so far</h2>
@@ -170,15 +171,15 @@ async function loadAnnouncements() {
 }
 let counted = null;
 async function countAudience() {
-  try { const d = await api('/admin/announcements/count?audience=' + encodeURIComponent($('a-aud').value)); counted = d.count; $('a-count').textContent = d.count + ' customer' + (d.count === 1 ? '' : 's') + ' will get this.'; } catch (e) { counted = null; $('a-count').textContent = e.message; }
+  try { const d = await api('/admin/announcements/count?audience=' + encodeURIComponent($('a-aud').value)); counted = d.count; $('a-count').textContent = d.count + ' customer' + (d.count === 1 ? '' : 's') + ' will get this.'; $('a-push-row').style.display = d.pushAvailable ? 'flex' : 'none'; $('a-devices').textContent = d.pushAvailable ? '(' + d.devices + ' of them have the app on a phone that can receive pushes; customers who switched off offers are skipped)' : ''; } catch (e) { counted = null; $('a-count').textContent = e.message; }
 }
 async function sendAnnouncement() {
-  const body = { audience: $('a-aud').value, title: $('a-title').value, message: $('a-msg').value, expectedCount: counted };
+  const body = { audience: $('a-aud').value, title: $('a-title').value, message: $('a-msg').value, expectedCount: counted, push: $('a-push-row').style.display !== 'none' && $('a-push').checked };
   if (counted == null) return msg('Choose a group first.', 'err');
   if (!confirm(`Send this to ${counted} customer${counted === 1 ? '' : 's'}? It cannot be taken back.`)) return;
   try {
     const d = await api('/admin/announcements', 'POST', body);
-    msg(`Sent to ${d.recipients} customer${d.recipients === 1 ? '' : 's'}.`, 'ok');
+    msg(`Sent to ${d.recipients} customer${d.recipients === 1 ? '' : 's'}${d.pushQueued ? ', and the push notifications are going out now' : ''}.`, 'ok');
     $('a-title').value = ''; $('a-msg').value = '';
     loadAnnouncements(); countAudience();
   } catch (e) { msg(e.message, 'err'); countAudience(); }

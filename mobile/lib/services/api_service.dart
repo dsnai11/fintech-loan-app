@@ -290,6 +290,33 @@ class ApiService {
     }
   }
 
+  // Push notifications: the customer's choices, and this phone's address for alerts
+  Future<Map<String, dynamic>> getPushPreferences() async {
+    try {
+      final response = await _dio.get('/push/preferences');
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> setPushPreferences(Map<String, bool> choices) async {
+    try {
+      final response = await _dio.put('/push/preferences', data: choices);
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<void> registerPushToken(String token, String platform) async {
+    try {
+      await _dio.post('/push/register', data: {'token': token, 'platform': platform, 'appVersion': '1.0.0'});
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   // Tells the company a banner was shown or tapped (for the counts in the portal). Never blocks the screen.
   Future<void> sendBannerEvent(String id, String type) async {
     try {

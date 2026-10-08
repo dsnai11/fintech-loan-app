@@ -4,6 +4,7 @@ import User from '../models/User.js';
 import Loan from '../models/Loan.js';
 import EMIPayment from '../models/EMIPayment.js';
 import { getConfig } from './configService.js';
+import { pushToUser } from './pushService.js';
 
 let transporter;
 function getTransporter() {
@@ -59,6 +60,7 @@ export async function notify(userId, { type, title, message, loanId }, { email =
     const channels = {
       email: email ? await sendEmail(user, title, message) : 'skipped',
       sms: sms ? await sendSms(user, message) : 'skipped',
+      push: await pushToUser(userId, { title, body: message, type, data: loanId ? { loanId: String(loanId) } : {} }),
     };
     return await Notification.create({ userId, loanId, type, title, message, channels });
   } catch (e) {

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart' hide Text;
 import '../widgets/tr_text.dart';
 import '../widgets/language_picker.dart';
 import 'referral_screen.dart';
+import 'notification_settings_screen.dart';
 import 'package:provider/provider.dart';
 import '../main.dart';
 import '../services/api_service.dart';
@@ -286,6 +287,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 12),
 
           const ReferEarnRow(),
+          const NotificationSettingsRow(),
           const LanguageRow(),
 
           // Personal info
