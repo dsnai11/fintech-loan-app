@@ -438,6 +438,73 @@ class ApiService {
     }
   }
 
+  // Account set-up: personal details, the selfie with its blink check, and DigiLocker
+  Future<Map<String, dynamic>> saveOnboardingProfile(Map<String, dynamic> body) async {
+    try {
+      final response = await _dio.put('/onboarding/profile', data: body);
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> livenessChallenge() async {
+    try {
+      final response = await _dio.post('/onboarding/selfie/challenge');
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  // The two photos (base64) and what the camera saw of the eyes while the customer blinked
+  Future<Map<String, dynamic>> submitSelfie({
+    required String challengeId,
+    required String before,
+    required String after,
+    required List<List<num>> samples,
+    required int blinks,
+  }) async {
+    try {
+      final response = await _dio.post(
+        '/onboarding/selfie',
+        data: {'challengeId': challengeId, 'before': before, 'after': after, 'blink': {'samples': samples, 'blinks': blinks}},
+        options: Options(sendTimeout: const Duration(seconds: 60), receiveTimeout: const Duration(seconds: 60)),
+      );
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  // The customer's own selfie, for the profile
+  Future<List<int>?> getSelfieBytes() async {
+    try {
+      final response = await _dio.get<List<int>>('/onboarding/selfie/image', options: Options(responseType: ResponseType.bytes));
+      return response.data;
+    } on DioException {
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>> startDigilocker() async {
+    try {
+      final response = await _dio.post('/kyc/digilocker/start');
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> getDigilockerStatus(String sessionId) async {
+    try {
+      final response = await _dio.get('/kyc/digilocker/status/$sessionId');
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   // Terms and conditions, and what is still to do after signing in
   Future<Map<String, dynamic>> getTerms() async {
     try {

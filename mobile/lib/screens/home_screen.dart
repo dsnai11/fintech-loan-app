@@ -13,6 +13,7 @@ import 'emi_calculator_screen.dart';
 import 'loan_detail_screen.dart';
 import 'agreement_screen.dart';
 import 'onboarding_flow.dart';
+import 'account_setup_flow.dart';
 
 // Home tab. Top to bottom: greeting, any notice from the company, the offer, the customer's own loan (progress and
 // next instalment, or where an application stands), shortcuts, and the loan products.
@@ -29,6 +30,7 @@ class _HomeScreenState extends State<HomeScreen> {
   num? _repeatMax;
   Map<String, dynamic>? _myOffer; // the offer from the customer's credit check, if still valid
   bool _phoneUnverified = false;
+  Map<String, dynamic>? _setup; // what is still to do in the account set-up
   Map<String, dynamic>? _loan; // the loan that matters right now, if any
   List<Map<String, dynamic>> _emis = [];
 
@@ -57,7 +59,12 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadPhoneStatus() async {
     try {
       final s = await context.read<ApiService>().getOnboarding();
-      if (mounted) setState(() => _phoneUnverified = s['phoneVerified'] != true);
+      if (mounted) {
+        setState(() {
+          _phoneUnverified = s['phoneVerified'] != true;
+          _setup = s['setup'] is Map ? Map<String, dynamic>.from(s['setup'] as Map) : null;
+        });
+      }
     } catch (_) {}
   }
 
@@ -114,6 +121,7 @@ class _HomeScreenState extends State<HomeScreen> {
               _topBar(first),
               const SizedBox(height: 18),
               if (_phoneUnverified) _verifyPhoneCard(),
+              if (_setup != null && !setupComplete(_setup)) _setupCard(),
               if (settings.banner != null) _banner(settings.banner!),
               _hero(settings),
               const SizedBox(height: 18),
@@ -444,6 +452,29 @@ class _HomeScreenState extends State<HomeScreen> {
     if (name.isEmpty) return const SizedBox.shrink();
     return Center(
       child: Text(reg.isEmpty ? name : '$name · Reg. no. $reg', textAlign: TextAlign.center, style: const TextStyle(fontSize: 11.5, color: Color(0xFF9CA3AF))),
+    );
+  }
+
+  Widget _setupCard() {
+    final s = _setup!;
+    final left = ['kyc', 'profile', 'selfie', 'bank'].where((k) => s[k] != true).length;
+    return GestureDetector(
+      onTap: () async {
+        await runAccountSetup(context, s);
+        _loadPhoneStatus();
+      },
+      child: Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 14),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(color: const Color(0xFFFEF3C7), borderRadius: BorderRadius.circular(14)),
+        child: Row(children: [
+          const Icon(Icons.assignment_ind_outlined, color: Color(0xFF92400E), size: 22),
+          const SizedBox(width: 12),
+          Expanded(child: Text('Finish setting up your account: $left step${left == 1 ? '' : 's'} left (identity, details, selfie, bank). You need this before you can apply.', style: const TextStyle(color: Color(0xFF92400E), fontSize: 13, height: 1.4))),
+          const Icon(Icons.chevron_right_rounded, color: Color(0xFF92400E)),
+        ]),
+      ),
     );
   }
 

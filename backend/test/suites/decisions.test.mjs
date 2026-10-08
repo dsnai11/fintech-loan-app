@@ -16,12 +16,12 @@ const yearsAgo = n => new Date(Date.now() - n * 365.25 * 86400000);
 let seq = 0;
 const mk = async (over = {}) => {
   seq++;
-  const u = await User.create({ firstName: `Cust${seq}`, lastName: 'D', email: `c${seq}@x.in`, phone: `97${String(seq).padStart(8, '0')}`, password: 'x12345678', kycStatus: 'approved', phoneVerified: true, dateOfBirth: yearsAgo(32), ...over });
+  const u = await User.create({ firstName: `Cust${seq}`, lastName: 'D', email: `c${seq}@x.in`, phone: `97${String(seq).padStart(8, '0')}`, password: 'x12345678', kycStatus: 'approved', phoneVerified: true, dateOfBirth: yearsAgo(32), selfie: { status: 'passed' }, ...over });
   return { u, tok: await tokenFor(u), n: seq };
 };
 const apply = (c, amount = 10000) => call('POST', '/loans/apply-full', c.tok, { loanAmount: amount, tenure: 3, purpose: 'Personal', planType: '3_emi', bankDetails: { accountHolder: 'D', accountNumber: `88800000${c.n}`, ifscCode: 'SBIN0001234' } });
 const loanOf = async c => Loan.findOne({ userId: c.u._id }).sort({ createdAt: -1 });
-const clean = { amount: 10000, age: 32, kycApproved: true, phoneVerified: true, openAmlAlerts: 0, defaultedLoans: 0, openLoans: 0, overdueEmis: 0, repeatCustomer: false, bureauScore: 0 };
+const clean = { amount: 10000, age: 32, kycApproved: true, phoneVerified: true, openAmlAlerts: 0, defaultedLoans: 0, openLoans: 0, overdueEmis: 0, repeatCustomer: false, bureauScore: 0, selfieStatus: 'passed', monthlyIncome: 0, emi: 0 };
 
 section('THE RULES ON PLAIN FACTS');
 const ev = f => evaluate(DEFAULTS, { ...clean, ...f });
@@ -41,7 +41,12 @@ const strict = { ...DEFAULTS, bureau: { ...DEFAULTS.bureau, rejectBelow: 500 } }
 check('a "reject below" score rejects instead of referring', evaluate(strict, { ...clean, bureauScore: 480 }).outcome === 'REJECT' && evaluate(strict, { ...clean, bureauScore: 520 }).outcome === 'REFER');
 const needScore = { ...DEFAULTS, bureau: { ...DEFAULTS.bureau, requireScore: true } };
 check('"require a score" refers applicants without one', evaluate(needScore, clean).outcome === 'REFER');
-check('income and bureau history rules say they are not running yet', ev({}).checks.filter(c => c.result === 'skip').map(c => c.code).includes('FOIR') && ev({}).checks.filter(c => c.result === 'skip').map(c => c.code).includes('EWS'));
+check('the sign-up photo must have passed: none, or waiting for staff, sends it to a person', ev({ selfieStatus: 'none' }).outcome === 'REFER' && ev({ selfieStatus: 'review' }).outcome === 'REFER' && ev({ selfieStatus: 'passed' }).outcome === 'APPROVE');
+const foirOn = { ...DEFAULTS, foir: { enabled: true, maxPercent: 50 } };
+check('income against EMIs: off by default and skipped', ev({ monthlyIncome: 1000, emi: 9000 }).outcome === 'APPROVE' && ev({}).checks.find(c => c.code === 'FOIR').result === 'skip');
+check('income against EMIs when on: 20,000 of 30,000 is too much, 10,000 is fine, no income goes to a person', evaluate(foirOn, { ...clean, monthlyIncome: 30000, emi: 20000 }).outcome === 'REFER' && evaluate(foirOn, { ...clean, monthlyIncome: 30000, emi: 10000 }).outcome === 'APPROVE' && evaluate(foirOn, { ...clean, monthlyIncome: 0, emi: 5000 }).outcome === 'REFER');
+check('and the reason says the share', evaluate(foirOn, { ...clean, monthlyIncome: 30000, emi: 20000 }).checks.find(c => c.code === 'FOIR').detail.includes('66.7%'));
+check('income and bureau history rules say they are not running yet', ev({}).checks.filter(c => c.result === 'skip').map(c => c.code).includes('EWS'));
 
 section('VALIDATING THE RULES');
 check('ages out of order refused', validateRules({ ...DEFAULTS, age: { min: 40, max: 30, hardMin: 18, hardMax: 75 } }).errors.length > 0);

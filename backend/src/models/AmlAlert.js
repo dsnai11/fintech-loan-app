@@ -4,7 +4,7 @@ const schema = new mongoose.Schema(
   {
     rule: {
       type: String,
-      enum: ['WATCHLIST_MATCH', 'LARGE_LOAN', 'RAPID_REAPPLICATION', 'SHARED_BANK_ACCOUNT', 'EARLY_CLOSURE', 'DUPLICATE_PAN', 'KYC_NAME_MISMATCH'],
+      enum: ['WATCHLIST_MATCH', 'LARGE_LOAN', 'RAPID_REAPPLICATION', 'SHARED_BANK_ACCOUNT', 'EARLY_CLOSURE', 'DUPLICATE_PAN', 'KYC_NAME_MISMATCH', 'DUPLICATE_SELFIE', 'DUPLICATE_AADHAAR'],
       required: true,
     },
     severity: { type: String, enum: ['MEDIUM', 'HIGH'], required: true },

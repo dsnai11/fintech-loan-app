@@ -147,15 +147,17 @@ function renderRules() {
         ${sw('h-overdue', R.history.referIfOverdue, 'Send to a person if the customer has an overdue instalment')}
         ${sw('aml', R.aml.referOnOpenAlert, 'Send to a person if there is any open AML alert')}
         ${sw('kyc', R.kyc.requireApproved, 'Send to a person if KYC is not approved')}
+        ${sw('selfie', R.selfie.requirePassed, 'Send to a person unless the sign-up photo and blink check have passed')}
+        ${sw('foir-on', R.foir.enabled, 'Send to a person if the EMI is too large a share of monthly income (income comes from the sign-up form)')}
         ${sw('phone', R.phone.requireVerified, 'Send to a person if the phone number is not verified')}
       </div>
-      <div class="grid" style="margin-top:12px">${num('h-open', 'Other open loans allowed', R.history.maxOpenLoans)}</div></div>
+      <div class="grid" style="margin-top:12px">${num('h-open', 'Other open loans allowed', R.history.maxOpenLoans)}${num('foir-max', 'Highest EMI as a share of monthly income (%)', R.foir.maxPercent)}</div></div>
 
     <div class="card"><h2>Your own rules</h2><div class="sub">Add a rule of your own, with no code: when something is over, under or equal to a value, send the application to a person or reject it. They run together with the rules above. They do not change the loan offer amount.</div>
       <div class="scroll"><table class="bands"><thead><tr><th>Name</th><th>When</th><th></th><th>Value</th><th>Then</th><th>Note for your team</th><th></th></tr></thead><tbody id="customs">${(R.custom || []).map((c, i) => customRow(c, i)).join('') || '<tr><td colspan="7" class="note">No rules of your own yet.</td></tr>'}</tbody></table></div>
       <button class="btn" style="margin-top:8px" onclick="addCustom()" ${dis}>Add a rule</button></div>
 
-    <div class="card"><h2>Not running yet</h2><div class="sub" style="margin:0">Income against EMIs (FOIR) needs the customer's income, which the app does not collect yet. Early warning rules (late payments, enquiries, settlements on the credit record) need a credit bureau connection. Both will be added when that data exists.</div></div>
+    <div class="card"><h2>Not running yet</h2><div class="sub" style="margin:0">Early warning rules (late payments, enquiries and settlements on the credit record) need a credit bureau connection, so they are not running yet.</div></div>
 
     <div class="bar"><button class="btn primary" id="save" onclick="saveRules()" ${dis}>Save rules</button><span class="note">${canEdit() ? '' : 'Your role can view the rules but not change them.'}</span></div>`;
 }
@@ -182,6 +184,8 @@ function collectRules() {
     mode: document.querySelector('input[name=mode]:checked')?.value || R.mode,
     age: { hardMin: n('age-hardMin'), min: n('age-min'), max: n('age-max'), hardMax: n('age-hardMax') },
     kyc: { requireApproved: $('kyc').checked },
+    selfie: { requirePassed: $('selfie').checked },
+    foir: { enabled: $('foir-on').checked, maxPercent: n('foir-max') },
     phone: { requireVerified: $('phone').checked },
     amount: { firstLoanAutoMax: n('amt-first'), repeatAutoMax: n('amt-repeat') },
     bureau: { requireScore: $('cs-require').checked, autoMinScore: n('cs-auto'), rejectBelow: n('cs-reject') },

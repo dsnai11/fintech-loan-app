@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import User from '../models/User.js';
 import { generateToken, authMiddleware } from '../middleware/auth.js';
 import { currentVersion, termsRequiredFor } from '../services/terms.js';
+import { setupStatus } from '../services/onboardingService.js';
 import { audit } from '../services/auditService.js';
 import { issueResetToken, consumeResetToken } from '../services/passwordReset.js';
 import { sendPlainEmail } from '../services/notificationService.js';
@@ -136,13 +137,14 @@ router.post('/login', async (req, res) => {
 // What the app must still ask this customer to do before they can use it: accept the terms, verify the phone.
 router.get('/onboarding', authMiddleware, async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId).select('role email phone phoneVerified termsVersion');
+    const user = await User.findById(req.user.userId).select('role email phone phoneVerified termsVersion dateOfBirth gender address employment bankAccount selfie kycDigilocker');
     if (!user) return res.status(404).json({ error: 'User not found' });
     const customer = !isStaffRole(user.role) && user.email !== (process.env.ADMIN_EMAIL || 'admin@lifc.in').toLowerCase();
     res.json({
       termsRequired: customer && termsRequiredFor(user),
       termsVersion: currentVersion(),
       phoneVerified: !!user.phoneVerified,
+      setup: setupStatus(user),
       phone: String(user.phone).replace(/(\d{2})\d{6}(\d{2})/, '$1XXXXXX$2'),
     });
   } catch (error) {

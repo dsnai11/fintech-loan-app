@@ -1,3 +1,4 @@
+import 'account_setup_card.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../main.dart';
@@ -275,6 +276,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   kycStatus == 'approved' ? kGreen : const Color(0xFFF59E0B))),
             ],
           ),
+          const SizedBox(height: 12),
+
+          // Identity, details, selfie and bank, with a way to do or redo each
+          AccountSetupCard(profile: _profile ?? const {}, onChanged: _fetchProfile),
           const SizedBox(height: 12),
 
           // Personal info

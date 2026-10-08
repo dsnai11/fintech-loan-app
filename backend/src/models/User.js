@@ -49,6 +49,11 @@ const userSchema = new mongoose.Schema(
     creditScoreAt: Date,
     creditScoreSource: String,
     bureauConsentAt: Date,
+    // The selfie taken at sign-up and its blink check (the photos themselves live in KycMedia)
+    selfie: mongoose.Schema.Types.Mixed,
+    // The KYC outcome from DigiLocker: status, whether name and date of birth matched, last 4 digits of the Aadhaar
+    kycDigilocker: mongoose.Schema.Types.Mixed,
+    selfieAttempts: mongoose.Schema.Types.Mixed,
     offer: mongoose.Schema.Types.Mixed,
     // The terms and conditions the customer last accepted (see services/terms.js)
     termsVersion: { type: Number, default: 0 },

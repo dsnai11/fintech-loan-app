@@ -64,6 +64,7 @@ export async function startServer(db, env = {}) {
         REQUIRE_TERMS: 'false',
         REQUIRE_PHONE_VERIFIED: 'false',
         OFFER_LIMIT: 'false',
+        REQUIRE_ONBOARDING: 'false',
         ...env,
       },
     });

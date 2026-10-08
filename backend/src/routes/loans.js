@@ -10,6 +10,7 @@ import { contextFor } from '../services/chargeContext.js';
 import { policyFor } from '../services/appSettings.js';
 import { termsRequiredFor } from '../services/terms.js';
 import { decideLoan } from '../services/decisionEngine.js';
+import { setupStatus } from '../services/onboardingService.js';
 import { makeOffer, activeOffer, publicOffer, offerCap } from '../services/offerService.js';
 import { renderClosureLetter } from '../services/closureLetter.js';
 import { renderStatement } from '../services/loanStatement.js';
@@ -46,6 +47,7 @@ router.post('/apply-full', authMiddleware, async (req, res) => {
     if (!user) return res.status(404).json({ error: 'User not found' });
     if (termsRequiredFor(user)) return res.status(403).json({ error: 'Please accept the updated terms and conditions first.', code: 'TERMS_REQUIRED' });
     if (process.env.REQUIRE_PHONE_VERIFIED !== 'false' && !user.phoneVerified) return res.status(403).json({ error: 'Verify your phone number first. Open the app and enter the code we send you.', code: 'PHONE_NOT_VERIFIED' });
+    if (process.env.REQUIRE_ONBOARDING !== 'false' && !setupStatus(user).complete) return res.status(403).json({ error: 'Finish setting up your account first: your personal details, a photo and your bank account.', code: 'ONBOARDING_INCOMPLETE' });
 
     // The most this customer can borrow: the product limit, and their own offer after the credit check.
     const { cap, offer } = await offerCap(user, getPolicy());
@@ -168,6 +170,7 @@ router.post('/apply', authMiddleware, async (req, res) => {
     if (!user) return res.status(404).json({ error: 'User not found' });
     if (termsRequiredFor(user)) return res.status(403).json({ error: 'Please accept the updated terms and conditions first.', code: 'TERMS_REQUIRED' });
     if (process.env.REQUIRE_PHONE_VERIFIED !== 'false' && !user.phoneVerified) return res.status(403).json({ error: 'Verify your phone number first. Open the app and enter the code we send you.', code: 'PHONE_NOT_VERIFIED' });
+    if (process.env.REQUIRE_ONBOARDING !== 'false' && !setupStatus(user).complete) return res.status(403).json({ error: 'Finish setting up your account first: your personal details, a photo and your bank account.', code: 'ONBOARDING_INCOMPLETE' });
 
     // The most this customer can borrow: the product limit, and their own offer after the credit check.
     const { cap, offer } = await offerCap(user, getPolicy());

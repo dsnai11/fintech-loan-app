@@ -94,6 +94,14 @@ export async function flagDuplicatePan(user, pan) {
   }
 }
 
+export async function flagDuplicateAadhaar(user) {
+  try {
+    await raise('DUPLICATE_AADHAAR', 'HIGH', user, null, 'The Aadhaar details shared through DigiLocker belong to another account too');
+  } catch (e) {
+    console.error('AML duplicate-Aadhaar flag failed:', e.message);
+  }
+}
+
 export async function flagNameMismatch(user, providerName) {
   try {
     await raise('KYC_NAME_MISMATCH', 'MEDIUM', user, null, `PAN holder name "${providerName}" does not match the account name "${user.firstName} ${user.lastName}"`);
@@ -124,4 +132,4 @@ export async function openHighAlerts(userId) {
   return AmlAlert.find({ userId, status: 'OPEN', severity: 'HIGH' });
 }
 
-export default { raiseWatchlistAlerts, screenLoan, flagEarlyClosure, flagDuplicatePan, flagNameMismatch, openHighAlerts, matchWatchlist };
+export default { raiseWatchlistAlerts, screenLoan, flagEarlyClosure, flagDuplicatePan, flagDuplicateAadhaar, flagNameMismatch, openHighAlerts, matchWatchlist };

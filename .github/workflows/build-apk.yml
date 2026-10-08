@@ -75,6 +75,9 @@ jobs:
         cd mobile
         flutter create --platforms ios . --project-name fintech_loan
         echo "iOS directory created"
+        # The selfie step uses the camera, and iOS stops the app without a reason to show the customer.
+        /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'LIFC uses the camera to take your selfie and check that it is really you.'" ios/Runner/Info.plist
+        /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string 'LIFC needs access to photos only if you choose to upload a document.'" ios/Runner/Info.plist || true
 
     - name: Build iOS (no codesign)
       run: |

@@ -121,6 +121,8 @@ const RULES = [
   [/^\/api\/admin\/pricing(\/|$)/, 'pricing.view', 'pricing.view'], // PUT is checked by what it changes
   [/^\/api\/admin\/charges\/preview(\/|$)/, 'pricing.view', 'pricing.view'],
   [/^\/api\/admin\/charges(\/|$)/, 'pricing.view', 'pricing.edit'],
+  [/^\/api\/admin\/customers\/[^/]+\/selfie-decision(\/|$)/, 'kyc.decide', 'kyc.decide'],
+  [/^\/api\/admin\/customers\/[^/]+\/selfie(\/|$)/, 'kyc.view', 'kyc.view'],
   [/^\/api\/admin\/customers(\/|$)/, 'customers.view', 'customers.view'],
   [/^\/api\/admin\/reports(\/|$)/, 'reports.view', 'reports.view'],
   [/^\/api\/admin\/collections\/[^/]+\/(letter|claim|release)(\/|$)/, 'collections.act', 'collections.act'],

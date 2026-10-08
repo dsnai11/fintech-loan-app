@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/api_service.dart';
 import '../utils/error_utils.dart';
+import 'account_setup_flow.dart';
 import 'otp_screen.dart';
 import 'terms_screen.dart';
 
@@ -45,6 +46,11 @@ Future<void> continueToHome(BuildContext context) async {
   }
   if (status != null && status['phoneVerified'] != true && context.mounted) {
     await verifyPhone(context); // skipping is allowed; the home screen keeps reminding
+  }
+  // Then the account set-up (identity, details, selfie, bank). Skipping is allowed; the home screen keeps reminding.
+  final setup = status?['setup'];
+  if (setup is Map && setup['complete'] != true && context.mounted) {
+    await runAccountSetup(context, Map<String, dynamic>.from(setup));
   }
   nav.pushNamedAndRemoveUntil('/home', (_) => false);
 }

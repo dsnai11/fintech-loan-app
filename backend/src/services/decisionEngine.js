@@ -27,6 +27,8 @@ export const CUSTOM_FIELDS = {
   kycApproved: { label: 'KYC approved', type: 'boolean' },
   phoneVerified: { label: 'Phone verified', type: 'boolean' },
   repeatCustomer: { label: 'Repeat customer', type: 'boolean' },
+  monthlyIncome: { label: 'Monthly income (Rs, 0 if not given)', type: 'number' },
+  emi: { label: 'EMI of this loan (Rs)', type: 'number' },
 };
 const OPS = ['>', '>=', '<', '<=', '=', '!='];
 
@@ -46,6 +48,8 @@ export const DEFAULTS = {
   mode: 'shadow',
   age: { min: 21, max: 65, hardMin: 18, hardMax: 75 }, // between min and max: fine. Outside that but inside the hard limits: a person decides. Outside the hard limits: rejected
   kyc: { requireApproved: true },
+  selfie: { requirePassed: true }, // the photo and blink check must have passed (not still waiting for staff)
+  foir: { enabled: false, maxPercent: 50 }, // the EMI as a share of monthly income; above it a person decides
   phone: { requireVerified: true },
   amount: { firstLoanAutoMax: 25000, repeatAutoMax: 100000 }, // above these a person decides
   bureau: {
@@ -118,6 +122,9 @@ export function validateRules(candidate) {
   if (!errors.length && !(out.age.hardMin <= out.age.min && out.age.min < out.age.max && out.age.max <= out.age.hardMax)) errors.push('Ages must run in order: youngest we lend to, youngest without a check, oldest without a check, oldest we lend to');
 
   out.kyc.requireApproved = bool(r.kyc?.requireApproved);
+  out.selfie.requirePassed = bool(r.selfie?.requirePassed);
+  out.foir.enabled = bool(r.foir?.enabled);
+  out.foir.maxPercent = num(r.foir?.maxPercent, 5, 100, 'Highest EMI as a share of income (%)', errors);
   out.phone.requireVerified = bool(r.phone?.requireVerified);
   out.amount.firstLoanAutoMax = num(r.amount?.firstLoanAutoMax, 0, 10000000, 'Largest automatic approval for a new customer', errors, { int: true });
   out.amount.repeatAutoMax = num(r.amount?.repeatAutoMax, 0, 10000000, 'Largest automatic approval for a repeat customer', errors, { int: true });
@@ -203,6 +210,12 @@ export function evaluate(rules, f) {
   if (rules.kyc.requireApproved) add('KYC', 'KYC', f.kycApproved ? 'pass' : 'refer', f.kycApproved ? 'KYC approved' : 'KYC is not approved yet');
   if (rules.phone.requireVerified) add('PHONE', 'Phone number', f.phoneVerified ? 'pass' : 'refer', f.phoneVerified ? 'Verified' : 'Phone number is not verified');
 
+  // The photo taken at sign-up
+  if (rules.selfie.requirePassed) {
+    const s = f.selfieStatus;
+    add('SELFIE', 'Photo and blink check', s === 'passed' ? 'pass' : 'refer', s === 'passed' ? 'Passed' : s === 'review' ? 'The photo is waiting for a staff check' : 'No verified photo on file');
+  }
+
   // Compliance
   if (rules.aml.referOnOpenAlert) add('AML', 'AML alerts', f.openAmlAlerts > 0 ? 'refer' : 'pass', f.openAmlAlerts > 0 ? `${f.openAmlAlerts} open alert(s)` : 'No open alerts');
 
@@ -232,7 +245,13 @@ export function evaluate(rules, f) {
   }
 
   // Rules that need data we do not collect yet
-  add('FOIR', 'Income against EMIs (FOIR)', 'skip', 'Income is not collected yet, so this rule is not running.');
+  if (rules.foir.enabled) {
+    if (!(f.monthlyIncome > 0)) add('FOIR', 'Income against EMIs (FOIR)', 'refer', 'Monthly income is not on file');
+    else {
+      const share = Math.round((f.emi / f.monthlyIncome) * 1000) / 10;
+      add('FOIR', 'Income against EMIs (FOIR)', share > rules.foir.maxPercent ? 'refer' : 'pass', `The EMI is ${share}% of monthly income, against a limit of ${rules.foir.maxPercent}%`);
+    }
+  } else add('FOIR', 'Income against EMIs (FOIR)', 'skip', 'Switched off. Turn it on to compare the EMI with monthly income.');
   add('EWS', 'Early warning (bureau history)', 'skip', 'Needs credit bureau data, so this rule is not running.');
 
   const rejects = checks.filter(c => c.result === 'reject');
@@ -267,6 +286,9 @@ export async function gatherFacts(loan, user) {
     overdueEmis,
     repeatCustomer: others.some(l => l.status === 'closed' && l.closureType !== 'cooling_off'),
     bureauScore: user.creditScore || 0, // filled by a credit bureau integration
+    selfieStatus: user.selfie?.status || 'none',
+    monthlyIncome: user.employment?.monthlyIncome || 0,
+    emi: loan.monthlyEMI || 0,
   };
 }
 
