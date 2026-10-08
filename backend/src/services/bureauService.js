@@ -15,7 +15,9 @@ import User from '../models/User.js';
 // score. Settings (Configuration page or environment variables):
 //   BUREAU_API_URL, BUREAU_API_KEY, BUREAU_METHOD (POST), BUREAU_AUTH_HEADER (Authorization), BUREAU_AUTH_SCHEME (Bearer),
 //   BUREAU_REQUEST_TEMPLATE (JSON with {{pan}} {{name}} {{dob}} {{phone}} {{email}}), BUREAU_SCORE_PATH (score),
-//   BUREAU_TIMEOUT_MS (10000). A vendor with a different flow gets its own adapter in PROVIDERS below.
+//   BUREAU_TIMEOUT_MS (10000). For the early-warning rules, where in the reply to find the number of credit enquiries in
+//   90 days, the most days past due in 12 months and the number of live loans: BUREAU_ENQUIRIES_PATH,
+//   BUREAU_MAXDPD_PATH, BUREAU_ACTIVELOANS_PATH (all optional). A vendor with a different flow gets its own adapter in PROVIDERS below.
 
 const FRESH_DAYS = 30;
 
@@ -48,9 +50,19 @@ export const PROVIDERS = {
         signal: AbortSignal.timeout(Number(getConfig('BUREAU_TIMEOUT_MS', '10000')) || 10000),
       });
       if (!res.ok) throw new Error(`Bureau answered ${res.status}`);
-      const score = Number(pathGet(await res.json(), getConfig('BUREAU_SCORE_PATH', 'score')));
+      const body = await res.json();
+      const score = Number(pathGet(body, getConfig('BUREAU_SCORE_PATH', 'score')));
       if (!Number.isFinite(score) || score < 300 || score > 900) throw new Error('Bureau reply had no usable score');
-      return { score: Math.round(score) };
+      // Optional extra details for the early-warning rules: where each one is in the reply
+      const extra = (key, name) => {
+        const p = getConfig(key);
+        if (!p) return undefined;
+        const n = Number(pathGet(body, p));
+        return Number.isFinite(n) && n >= 0 && n < 100000 ? Math.round(n) : undefined;
+      };
+      const report = { enquiries90: extra('BUREAU_ENQUIRIES_PATH'), maxDpd: extra('BUREAU_MAXDPD_PATH'), activeLoans: extra('BUREAU_ACTIVELOANS_PATH') };
+      const found = Object.values(report).some(v => v !== undefined);
+      return { score: Math.round(score), report: found ? { enquiries90: report.enquiries90 ?? 0, maxDpd: report.maxDpd ?? 0, activeLoans: report.activeLoans ?? 0 } : null };
     },
   },
 };
@@ -76,14 +88,16 @@ export async function checkCredit(user, { force = false } = {}) {
     if (bureauConfigured()) {
       try {
         const r = await adapter().check(user);
-        result = { score: r.score, source: 'bureau' };
+        result = { score: r.score, source: 'bureau', report: r.report };
       } catch (e) {
         console.error('Credit bureau call failed:', e.message);
       }
     } else if (sandboxAllowed()) {
       result = { score: sandboxScore(user), source: 'sandbox' };
     }
-    if (result.score) await User.updateOne({ _id: user._id }, { creditScore: result.score, creditScoreAt: new Date(), creditScoreSource: result.source });
+    if (result.score) {
+      await User.updateOne({ _id: user._id }, { creditScore: result.score, creditScoreAt: new Date(), creditScoreSource: result.source, ...(result.report ? { bureauReport: { ...result.report, at: new Date() } } : {}) });
+    }
     return { ...result, cached: false };
   } catch (e) {
     console.error('Credit check failed:', e.message);

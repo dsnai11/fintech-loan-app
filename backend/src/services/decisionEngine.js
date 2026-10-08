@@ -29,6 +29,15 @@ export const CUSTOM_FIELDS = {
   repeatCustomer: { label: 'Repeat customer', type: 'boolean' },
   monthlyIncome: { label: 'Monthly income (Rs, 0 if not given)', type: 'number' },
   emi: { label: 'EMI of this loan (Rs)', type: 'number' },
+  applicationsRecent: { label: 'Applications in the recent period, including this one', type: 'number' },
+  rejectionsRecent: { label: 'Applications rejected in the recent period', type: 'number' },
+  maxDaysLate: { label: 'Most days late on an earlier instalment', type: 'number' },
+  accountAgeDays: { label: 'Days since the customer signed up', type: 'number' },
+  amountToIncomeMonths: { label: 'Loan as months of income (0 if no income given)', type: 'number' },
+  bureauReportKnown: { label: 'Credit bureau details are available', type: 'boolean' },
+  bureauEnquiries90: { label: 'Credit enquiries in the last 90 days (bureau)', type: 'number' },
+  bureauMaxDpd: { label: 'Most days past due in the last 12 months (bureau)', type: 'number' },
+  bureauActiveLoans: { label: 'Live loans on the credit record (bureau)', type: 'number' },
 };
 const OPS = ['>', '>=', '<', '<=', '=', '!='];
 
@@ -72,6 +81,15 @@ export const DEFAULTS = {
   },
   history: { rejectIfDefaulted: true, maxOpenLoans: 1, referIfOverdue: true },
   aml: { referOnOpenAlert: true },
+  // Checks that use what we already know about the customer. Each is off until it is switched on.
+  velocity: { enabled: false, days: 30, referAt: 3, rejectAt: null }, // applications in the last N days, including this one
+  rejections: { enabled: false, days: 90, referAt: 2 }, // applications we rejected in the last N days
+  lateHistory: { enabled: false, referDays: 15 }, // the most days late on any earlier instalment
+  incomeMultiple: { enabled: false, maxMonths: 3 }, // the loan as months of monthly income
+  serviceArea: { enabled: false, blockedStates: [], blockedPincodes: [] }, // places we do not lend
+  accountAge: { enabled: false, minDays: 1 }, // a brand-new account goes to a person
+  // Checks that use the credit bureau's report. They only run when the bureau returns these details.
+  bureauReport: { enabled: false, maxEnquiries90: 5, maxDpd: 30, rejectDpd: null, maxActiveLoans: 4 },
   custom: [], // the lender's own rules: { id, name, field, op, value, result: 'refer' | 'reject', message }
 };
 
@@ -176,6 +194,47 @@ export function validateRules(candidate) {
   out.history.referIfOverdue = bool(r.history?.referIfOverdue);
   out.history.maxOpenLoans = num(r.history?.maxOpenLoans, 0, 20, 'Open loans allowed', errors, { int: true });
   out.aml.referOnOpenAlert = bool(r.aml?.referOnOpenAlert);
+
+  const v = r.velocity || {};
+  out.velocity.enabled = bool(v.enabled);
+  out.velocity.days = num(v.days ?? DEFAULTS.velocity.days, 1, 365, 'Days to look back for applications', errors, { int: true });
+  out.velocity.referAt = num(v.referAt ?? DEFAULTS.velocity.referAt, 1, 50, 'Applications that send a new one to a person', errors, { int: true });
+  out.velocity.rejectAt = num(v.rejectAt, 1, 100, 'Applications that reject a new one', errors, { int: true, allowNull: true });
+  if (!errors.length && out.velocity.rejectAt !== null && out.velocity.rejectAt <= out.velocity.referAt) errors.push('The number of applications that rejects must be above the number that sends to a person');
+
+  const rj = r.rejections || {};
+  out.rejections.enabled = bool(rj.enabled);
+  out.rejections.days = num(rj.days ?? DEFAULTS.rejections.days, 1, 365, 'Days to look back for rejections', errors, { int: true });
+  out.rejections.referAt = num(rj.referAt ?? DEFAULTS.rejections.referAt, 1, 20, 'Rejections that send a new application to a person', errors, { int: true });
+
+  const lh = r.lateHistory || {};
+  out.lateHistory.enabled = bool(lh.enabled);
+  out.lateHistory.referDays = num(lh.referDays ?? DEFAULTS.lateHistory.referDays, 1, 365, 'Days late that send an application to a person', errors, { int: true });
+
+  const im = r.incomeMultiple || {};
+  out.incomeMultiple.enabled = bool(im.enabled);
+  out.incomeMultiple.maxMonths = num(im.maxMonths ?? DEFAULTS.incomeMultiple.maxMonths, 0.5, 60, 'Most months of income a loan can be', errors);
+
+  const sa = r.serviceArea || {};
+  out.serviceArea.enabled = bool(sa.enabled);
+  const splitList = x => (Array.isArray(x) ? x : String(x ?? '').split(/[,\n]/)).map(t => String(t).trim()).filter(Boolean);
+  out.serviceArea.blockedStates = [...new Set(splitList(sa.blockedStates).map(t => t.slice(0, 40)))].slice(0, 40);
+  out.serviceArea.blockedPincodes = [...new Set(splitList(sa.blockedPincodes))].slice(0, 300);
+  const badPin = out.serviceArea.blockedPincodes.find(p => !/^\d{3,6}$/.test(p));
+  if (badPin) errors.push(`"${badPin}" is not a pincode. Use 6 digits, or the first 3 to 5 digits to block a whole area`);
+  if (out.serviceArea.enabled && !out.serviceArea.blockedStates.length && !out.serviceArea.blockedPincodes.length) errors.push('List at least one state or pincode we do not lend in, or switch the area check off');
+
+  const ac = r.accountAge || {};
+  out.accountAge.enabled = bool(ac.enabled);
+  out.accountAge.minDays = num(ac.minDays ?? DEFAULTS.accountAge.minDays, 1, 365, 'Days an account must be old', errors, { int: true });
+
+  const br = r.bureauReport || {};
+  out.bureauReport.enabled = bool(br.enabled);
+  out.bureauReport.maxEnquiries90 = num(br.maxEnquiries90 ?? DEFAULTS.bureauReport.maxEnquiries90, 0, 100, 'Most credit enquiries in 90 days', errors, { int: true });
+  out.bureauReport.maxDpd = num(br.maxDpd ?? DEFAULTS.bureauReport.maxDpd, 1, 365, 'Days past due that send an application to a person', errors, { int: true });
+  out.bureauReport.rejectDpd = num(br.rejectDpd, 1, 365, 'Days past due that reject', errors, { int: true, allowNull: true });
+  out.bureauReport.maxActiveLoans = num(br.maxActiveLoans ?? DEFAULTS.bureauReport.maxActiveLoans, 0, 50, 'Most live loans on the credit record', errors, { int: true });
+  if (!errors.length && out.bureauReport.rejectDpd !== null && out.bureauReport.rejectDpd < out.bureauReport.maxDpd) errors.push('The days past due that reject cannot be fewer than the days that send to a person');
   return { errors, rules: out };
 }
 
@@ -193,6 +252,9 @@ const CUSTOMER_REASON = {
   AGE: 'We are not able to offer a loan for your age at this time.',
   HISTORY_DEFAULT: 'We cannot offer a new loan while an earlier loan is not fully repaid.',
   BUREAU_LOW: 'We are not able to offer a loan based on your credit record at this time.',
+  BUREAU_DPD: 'We are not able to offer a loan based on your credit record at this time.',
+  VELOCITY: 'We have received several applications from you recently. Please try again later.',
+  SERVICE_AREA: 'We do not offer loans in your area yet.',
 };
 
 export function evaluate(rules, f) {
@@ -244,6 +306,40 @@ export function evaluate(rules, f) {
     add(`CUSTOM_${c.id}`, c.name, hit ? c.result : 'pass', hit ? (c.message || `${c.name} applies`) : 'Does not apply');
   }
 
+  // How the customer has behaved with us
+  if (rules.velocity.enabled) {
+    const n = f.applicationsRecent || 0, v = rules.velocity;
+    if (v.rejectAt !== null && n >= v.rejectAt) add('VELOCITY', 'Applications in a short time', 'reject', `${n} applications in ${v.days} days (including this one), the limit is ${v.rejectAt - 1}`);
+    else if (n >= v.referAt) add('VELOCITY', 'Applications in a short time', 'refer', `${n} applications in ${v.days} days (including this one)`);
+    else add('VELOCITY', 'Applications in a short time', 'pass', `${n} application(s) in ${v.days} days`);
+  }
+  if (rules.rejections.enabled) {
+    const n = f.rejectionsRecent || 0;
+    add('REJECTIONS', 'Recent rejections', n >= rules.rejections.referAt ? 'refer' : 'pass', `${n} application(s) rejected in ${rules.rejections.days} days`);
+  }
+  if (rules.lateHistory.enabled) {
+    const d = f.maxDaysLate || 0;
+    add('LATE_HISTORY', 'Late payments with us', d >= rules.lateHistory.referDays ? 'refer' : 'pass', d ? `The latest an instalment has been is ${d} day(s)` : 'No late instalments on record');
+  }
+  if (rules.incomeMultiple.enabled) {
+    if (!(f.monthlyIncome > 0)) add('INCOME_MULTIPLE', 'Loan against income', 'refer', 'Monthly income is not on file');
+    else {
+      const months = Math.round((f.amount / f.monthlyIncome) * 10) / 10;
+      add('INCOME_MULTIPLE', 'Loan against income', months > rules.incomeMultiple.maxMonths ? 'refer' : 'pass', `The loan is ${months} months of income, against a limit of ${rules.incomeMultiple.maxMonths}`);
+    }
+  }
+  if (rules.serviceArea.enabled) {
+    const sa = rules.serviceArea, state = String(f.state || '').trim().toLowerCase(), pin = String(f.pincode || '').trim();
+    if (!state && !pin) add('SERVICE_AREA', 'Where the customer lives', 'refer', 'Address is not on file');
+    else if (state && sa.blockedStates.some(s => s.toLowerCase() === state)) add('SERVICE_AREA', 'Where the customer lives', 'reject', `We do not lend in ${f.state}`);
+    else if (pin && sa.blockedPincodes.some(p => pin.startsWith(p))) add('SERVICE_AREA', 'Where the customer lives', 'reject', `We do not lend in pincode ${pin}`);
+    else add('SERVICE_AREA', 'Where the customer lives', 'pass', `${f.state || ''} ${pin}`.trim());
+  }
+  if (rules.accountAge.enabled) {
+    const d = f.accountAgeDays ?? 0;
+    add('ACCOUNT_AGE', 'Age of the account', d < rules.accountAge.minDays ? 'refer' : 'pass', `Signed up ${d} day(s) ago, ${rules.accountAge.minDays} needed`);
+  }
+
   // Rules that need data we do not collect yet
   if (rules.foir.enabled) {
     if (!(f.monthlyIncome > 0)) add('FOIR', 'Income against EMIs (FOIR)', 'refer', 'Monthly income is not on file');
@@ -252,7 +348,18 @@ export function evaluate(rules, f) {
       add('FOIR', 'Income against EMIs (FOIR)', share > rules.foir.maxPercent ? 'refer' : 'pass', `The EMI is ${share}% of monthly income, against a limit of ${rules.foir.maxPercent}%`);
     }
   } else add('FOIR', 'Income against EMIs (FOIR)', 'skip', 'Switched off. Turn it on to compare the EMI with monthly income.');
-  add('EWS', 'Early warning (bureau history)', 'skip', 'Needs credit bureau data, so this rule is not running.');
+  if (!rules.bureauReport.enabled) add('EWS', 'Early warning (bureau history)', 'skip', 'Switched off. Turn it on to use enquiries, late payments and live loans from the credit bureau.');
+  else if (!f.bureauReportKnown) add('EWS', 'Early warning (bureau history)', 'skip', 'The credit bureau has not returned these details for this customer, so this rule is not running.');
+  else {
+    const b = rules.bureauReport;
+    const reasons = [];
+    let result = 'pass';
+    if (b.rejectDpd !== null && f.bureauMaxDpd >= b.rejectDpd) { result = 'reject'; reasons.push(`${f.bureauMaxDpd} days past due in the last year`); }
+    else if (f.bureauMaxDpd >= b.maxDpd) { result = 'refer'; reasons.push(`${f.bureauMaxDpd} days past due in the last year`); }
+    if (f.bureauEnquiries90 > b.maxEnquiries90) { if (result === 'pass') result = 'refer'; reasons.push(`${f.bureauEnquiries90} credit enquiries in 90 days`); }
+    if (f.bureauActiveLoans > b.maxActiveLoans) { if (result === 'pass') result = 'refer'; reasons.push(`${f.bureauActiveLoans} live loans on the credit record`); }
+    add(result === 'reject' ? 'BUREAU_DPD' : 'EWS', 'Early warning (bureau history)', result, reasons.length ? reasons.join('; ') : 'Nothing worrying on the credit record');
+  }
 
   const rejects = checks.filter(c => c.result === 'reject');
   const refers = checks.filter(c => c.result === 'refer');
@@ -268,8 +375,25 @@ export function evaluate(rules, f) {
 
 const yearsSince = d => Math.floor((Date.now() - new Date(d).getTime()) / (365.25 * 86400000));
 
-export async function gatherFacts(loan, user) {
-  const others = await Loan.find({ userId: user._id, _id: { $ne: loan._id } }).select('status closureType');
+const DAY = 86400000;
+
+// How many days late the customer has ever been with an instalment of ours
+function daysLate(emis, now = Date.now()) {
+  let worst = 0;
+  for (const e of emis) {
+    const due = new Date(e.dueDate).getTime();
+    const end = e.status === 'PAID' && e.paidDate ? new Date(e.paidDate).getTime() : (e.status === 'OVERDUE' || e.status === 'FAILED') && due < now ? now : null;
+    if (end !== null) worst = Math.max(worst, Math.floor((end - due) / DAY));
+  }
+  return worst;
+}
+
+export async function gatherFacts(loan, user, rules = getRules()) {
+  const others = await Loan.find({ userId: user._id, _id: { $ne: loan._id } }).select('status closureType createdAt');
+  const now = Date.now();
+  const emis = await EMIPayment.find({ userId: user._id }).select('dueDate paidDate status').lean();
+  const within = days => others.filter(l => now - new Date(l.createdAt).getTime() <= days * DAY);
+  const report = user.bureauReport || null;
   const open = ['submitted', 'under_review', 'approved', 'disbursed'];
   const [overdueEmis, openAmlAlerts] = await Promise.all([
     EMIPayment.countDocuments({ userId: user._id, status: 'OVERDUE' }),
@@ -289,6 +413,17 @@ export async function gatherFacts(loan, user) {
     selfieStatus: user.selfie?.status || 'none',
     monthlyIncome: user.employment?.monthlyIncome || 0,
     emi: loan.monthlyEMI || 0,
+    applicationsRecent: within(rules.velocity.days).length + 1,
+    rejectionsRecent: within(rules.rejections.days).filter(l => l.status === 'rejected').length,
+    maxDaysLate: daysLate(emis, now),
+    accountAgeDays: user.createdAt ? Math.floor((now - new Date(user.createdAt).getTime()) / DAY) : 0,
+    amountToIncomeMonths: user.employment?.monthlyIncome > 0 ? Math.round((loan.loanAmount / user.employment.monthlyIncome) * 10) / 10 : 0,
+    state: user.address?.state || '',
+    pincode: user.address?.zipCode || '',
+    bureauReportKnown: !!report,
+    bureauEnquiries90: report?.enquiries90 || 0,
+    bureauMaxDpd: report?.maxDpd || 0,
+    bureauActiveLoans: report?.activeLoans || 0,
   };
 }
 
@@ -297,7 +432,7 @@ export async function gatherFacts(loan, user) {
 export async function decideLoan(loan, user, { rules = getRules() } = {}) {
   try {
     if (rules.mode === 'off') return null;
-    const result = evaluate(rules, await gatherFacts(loan, user));
+    const result = evaluate(rules, await gatherFacts(loan, user, rules));
     let applied = false;
 
     if (rules.mode === 'auto' && loan.status === 'submitted') {
@@ -343,6 +478,7 @@ export function computeOffer(rules, f, policy) {
   if (f.age > 0 && (f.age < rules.age.hardMin || f.age > rules.age.hardMax)) reason = CUSTOMER_REASON.AGE;
   else if (rules.history.rejectIfDefaulted && f.defaultedLoans > 0) reason = CUSTOMER_REASON.HISTORY_DEFAULT;
   else if (f.bureauScore > 0 && rules.bureau.rejectBelow !== null && f.bureauScore < rules.bureau.rejectBelow) reason = CUSTOMER_REASON.BUREAU_LOW;
+  else if (rules.serviceArea?.enabled && ((f.state && rules.serviceArea.blockedStates.some(s => s.toLowerCase() === String(f.state).toLowerCase())) || (f.pincode && rules.serviceArea.blockedPincodes.some(p => String(f.pincode).startsWith(p))))) reason = CUSTOMER_REASON.SERVICE_AREA;
   if (reason) return { status: 'DECLINED', amount: 0, reason };
 
   let status = 'OFFER';
@@ -370,7 +506,20 @@ export async function gatherUserFacts(user) {
     openLoans: others.filter(l => open.includes(l.status)).length,
     repeatCustomer: others.some(l => l.status === 'closed' && l.closureType !== 'cooling_off'),
     bureauScore: user.creditScore || 0,
+    state: user.address?.state || '',
+    pincode: user.address?.zipCode || '',
   };
 }
 
-export default { getRules, saveRules, validateRules, evaluate, computeOffer, gatherUserFacts, gatherFacts, decideLoan, DEFAULTS, MODES };
+// A sensible first set of values for the new checks, for teams that want a starting point. They are only suggestions:
+// the credit head should set the real numbers once there are decisions to learn from.
+export const SUGGESTED_START = {
+  velocity: { enabled: true, days: 30, referAt: 3, rejectAt: 5 },
+  rejections: { enabled: true, days: 90, referAt: 2 },
+  lateHistory: { enabled: true, referDays: 15 },
+  incomeMultiple: { enabled: true, maxMonths: 3 },
+  accountAge: { enabled: true, minDays: 1 },
+  bureauReport: { enabled: true, maxEnquiries90: 5, maxDpd: 30, rejectDpd: 90, maxActiveLoans: 4 },
+};
+
+export default { getRules, saveRules, validateRules, evaluate, computeOffer, gatherUserFacts, gatherFacts, decideLoan, DEFAULTS, MODES, SUGGESTED_START };

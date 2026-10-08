@@ -2,21 +2,28 @@ import express from 'express';
 import Loan from '../models/Loan.js';
 import { adminMiddleware } from '../middleware/auth.js';
 import { audit } from '../services/auditService.js';
-import { getRules, saveRules, validateRules, evaluate, computeOffer, MODES, CUSTOM_FIELDS } from '../services/decisionEngine.js';
+import { getRules, saveRules, validateRules, evaluate, computeOffer, MODES, CUSTOM_FIELDS, SUGGESTED_START } from '../services/decisionEngine.js';
+import { approvalRequired, propose } from '../services/changeApprovals.js';
 import { getPolicy } from '../services/pricingPolicy.js';
 
 // The rules the decision engine follows, a way to try them out, and what it has decided so far.
 const router = express.Router();
 router.use(adminMiddleware);
 
-const FACT_FIELDS = ['amount', 'age', 'bureauScore', 'openAmlAlerts', 'defaultedLoans', 'openLoans', 'overdueEmis'];
+const FACT_FIELDS = ['amount', 'age', 'bureauScore', 'openAmlAlerts', 'defaultedLoans', 'openLoans', 'overdueEmis', 'monthlyIncome', 'emi', 'applicationsRecent', 'rejectionsRecent', 'maxDaysLate', 'accountAgeDays', 'bureauEnquiries90', 'bureauMaxDpd', 'bureauActiveLoans'];
 
-router.get('/rules', (req, res) => res.json({ rules: getRules(), modes: MODES, customFields: CUSTOM_FIELDS }));
+router.get('/rules', (req, res) => res.json({ rules: getRules(), modes: MODES, customFields: CUSTOM_FIELDS, suggested: SUGGESTED_START }));
 
 router.put('/rules', async (req, res) => {
   try {
     if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) return res.status(400).json({ error: 'Send the rules as a JSON object' });
     const before = getRules();
+    if (approvalRequired('DECISION_RULES')) {
+      const check = validateRules({ ...before, ...req.body });
+      if (check.errors.length) return res.status(400).json({ error: check.errors[0], errors: check.errors });
+      const doc = await propose('DECISION_RULES', check.rules, req.user, req);
+      return res.status(202).json({ pending: true, requestId: String(doc._id), message: 'Sent for approval. The rules change once someone else approves it.', rules: before });
+    }
     const r = await saveRules({ ...before, ...req.body }, req.user.email);
     if (!r.ok) return res.status(400).json({ error: r.errors[0], errors: r.errors });
     await audit(req.user, 'DECISION_RULES_UPDATED', { type: 'Config', id: 'DECISION_RULES' }, { before, after: r.rules }, req);
@@ -36,12 +43,13 @@ router.post('/test', (req, res) => {
       rules = v.rules;
     }
     const f = req.body?.facts || {};
-    const facts = { kycApproved: f.kycApproved === true, phoneVerified: f.phoneVerified === true, repeatCustomer: f.repeatCustomer === true };
+    const facts = { kycApproved: f.kycApproved === true, phoneVerified: f.phoneVerified === true, repeatCustomer: f.repeatCustomer === true, bureauReportKnown: f.bureauReportKnown === true, state: String(f.state ?? '').slice(0, 40), pincode: String(f.pincode ?? '').slice(0, 6) };
     for (const k of FACT_FIELDS) {
       const n = Number(f[k] ?? 0);
       if (!Number.isFinite(n) || n < 0 || n > 1e9) return res.status(400).json({ error: `${k} is not a valid number` });
       facts[k] = n;
     }
+    facts.amountToIncomeMonths = facts.monthlyIncome > 0 ? Math.round((facts.amount / facts.monthlyIncome) * 10) / 10 : 0;
     res.json({ ...evaluate(rules, facts), offer: computeOffer(rules, facts, getPolicy()), mode: rules.mode });
   } catch (e) {
     res.status(500).json({ error: e.message });

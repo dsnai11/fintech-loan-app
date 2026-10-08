@@ -133,7 +133,7 @@ async function load() {
   try {
     const d = await api('/admin/offers');
     OFFERS = d.offers; LANGS = d.allLanguages.filter(l => l.code !== 'en' && d.languages.includes(l.code)); ALL = d.allLanguages; PUSH = d.pushAvailable;
-    $('push-note').textContent = PUSH ? 'Push notifications are on.' : 'Push notifications are not set up yet, so notifications appear in the app\'s bell only. See Integrations.';
+    $('push-note').textContent = (PUSH ? 'Push notifications are on. ' : 'Push notifications are not set up yet, so notifications appear in the app\'s bell only. See Integrations. ') + (d.approvalRequired ? 'Publishing an offer needs a second person to approve it (see Approvals).' : '');
     renderList();
   } catch (e) { msg(e.message, 'err'); }
 }
@@ -202,12 +202,13 @@ async function save() {
   $('save').disabled = true;
   try {
     const d = cur.id ? await api('/admin/offers/' + encodeURIComponent(cur.id), 'PUT', body) : await api('/admin/offers', 'POST', body);
+    if (d.pending) { msg(d.message, 'ok'); $('save').disabled = false; return; }
     cur = d.offer; msg('Saved.', 'ok'); put(cur);
   } catch (e) { msg(e.message, 'err'); }
   $('save').disabled = false;
 }
 async function setStatus(id, status) {
-  try { await api('/admin/offers/' + encodeURIComponent(id), 'PUT', { status }); msg(status === 'published' ? 'Published.' : 'Back to draft. Customers no longer see it.', 'ok'); load(); } catch (e) { msg(e.message, 'err'); }
+  try { const d = await api('/admin/offers/' + encodeURIComponent(id), 'PUT', { status }); msg(d.pending ? d.message : status === 'published' ? 'Published.' : 'Back to draft. Customers no longer see it.', 'ok'); load(); } catch (e) { msg(e.message, 'err'); }
 }
 async function del(id) {
   if (!confirm('Delete this offer for good?')) return;

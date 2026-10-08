@@ -2,7 +2,8 @@ import mongoose from 'mongoose';
 
 // A change to pricing or the home-screen banners that waits for a second person to approve it.
 const schema = new mongoose.Schema({
-  target: { type: String, enum: ['PRICING', 'APP_HOME'], required: true },
+  target: { type: String, enum: ['PRICING', 'APP_HOME', 'DECISION_RULES', 'OFFER'], required: true },
+  ref: String, // what is being changed, when the target is many things (an offer's id)
   summary: [String],
   proposed: mongoose.Schema.Types.Mixed,
   baseHash: String, // fingerprint of what was live when the change was proposed

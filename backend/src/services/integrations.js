@@ -66,6 +66,9 @@ export const INTEGRATIONS = [
       field('BUREAU_AUTH_SCHEME', 'Text before the key (default "Bearer ")'),
       field('BUREAU_REQUEST_TEMPLATE', 'Request body (JSON; may use {{pan}} {{name}} {{dob}} {{phone}} {{email}})', { long: true }),
       field('BUREAU_SCORE_PATH', 'Where the score is in the reply (like data.score)'),
+      field('BUREAU_ENQUIRIES_PATH', 'Where the number of credit enquiries in 90 days is (optional)'),
+      field('BUREAU_MAXDPD_PATH', 'Where the most days past due in 12 months is (optional)'),
+      field('BUREAU_ACTIVELOANS_PATH', 'Where the number of live loans is (optional)'),
     ],
     status: () => {
       const p = bureauProvider();

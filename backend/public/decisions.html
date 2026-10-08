@@ -35,6 +35,7 @@
 .scroll { overflow-x: auto; }
 .chk { display: grid; grid-template-columns: 24px 190px 1fr; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--e-border); font-size: 13px; align-items: start; }
 .chk:last-child { border-bottom: 0; }
+.chkgrp { border-top: 1px solid var(--e-border); padding: 12px 0 4px; margin-top: 12px; }
 </style>
 <link rel="stylesheet" href="assets/portal.css">
 </head>
@@ -157,11 +158,21 @@ function renderRules() {
       <div class="scroll"><table class="bands"><thead><tr><th>Name</th><th>When</th><th></th><th>Value</th><th>Then</th><th>Note for your team</th><th></th></tr></thead><tbody id="customs">${(R.custom || []).map((c, i) => customRow(c, i)).join('') || '<tr><td colspan="7" class="note">No rules of your own yet.</td></tr>'}</tbody></table></div>
       <button class="btn" style="margin-top:8px" onclick="addCustom()" ${dis}>Add a rule</button></div>
 
-    <div class="card"><h2>Not running yet</h2><div class="sub" style="margin:0">Early warning rules (late payments, enquiries and settlements on the credit record) need a credit bureau connection, so they are not running yet.</div></div>
+    <div class="card"><h2>Behaviour and risk checks</h2><div class="sub">These use what we already know about the customer. Each one is off until you switch it on. <b>Fill in suggested starting values</b> puts in a sensible first set (you still choose Save). They are only a starting point: have your credit head set the real numbers after a few weeks in Shadow, once you can see how they behave.</div>
+      <button class="btn" onclick="applySuggested()" ${dis}>Fill in suggested starting values</button>
+      <div class="chkgrp">${sw('v-on', R.velocity.enabled, 'Many applications in a short time')}<div class="grid">${num('v-days', 'Look back (days)', R.velocity.days)}${num('v-refer', 'Send to a person at this many applications (counting the new one)', R.velocity.referAt)}${num('v-reject', 'Reject at this many (empty = never)', R.velocity.rejectAt)}</div></div>
+      <div class="chkgrp">${sw('rj-on', R.rejections.enabled, 'Recently rejected before')}<div class="grid">${num('rj-days', 'Look back (days)', R.rejections.days)}${num('rj-refer', 'Send to a person at this many rejections', R.rejections.referAt)}</div></div>
+      <div class="chkgrp">${sw('lh-on', R.lateHistory.enabled, 'Paid late with us before')}<div class="grid">${num('lh-days', 'Send to a person if an instalment was ever this many days late', R.lateHistory.referDays)}</div></div>
+      <div class="chkgrp">${sw('im-on', R.incomeMultiple.enabled, 'Loan too large for the customer\'s income (needs monthly income from the sign-up form)')}<div class="grid">${num('im-months', 'Most months of income a loan can be', R.incomeMultiple.maxMonths, 'step="0.5"')}</div></div>
+      <div class="chkgrp">${sw('ac-on', R.accountAge.enabled, 'Brand-new account')}<div class="grid">${num('ac-days', 'The account must be at least this many days old', R.accountAge.minDays)}</div></div>
+      <div class="chkgrp">${sw('sa-on', R.serviceArea.enabled, 'Places we do not lend')}<div class="grid"><div><label for="sa-states">States we do not lend in (separate with commas)</label><textarea id="sa-states" rows="2" style="width:100%" ${dis}>${esc((R.serviceArea.blockedStates || []).join(', '))}</textarea></div><div><label for="sa-pins">Pincodes or the start of a pincode, such as 4000 (commas)</label><textarea id="sa-pins" rows="2" style="width:100%" ${dis}>${esc((R.serviceArea.blockedPincodes || []).join(', '))}</textarea></div></div></div></div>
+
+    <div class="card"><h2>Credit record history (from the bureau)</h2><div class="sub">Needs a credit bureau that returns enquiries, days past due and live loans, set up on the Integrations page. For customers whose details are not available the check is skipped and says so. A customer is rejected only at the "days past due that reject" line; between the two lines a person decides.</div>
+      <div class="chkgrp">${sw('br-on', R.bureauReport.enabled, 'Use the credit record history')}<div class="grid">${num('br-enq', 'Most credit enquiries in 90 days', R.bureauReport.maxEnquiries90)}${num('br-dpd', 'Send to a person at this many days past due', R.bureauReport.maxDpd)}${num('br-rejdpd', 'Reject at this many days past due (empty = never)', R.bureauReport.rejectDpd)}${num('br-loans', 'Most live loans on the credit record', R.bureauReport.maxActiveLoans)}</div></div></div>
 
     <div class="bar"><button class="btn primary" id="save" onclick="saveRules()" ${dis}>Save rules</button><span class="note">${canEdit() ? '' : 'Your role can view the rules but not change them.'}</span></div>`;
 }
-let FIELDS = {};
+let FIELDS = {}, SUGGESTED = {};
 function customRow(c, i) {
   const dis = canEdit() ? '' : 'disabled';
   const bool = FIELDS[c.field]?.type === 'boolean';
@@ -176,6 +187,7 @@ function customRow(c, i) {
 function customFieldChanged(i) { R = collectRules(); const f = FIELDS[R.custom[i].field]; R.custom[i].op = f.type === 'boolean' ? '=' : '>'; R.custom[i].value = f.type === 'boolean' ? true : ''; renderRules(); }
 function addCustom() { R = collectRules(); R.custom.push({ name: '', field: 'amount', op: '>', value: '', result: 'refer', message: '' }); renderRules(); }
 function removeCustom(i) { R = collectRules(); R.custom.splice(i, 1); renderRules(); }
+function applySuggested() { R = collectRules(); Object.assign(R, JSON.parse(JSON.stringify(SUGGESTED))); renderRules(); msg('Suggested starting values are filled in. Check them, then press Save rules.', 'ok'); }
 function addOfferLine() { R = collectRules(); R.offer.scoreLimits.push({ min: 650, limit: 30000 }); renderRules(); }
 function removeOfferLine(i) { R = collectRules(); R.offer.scoreLimits.splice(i, 1); renderRules(); }
 function collectRules() {
@@ -193,6 +205,13 @@ function collectRules() {
     custom: [...document.querySelectorAll('#customs tr')].filter(tr => tr.querySelector('input')).map((_, i) => ({ name: $('cu-name-' + i).value, field: $('cu-field-' + i).value, op: $('cu-op-' + i).value, value: FIELDS[$('cu-field-' + i).value]?.type === 'boolean' ? $('cu-value-' + i).value === 'true' : $('cu-value-' + i).value, result: $('cu-result-' + i).value, message: $('cu-msg-' + i).value })),
     history: { rejectIfDefaulted: $('h-default').checked, referIfOverdue: $('h-overdue').checked, maxOpenLoans: n('h-open') },
     aml: { referOnOpenAlert: $('aml').checked },
+    velocity: { enabled: $('v-on').checked, days: n('v-days'), referAt: n('v-refer'), rejectAt: n('v-reject') },
+    rejections: { enabled: $('rj-on').checked, days: n('rj-days'), referAt: n('rj-refer') },
+    lateHistory: { enabled: $('lh-on').checked, referDays: n('lh-days') },
+    incomeMultiple: { enabled: $('im-on').checked, maxMonths: n('im-months') },
+    accountAge: { enabled: $('ac-on').checked, minDays: n('ac-days') },
+    serviceArea: { enabled: $('sa-on').checked, blockedStates: $('sa-states').value, blockedPincodes: $('sa-pins').value },
+    bureauReport: { enabled: $('br-on').checked, maxEnquiries90: n('br-enq'), maxDpd: n('br-dpd'), rejectDpd: n('br-rejdpd'), maxActiveLoans: n('br-loans') },
   };
 }
 async function saveRules() {
@@ -210,13 +229,14 @@ function renderTry() {
   const sw = (id, on, label) => `<label class="sw"><input type="checkbox" id="${id}" ${on ? 'checked' : ''}> ${esc(label)}</label>`;
   $('view-try').innerHTML = `<div class="card"><h2>Try an applicant</h2><div class="sub">Fill in an imagined applicant to see what the engine would do and why. Nothing is saved or sent.</div>
     <div class="grid">${f('t-amount', 'Loan amount (Rs)', 20000)}${f('t-age', 'Age (0 = no date of birth)', 32)}${f('t-score', 'Credit score (0 = none)', 0)}${f('t-aml', 'Open AML alerts', 0)}${f('t-def', 'Earlier defaulted loans', 0)}${f('t-open', 'Other open loans', 0)}${f('t-od', 'Overdue instalments', 0)}</div>
+    <details style="margin-top:10px"><summary style="cursor:pointer;font-weight:600;font-size:13px">More about the applicant (for the behaviour and credit record checks)</summary><div class="grid" style="margin-top:8px">${f('t-income', 'Monthly income (Rs, 0 = not given)', 40000)}${f('t-emi', 'EMI of this loan (Rs)', 3500)}${f('t-apps', 'Applications in the look-back period, counting this one', 1)}${f('t-rej', 'Rejections in the look-back period', 0)}${f('t-late', 'Most days late on an earlier instalment', 0)}${f('t-acct', 'Days since sign-up', 30)}${f('t-enq', 'Credit enquiries in 90 days (bureau)', 0)}${f('t-dpd', 'Most days past due in a year (bureau)', 0)}${f('t-live', 'Live loans on the credit record (bureau)', 0)}<div><label for="t-state">State</label><input id="t-state" value="Maharashtra" style="width:100%"></div><div><label for="t-pin">Pincode</label><input id="t-pin" value="400001" style="width:100%"></div></div><div style="margin-top:8px">${sw('t-known', false, 'The credit bureau gave its history details for this customer')}</div></details>
     <div style="display:flex;gap:18px;flex-wrap:wrap;margin:12px 0">${sw('t-kyc', true, 'KYC approved')}${sw('t-phone', true, 'Phone verified')}${sw('t-repeat', false, 'Repeat customer (has repaid a loan)')}</div>
     <div class="bar"><button class="btn primary" onclick="tryIt(false)">Show the decision</button><button class="btn" onclick="tryIt(true)" title="Use the values now on the Rules tab, even if not saved">Use the unsaved rules on the Rules tab</button></div>
     <div id="try-result" style="margin-top:14px"></div></div>`;
 }
 async function tryIt(unsaved) {
   const v = id => Number($(id).value || 0);
-  const body = { facts: { amount: v('t-amount'), age: v('t-age'), bureauScore: v('t-score'), openAmlAlerts: v('t-aml'), defaultedLoans: v('t-def'), openLoans: v('t-open'), overdueEmis: v('t-od'), kycApproved: $('t-kyc').checked, phoneVerified: $('t-phone').checked, repeatCustomer: $('t-repeat').checked } };
+  const body = { facts: { amount: v('t-amount'), age: v('t-age'), bureauScore: v('t-score'), openAmlAlerts: v('t-aml'), defaultedLoans: v('t-def'), openLoans: v('t-open'), overdueEmis: v('t-od'), monthlyIncome: v('t-income'), emi: v('t-emi'), applicationsRecent: v('t-apps'), rejectionsRecent: v('t-rej'), maxDaysLate: v('t-late'), accountAgeDays: v('t-acct'), bureauEnquiries90: v('t-enq'), bureauMaxDpd: v('t-dpd'), bureauActiveLoans: v('t-live'), state: $('t-state').value, pincode: $('t-pin').value, bureauReportKnown: $('t-known').checked, kycApproved: $('t-kyc').checked, phoneVerified: $('t-phone').checked, repeatCustomer: $('t-repeat').checked } };
   if (unsaved) { if (!$('age-min')) return msg('Open the Rules tab once first, so there are rules to try.', 'err'); body.rules = collectRules(); }
   try {
     const d = await api('/admin/decisions/test', 'POST', body);
@@ -229,7 +249,7 @@ async function tryIt(unsaved) {
 }
 
 window.addEventListener('load', async () => {
-  try { const first = await api('/admin/decisions/rules'); R = first.rules; FIELDS = first.customFields; renderRules(); renderTry(); } catch (e) { msg(e.message, 'err'); }
+  try { const first = await api('/admin/decisions/rules'); R = first.rules; FIELDS = first.customFields; SUGGESTED = first.suggested || {}; renderRules(); renderTry(); } catch (e) { msg(e.message, 'err'); }
   loadOverview();
 });
 </script>

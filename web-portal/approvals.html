@@ -67,6 +67,8 @@ function render() {
     <div class="sub">When it is on for an area, saving there does not change anything for customers. It creates a request, and someone else with the approval permission has to approve it. Nobody can approve their own change.${superAdmin ? '' : ' Only the super admin can switch this.'}</div>
     <label class="switch"><input type="checkbox" id="r-pricing" ${s.pricing ? 'checked' : ''} ${superAdmin ? '' : 'disabled'} onchange="setRule()"><div><b>Pricing</b><span>Rates, fees, limits, plans, lender details and internal controls.</span></div></label>
     <label class="switch"><input type="checkbox" id="r-banners" ${s.banners ? 'checked' : ''} ${superAdmin ? '' : 'disabled'} onchange="setRule()"><div><b>Offers and branding</b><span>Home-screen banners and company branding.</span></div></label>
+    <label class="switch"><input type="checkbox" id="r-offers" ${s.offers ? 'checked' : ''} ${superAdmin ? '' : 'disabled'} onchange="setRule()"><div><b>Offers tab</b><span>Publishing an offer, or changing one that is live. Drafts, taking an offer down and deleting it are never held.</span></div></label>
+    <label class="switch"><input type="checkbox" id="r-decisions" ${s.decisions ? 'checked' : ''} ${superAdmin ? '' : 'disabled'} onchange="setRule()"><div><b>Decision rules</b><span>Any change to the automated decision rules, including switching between Shadow and Automatic.</span></div></label>
     ${superAdmin ? '<div class="note" style="margin-top:8px">Before switching on, make sure at least two people can approve. Give a role the permission "Approve or reject pricing and banner changes" on the Roles page.</div>' : ''}</div>`;
   $('who').textContent = D.canApprove ? 'You can approve changes made by others.' : 'You see the changes you proposed. Your role cannot approve changes.';
   const rows = D.requests;
@@ -94,7 +96,7 @@ async function act(id, what) {
 }
 async function setRule() {
   try {
-    const d = await api('/admin/approvals/settings', 'PUT', { pricing: $('r-pricing').checked, banners: $('r-banners').checked });
+    const d = await api('/admin/approvals/settings', 'PUT', { pricing: $('r-pricing').checked, banners: $('r-banners').checked, offers: $('r-offers').checked, decisions: $('r-decisions').checked });
     D.settings = d.settings; msg('Saved.', 'ok');
   } catch (e) { msg(e.message, 'err'); load(); }
 }

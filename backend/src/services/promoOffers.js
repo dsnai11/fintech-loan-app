@@ -75,6 +75,11 @@ export function validateOffer(r) {
   return { errors, offer: o };
 }
 
+export const toDoc = o => {
+  const { notifyWhen, ...rest } = o;
+  return { ...rest, 'notify.when': notifyWhen };
+};
+
 export function stateOf(o, now = new Date()) {
   if (o.status !== 'published') return 'draft';
   if (o.startsAt && new Date(o.startsAt) > now) return 'scheduled';
@@ -82,6 +87,34 @@ export function stateOf(o, now = new Date()) {
   return 'live';
 }
 const isLive = (o, now) => stateOf(o, now) === 'live';
+
+// What staff see for one offer
+export const offerView = o => (!o ? null : {
+  id: String(o._id), title: o.title, summary: o.summary, details: o.details, terms: o.terms, badge: o.badge, theme: o.theme, color1: o.color1, color2: o.color2, icon: o.icon, couponCode: o.couponCode,
+  cta: o.cta, audience: o.audience, startsAt: o.startsAt || null, endsAt: o.endsAt || null, featured: o.featured, order: o.order, status: o.status, state: stateOf(o),
+  notify: { when: o.notify?.when || 'none', sentAt: o.notify?.sentAt || null, recipients: o.notify?.recipients || 0, pushed: o.notify?.pushed || 0 },
+  i18n: o.i18n || {}, views: o.views || 0, clicks: o.clicks || 0, updatedAt: o.updatedAt, updatedBy: o.updatedBy,
+});
+
+// Only a change that leaves the offer visible to customers needs a second person. Taking an offer down, or deleting it,
+// is always immediate: an emergency takedown must never wait.
+export const needsApproval = (current, incoming) => incoming?.status === 'published';
+
+// Saves a create, update or delete. Used straight away, or once a second person has approved it.
+export async function applyOfferChange({ op, id, data }, by) {
+  if (op === 'delete') {
+    const doc = await Offer.findByIdAndDelete(id).lean();
+    return doc ? { ok: true, deleted: true } : { ok: false, status: 404, errors: ['Offer not found'] };
+  }
+  const { errors, offer } = validateOffer(data);
+  if (errors.length) return { ok: false, status: 400, errors };
+  let doc;
+  if (op === 'create') doc = await Offer.create({ ...toDoc(offer), createdBy: by, updatedBy: by });
+  else doc = await Offer.findByIdAndUpdate(id, { $set: { ...toDoc(offer), updatedBy: by } }, { new: true });
+  if (!doc) return { ok: false, status: 404, errors: ['Offer not found'] };
+  await sendDueOfferNotifications();
+  return { ok: true, offer: offerView(await Offer.findById(doc._id).lean()) };
+}
 
 // The customers an offer is meant for
 export async function audienceUserIds(audience) {
@@ -157,4 +190,4 @@ export async function sendDueOfferNotifications(now = new Date()) {
 }
 
 export { MAX_OFFERS };
-export default { validateOffer, offersFor, notifyOffer, sendDueOfferNotifications, audienceUserIds, stateOf };
+export default { validateOffer, applyOfferChange, offerView, needsApproval, offersFor, notifyOffer, sendDueOfferNotifications, audienceUserIds, stateOf };
