@@ -160,6 +160,8 @@ export function startScheduler() {
       await sendEmiReminders();
       const { runEscalations } = await import('./collectionsService.js');
       await runEscalations();
+      const { settleReferrals } = await import('./referralService.js');
+      await settleReferrals();
     } catch (e) {
       console.error('Reminder/collections job failed:', e.message);
     }

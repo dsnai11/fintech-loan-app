@@ -19,6 +19,7 @@ import 'loan_detail_screen.dart';
 import 'agreement_screen.dart';
 import 'onboarding_flow.dart';
 import 'account_setup_flow.dart';
+import 'referral_screen.dart';
 
 // Home tab. Top to bottom: greeting, any notice from the company, the offer, the customer's own loan (progress and
 // next instalment, or where an application stands), shortcuts, and the loan products.
@@ -37,6 +38,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _phoneUnverified = false;
   Map<String, dynamic>? _setup; // what is still to do in the account set-up
   Map<String, dynamic>? _home; // branding and offer banners from the web portal
+  Map<String, dynamic>? _referral; // the refer-and-earn programme, when it is on
   Map<String, dynamic>? _loan; // the loan that matters right now, if any
   List<Map<String, dynamic>> _emis = [];
 
@@ -48,7 +50,14 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _refresh() async {
-    await Future.wait([_loadPricing(), _loadPhoneStatus(), _loadLoan(), _loadHome()]);
+    await Future.wait([_loadPricing(), _loadPhoneStatus(), _loadLoan(), _loadHome(), _loadReferral()]);
+  }
+
+  Future<void> _loadReferral() async {
+    try {
+      final r = await context.read<ApiService>().getReferral();
+      if (mounted) setState(() => _referral = r['enabled'] == true ? r : null);
+    } catch (_) {}
   }
 
   Future<void> _loadHome() async {
@@ -79,6 +88,9 @@ class _HomeScreenState extends State<HomeScreen> {
         break;
       case 'help':
         Navigator.of(context).push(MaterialPageRoute(builder: (_) => const HelpScreen()));
+        break;
+      case 'referral':
+        Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ReferralScreen()));
         break;
       case 'url':
         final uri = Uri.tryParse(url);
@@ -208,6 +220,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       if (_loan != null) ...[_loanCard(_loan!), const SizedBox(height: 18)],
+                      if (_referral != null) ...[_referralCard(_referral!), const SizedBox(height: 18)],
                       _shortcuts(settings),
                       const SizedBox(height: 22),
                       _section('Loan offers'),
@@ -520,6 +533,34 @@ class _HomeScreenState extends State<HomeScreen> {
     if (name.isEmpty) return const SizedBox.shrink();
     return Center(
       child: Text(reg.isEmpty ? name : '$name · Reg. no. $reg', textAlign: TextAlign.center, style: const TextStyle(fontSize: 11.5, color: Color(0xFF9CA3AF))),
+    );
+  }
+
+  // A slim invitation to refer friends, shown only while the programme is on
+  Widget _referralCard(Map<String, dynamic> r) {
+    final mine = asNum(r['referrerReward'] ?? 0);
+    return GestureDetector(
+      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ReferralScreen())),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18), border: Border.all(color: const Color(0xFFF1D5D9))),
+        child: Row(children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: kNavy.withOpacity(0.10), borderRadius: BorderRadius.circular(14)),
+            child: const Icon(Icons.card_giftcard_rounded, color: kNavy, size: 24),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Refer & earn', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Color(0xFF111827))),
+              const SizedBox(height: 2),
+              Text(mine > 0 ? 'Earn ${formatMoney(mine)} for every friend who joins' : 'Invite your friends', style: const TextStyle(fontSize: 12.5, color: Color(0xFF6B7280))),
+            ]),
+          ),
+          const Icon(Icons.chevron_right_rounded, color: Color(0xFF9CA3AF)),
+        ]),
+      ),
     );
   }
 

@@ -36,7 +36,7 @@ await emi(B.l, u2, 2, 15, 'OVERDUE', 3000, 2800);
 await mkLoan(u3, 'rejected', 5000, 4, { rejectionReason: 'Income too low' });
 await mkLoan(u4, 'submitted', 7000, 1);
 await mkLoan(u5, 'disbursed', 5000, 40, { disbursementDate: day(-40), approvalDate: day(-40) });
-await AmlAlert.create({ userId: u1._id, type: 'DUPLICATE_PAN', severity: 'HIGH', status: 'OPEN', description: 't' }).catch(() => {});
+await AmlAlert.create({ userId: u1._id, rule: 'DUPLICATE_PAN', severity: 'HIGH', status: 'OPEN', detail: 't' });
 await SupportThread.create({ userId: u2._id, status: 'open', lastFrom: 'customer', messages: [{ from: 'customer', text: 'hello' }] });
 
 section('ACCESS');

@@ -2,6 +2,7 @@ import 'account_setup_card.dart';
 import 'package:flutter/material.dart' hide Text;
 import '../widgets/tr_text.dart';
 import '../widgets/language_picker.dart';
+import 'referral_screen.dart';
 import 'package:provider/provider.dart';
 import '../main.dart';
 import '../services/api_service.dart';
@@ -284,6 +285,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           AccountSetupCard(profile: _profile ?? const {}, onChanged: _fetchProfile),
           const SizedBox(height: 12),
 
+          const ReferEarnRow(),
           const LanguageRow(),
 
           // Personal info

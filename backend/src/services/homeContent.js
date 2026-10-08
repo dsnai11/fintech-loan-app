@@ -11,7 +11,7 @@ import { LANGUAGE_CODES, LANGUAGES as LANGUAGE_META } from '../i18n/catalogue.js
 export const THEMES = ['brand', 'sunrise', 'ocean', 'emerald', 'royal', 'gold', 'midnight', 'custom'];
 export const ICONS = ['rupee', 'gift', 'bolt', 'star', 'shield', 'clock', 'rocket', 'heart', 'calendar', 'party'];
 export const ANIMATIONS = ['none', 'shimmer', 'pulse', 'float', 'confetti'];
-export const ACTIONS = ['none', 'apply', 'calculator', 'loans', 'messages', 'help', 'url'];
+export const ACTIONS = ['none', 'apply', 'calculator', 'loans', 'messages', 'help', 'referral', 'url'];
 export const AUDIENCES = ['all', 'new', 'repeat', 'has_loan', 'no_loan'];
 export const TRUST_ICONS = ['shield', 'lock', 'check', 'receipt', 'bolt', 'heart', 'star'];
 

@@ -55,6 +55,8 @@ const userSchema = new mongoose.Schema(
     kycDigilocker: mongoose.Schema.Types.Mixed,
     selfieAttempts: mongoose.Schema.Types.Mixed,
     offer: mongoose.Schema.Types.Mixed,
+    referralCode: { type: String, unique: true, sparse: true }, // shared with friends
+    referredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     language: { type: String, default: 'en' }, // the language the customer chose in the app
     // The terms and conditions the customer last accepted (see services/terms.js)
     termsVersion: { type: Number, default: 0 },

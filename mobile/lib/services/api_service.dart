@@ -62,6 +62,7 @@ class ApiService {
     required String password,
     required String confirmPassword,
     int? termsVersion,
+    String? referralCode,
   }) async {
     try {
       final response = await _dio.post(
@@ -75,6 +76,7 @@ class ApiService {
           'confirmPassword': confirmPassword,
           if (termsVersion != null) 'acceptedTerms': true,
           if (termsVersion != null) 'termsVersion': termsVersion,
+          if (referralCode != null && referralCode.isNotEmpty) 'referralCode': referralCode,
         },
       );
       return response.data;
@@ -276,6 +278,16 @@ class ApiService {
     try {
       await _dio.put('/users/language', data: {'language': code});
     } catch (_) {}
+  }
+
+  // The customer's referral code, rewards and the friends they invited
+  Future<Map<String, dynamic>> getReferral() async {
+    try {
+      final response = await _dio.get('/referrals/me');
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
   }
 
   // Tells the company a banner was shown or tapped (for the counts in the portal). Never blocks the screen.

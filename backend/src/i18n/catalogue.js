@@ -181,6 +181,23 @@ const HINDI_ONLY = [
   ['Before we begin', 'शुरू करने से पहले'],
   ['A few things worth knowing', 'कुछ जानने लायक बातें'],
   ['Not now, sign out', 'अभी नहीं, साइन आउट करें'],
+  ['Refer & earn', 'रेफ़र करें और कमाएँ'],
+  ['YOUR REFERRAL CODE', 'आपका रेफ़रल कोड'],
+  ['Copy code', 'कोड कॉपी करें'],
+  ['Code copied', 'कोड कॉपी हो गया'],
+  ['Share on WhatsApp', 'व्हाट्सऐप पर साझा करें'],
+  ['Share your code with a friend', 'अपना कोड किसी दोस्त के साथ साझा करें'],
+  ['Your friend signs up with it and takes a loan', 'आपका दोस्त इससे साइन अप करता है और लोन लेता है'],
+  ['After the first month of on-time repayment, you both earn a reward', 'पहले महीने समय पर चुकौती के बाद, आप दोनों को इनाम मिलता है'],
+  ['Friends invited', 'बुलाए गए दोस्त'],
+  ['Rewards earned', 'कमाए गए इनाम'],
+  ['To be paid', 'भुगतान बाकी'],
+  ['Friends you invited', 'आपके बुलाए दोस्त'],
+  ['Terms', 'शर्तें'],
+  ['REFERRAL CODE (OPTIONAL)', 'रेफ़रल कोड (वैकल्पिक)'],
+  ['Have a code from a friend?', 'दोस्त से कोड मिला है?'],
+  ['Referral rewards are not available right now. Please check back soon.', 'रेफ़रल इनाम अभी उपलब्ध नहीं हैं। कृपया बाद में देखें।'],
+  ['Message copied. Paste it into any chat.', 'संदेश कॉपी हो गया। इसे किसी भी चैट में पेस्ट करें।'],
 ];
 
 // English text -> translation, per language

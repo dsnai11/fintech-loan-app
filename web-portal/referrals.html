@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%A4%9D%3C/text%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Referrals - LIFC Admin</title>
+<style>
+* { box-sizing: border-box; }
+.card { padding: 16px; margin-bottom: 14px; }
+.card h2 { margin: 0 0 4px; font-size: 15px; }
+.sub { font-size: 12px; color: var(--e-muted); margin-bottom: 12px; line-height: 1.5; }
+.note { font-size: 12px; color: var(--e-muted); }
+.alert { display: none; padding: 12px 16px; margin-bottom: 14px; white-space: pre-line; }
+.alert.show { display: block; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; align-items: end; }
+.grid input, .grid textarea { width: 100%; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 14px; }
+.tile { background: var(--e-surface); border: 1px solid var(--e-border); border-radius: 12px; padding: 14px; }
+.tile .l { font-size: 12px; color: var(--e-muted); font-weight: 600; }
+.tile .v { font-size: 24px; font-weight: 800; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--e-muted); border-bottom: 1px solid var(--e-border); white-space: nowrap; }
+td { padding: 8px; border-bottom: 1px solid var(--e-border); vertical-align: top; }
+.row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.row input { width: 150px; }
+.warn { background: var(--e-warn-soft); color: var(--e-warn); border-radius: 8px; padding: 10px 14px; font-size: 12.5px; line-height: 1.5; margin-bottom: 14px; }
+</style>
+<link rel="stylesheet" href="assets/portal.css">
+</head>
+<body data-shell="app" data-title="Referrals" data-sub="Customers inviting friends: the rules, who referred whom, and the rewards to pay.">
+<div class="container">
+  <div id="alert" class="alert" role="alert"></div>
+  <div class="warn"><b>Check before you switch it on:</b> reward amounts are a cost to the company, may be taxable for the customer (ask your accountant about deducting tax), and the promotion wording must be approved by your compliance team. Rewards are never paid automatically: finance pays each one from the list below and enters the bank reference.</div>
+  <div class="tiles" id="tiles"></div>
+  <div class="card"><h2>Rules</h2><div class="sub">A friend signs up with a customer's code. When the friend's first qualifying loan is paid out and stays in good standing for the waiting period, both are owed a reward. A reward is held if either person has an open high-severity AML alert, and cancelled if the friend's loan goes overdue.</div><div id="rules"></div></div>
+  <div class="card"><h2>Rewards</h2><div class="sub">Pay the customer to the bank account shown, then enter the bank reference and mark it paid. Only the last four digits of the account are shown here; open the customer record for the rest.</div><div class="scroll" id="rewards"></div></div>
+  <div class="card"><h2>Referrals</h2><div class="row" style="margin-bottom:10px"><label for="flt" style="margin:0">Show</label><select id="flt" onchange="load()"><option value="">All</option><option value="signed_up">Signed up</option><option value="in_hold">Waiting period</option><option value="rewarded">Rewarded</option><option value="void">Cancelled</option></select></div><div class="scroll" id="refs"></div></div>
+</div>
+<script>
+const API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
+const token = localStorage.getItem('admin_token');
+if (!token) location.href = 'admin-config.html';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const inr = n => '₹' + Math.round(n || 0).toLocaleString('en-IN');
+const when = d => (d ? new Date(d).toLocaleDateString('en-IN') : '');
+const WORDS = { signed_up: 'Signed up', in_hold: 'Waiting period', rewarded: 'Rewarded', void: 'Cancelled', due: 'To pay', paid: 'Paid' };
+let D = null;
+
+function msg(text, kind) {
+  const a = $('alert'); a.textContent = text; a.className = 'alert show ' + (kind === 'ok' ? 'ok' : 'err');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+async function api(path, method = 'GET', body) {
+  const r = await fetch(API + path, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.errors ? d.errors.join('\n') : d.error || 'Something went wrong');
+  return d;
+}
+
+async function load() {
+  try { D = await api('/admin/referrals' + ($('flt') && $('flt').value ? '?status=' + $('flt').value : '')); render(); } catch (e) { msg(e.message, 'err'); }
+}
+
+function render() {
+  const c = D.counts;
+  $('tiles').innerHTML = [['Signed up', c.signed_up || 0], ['Waiting period', c.in_hold || 0], ['Rewarded', c.rewarded || 0], ['To pay now', inr(D.money.due)], ['Paid so far', inr(D.money.paid)]].map(([l, v]) => `<div class="tile"><div class="l">${l}</div><div class="v">${v}</div></div>`).join('');
+  const p = D.program, can = D.canManage, dis = can ? '' : 'disabled';
+  $('rules').innerHTML = `<label class="chk" style="display:flex;gap:8px;align-items:center;margin:0 0 12px"><input type="checkbox" id="p-on" ${p.enabled ? 'checked' : ''} ${dis}> <b>Programme is on</b> <span class="note">(customers see Refer and earn, and sign-up accepts codes)</span></label>
+    <div class="grid">
+      <div><label>Reward for the person who refers (Rs)</label><input type="number" min="0" id="p-r1" value="${esc(p.referrerReward)}" ${dis}></div>
+      <div><label>Reward for the new customer (Rs)</label><input type="number" min="0" id="p-r2" value="${esc(p.refereeReward)}" ${dis}></div>
+      <div><label>Smallest qualifying loan (Rs)</label><input type="number" min="0" id="p-min" value="${esc(p.minLoanAmount)}" ${dis}></div>
+      <div><label>Waiting period (days)</label><input type="number" min="0" id="p-hold" value="${esc(p.holdDays)}" ${dis}></div>
+      <div><label>Most rewarded referrals per customer</label><input type="number" min="1" id="p-max" value="${esc(p.maxRewardsPerReferrer)}" ${dis}></div>
+    </div>
+    <label style="margin-top:12px">Terms customers read (have these approved)</label>
+    <textarea id="p-terms" rows="5" style="width:100%" ${dis}>${esc(p.terms)}</textarea>
+    <div class="row" style="margin-top:10px">${can ? '<button class="btn primary" onclick="saveRules()">Save rules</button><button class="btn" onclick="settle()">Work out rewards now</button><span class="note">This also runs by itself every few hours.</span>' : '<span class="note">Your role can see the rules but not change them.</span>'}</div>`;
+  $('rewards').innerHTML = D.rewards.length ? `<table><thead><tr><th>Customer</th><th>Role</th><th>Amount</th><th>Bank</th><th>Status</th><th></th></tr></thead><tbody>${D.rewards.map(r => `<tr><td>${esc(r.customer)}<div class="note">${esc(r.phone || '')}</div></td><td>${r.role === 'referrer' ? 'Referred a friend' : 'Joined through a friend'}</td><td><b>${inr(r.amount)}</b></td><td>${r.bank ? esc(r.bank.holder) + '<div class="note">••••' + esc(r.bank.last4) + ' · ' + esc(r.bank.ifsc) + '</div>' : '<span class="note">no bank account yet</span>'}</td>
+      <td>${WORDS[r.status]}${r.status === 'paid' ? `<div class="note">${esc(when(r.paidAt))} · ${esc(r.reference)}</div>` : ''}${r.status === 'void' ? `<div class="note">${esc(r.voidReason || '')}</div>` : ''}</td>
+      <td>${r.status === 'due' && D.canManage ? `<div class="row"><input id="ref-${esc(r.id)}" placeholder="bank reference" maxlength="60"><button class="btn primary" onclick="paid('${esc(r.id)}')">Mark paid</button><button class="btn" onclick="voidIt('${esc(r.id)}')">Cancel</button></div>` : ''}</td></tr>`).join('')}</tbody></table>` : '<div class="note">No rewards yet.</div>';
+  $('refs').innerHTML = D.referrals.length ? `<table><thead><tr><th>Referred by</th><th>New customer</th><th>Code</th><th>Status</th><th>Date</th></tr></thead><tbody>${D.referrals.map(r => `<tr><td>${esc(r.referrer)}</td><td>${esc(r.referee)}</td><td>${esc(r.code)}</td><td>${WORDS[r.status]}${r.status === 'in_hold' ? `<div class="note">reward after ${esc(when(r.eligibleAt))}</div>` : ''}${r.voidReason ? `<div class="note">${esc(r.voidReason)}</div>` : ''}</td><td>${esc(when(r.at))}</td></tr>`).join('')}</tbody></table>` : '<div class="note">No referrals yet.</div>';
+}
+
+async function saveRules() {
+  try {
+    const d = await api('/admin/referrals/settings', 'PUT', { enabled: $('p-on').checked, referrerReward: +$('p-r1').value, refereeReward: +$('p-r2').value, minLoanAmount: +$('p-min').value, holdDays: +$('p-hold').value, maxRewardsPerReferrer: +$('p-max').value, terms: $('p-terms').value });
+    msg(d.message, 'ok'); load();
+  } catch (e) { msg(e.message, 'err'); }
+}
+async function settle() { try { const d = await api('/admin/referrals/settle', 'POST', {}); msg(d.message, 'ok'); load(); } catch (e) { msg(e.message, 'err'); } }
+async function paid(id) { try { const d = await api(`/admin/referrals/rewards/${encodeURIComponent(id)}/paid`, 'POST', { reference: $('ref-' + id).value }); msg(d.message, 'ok'); load(); } catch (e) { msg(e.message, 'err'); } }
+async function voidIt(id) {
+  const reason = prompt('Why is this reward being cancelled?');
+  if (!reason) return;
+  try { const d = await api(`/admin/referrals/rewards/${encodeURIComponent(id)}/void`, 'POST', { reason }); msg(d.message, 'ok'); load(); } catch (e) { msg(e.message, 'err'); }
+}
+load();
+</script>
+<script src="assets/portal.js"></script>
+</body>
+</html>

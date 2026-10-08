@@ -10,6 +10,7 @@ import { issueResetToken, consumeResetToken } from '../services/passwordReset.js
 import { sendPlainEmail } from '../services/notificationService.js';
 import { lockedSeconds, recordFailure, recordSuccess, lockMessage } from '../services/loginGuard.js';
 import { isStaffRole, permissionsOf, ensureRoles } from '../services/permissions.js';
+import { checkCode, attach } from '../services/referralService.js';
 
 // Checked against when the email is unknown, so a wrong email and a wrong password take the same time.
 const DUMMY_HASH = bcrypt.hashSync('not-a-real-password', 10);
@@ -46,6 +47,10 @@ router.post('/signup', async (req, res) => {
       return res.status(400).json({ error: 'Email or phone already registered' });
     }
 
+    // An optional referral code from a friend
+    const referral = await checkCode(req.body.referralCode, { phone: String(phone), email });
+    if (referral.error) return res.status(400).json({ error: referral.error, code: 'REFERRAL_INVALID' });
+
     const user = new User({
       firstName,
       lastName,
@@ -56,6 +61,9 @@ router.post('/signup', async (req, res) => {
     });
 
     await user.save();
+    if (referral.referrer) {
+      try { await attach(user, referral.referrer, referral.code, req); } catch (e) { console.error('Referral link failed:', e.message); } // the account is still created
+    }
     if (process.env.REQUIRE_TERMS !== 'false') await audit({ email: user.email, role: 'customer' }, 'TERMS_ACCEPTED', { type: 'User', id: user._id }, { version: currentVersion(), at: 'signup' }, req);
     const token = generateToken(user._id, user.email);
 

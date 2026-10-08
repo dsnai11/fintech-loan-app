@@ -24,6 +24,7 @@ class _SignupScreenState extends State<SignupScreen> {
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _referralController = TextEditingController();
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
   bool _agreedToTerms = false;
@@ -46,6 +47,7 @@ class _SignupScreenState extends State<SignupScreen> {
     _phoneController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _referralController.dispose();
     super.dispose();
   }
 
@@ -65,6 +67,7 @@ class _SignupScreenState extends State<SignupScreen> {
       password: _passwordController.text,
       confirmPassword: _confirmPasswordController.text,
       termsVersion: _termsVersion,
+      referralCode: _referralController.text.trim(),
     );
     // Terms are accepted; the phone check comes next, then home.
     if (success && mounted) await continueToHome(context);
@@ -221,6 +224,17 @@ class _SignupScreenState extends State<SignupScreen> {
                           ),
                           onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
                         ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    _label('REFERRAL CODE (OPTIONAL)'),
+                    TextField(
+                      controller: _referralController,
+                      textCapitalization: TextCapitalization.characters,
+                      decoration: InputDecoration(
+                        hintText: tr('Have a code from a friend?'),
+                        prefixIcon: const Icon(Icons.card_giftcard_rounded, size: 20, color: Color(0xFF9CA3AF)),
                       ),
                     ),
                     const SizedBox(height: 16),

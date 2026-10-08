@@ -33,6 +33,8 @@ export const PERMISSIONS = [
   { key: 'appsettings.edit', group: 'Administration', label: 'Change what the customer apps show (products, banner, switches, maintenance)' },
   { key: 'banners.edit', group: 'Administration', label: 'Manage the home-screen offer banners and app branding' },
   { key: 'changes.approve', group: 'Administration', label: 'Approve or reject pricing and banner changes proposed by others' },
+  { key: 'referrals.view', group: 'Customers', label: 'See the referral programme, who referred whom, and the rewards' },
+  { key: 'referrals.manage', group: 'Customers', label: 'Change the referral rules, mark rewards paid or cancel them' },
   { key: 'decisions.view', group: 'Decisions', label: 'See the decision rules and what the engine decided' },
   { key: 'decisions.edit', group: 'Decisions', label: 'Change the decision rules and switch automatic approval on or off' },
   { key: 'staff.manage', group: 'Administration', label: 'Add staff and change their access (only up to your own level)' },
@@ -130,6 +132,7 @@ const RULES = [
   [/^\/api\/admin\/customers\/[^/]+\/selfie(\/|$)/, 'kyc.view', 'kyc.view'],
   [/^\/api\/admin\/customers(\/|$)/, 'customers.view', 'customers.view'],
   [/^\/api\/admin\/reports(\/|$)/, 'reports.view', 'reports.view'],
+  [/^\/api\/admin\/referrals(\/|$)/, 'referrals.view', 'referrals.view'], // changes are checked in the route
   [/^\/api\/admin\/dashboard(\/|$)/, 'reports.view', 'reports.view'], // saving targets is checked in the route
   [/^\/api\/admin\/collections\/[^/]+\/(letter|claim|release)(\/|$)/, 'collections.act', 'collections.act'],
   [/^\/api\/admin\/collections\/(run-escalations|[^/]+\/(default|write-off|recovery|assign))(\/|$)/, 'collections.view', 'collections.manage'],

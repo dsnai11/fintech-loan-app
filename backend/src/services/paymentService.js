@@ -48,6 +48,12 @@ async function markLoanDisbursed(loanId, amount, transferId, adminEmail) {
   const existing = await import('../models/EMIPayment.js').then(m => m.default.countDocuments({ loanId }));
   if (!existing) await createEMISchedule(loan._id);
   await notify(loan.userId, templates.disbursed(loan), { sms: true });
+  try {
+    const { onLoanDisbursed } = await import('./referralService.js');
+    await onLoanDisbursed(loan);
+  } catch (e) {
+    console.error('Referral check failed:', e.message); // never holds up the payout
+  }
 }
 
 function bankOf(loan) {
