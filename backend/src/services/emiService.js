@@ -230,6 +230,7 @@ export async function markEMIPaid(emi, paymentId, amountPaid) {
 
   await notify(emi.userId, templates.emiPaid(emi, paid), { sms: true });
   try { await (await import('./rewardsService.js')).afterPayment(emi.userId); } catch (e) { console.error('Rewards failed:', e.message); }
+  try { await (await import('./colendingService.js')).onEmiPaid(emi._id); } catch (e) { console.error('Co-lending entry failed:', e.message); }
 
   const unpaid = await EMIPayment.countDocuments({ loanId: emi.loanId, status: { $ne: 'PAID' } });
   if (unpaid === 0) {

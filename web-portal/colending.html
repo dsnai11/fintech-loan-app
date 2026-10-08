@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%8F%A6%3C/text%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Co-lending - LIFC Admin</title>
+<style>
+* { box-sizing: border-box; }
+.card { padding: 16px; margin-bottom: 14px; }
+.card h2 { margin: 0 0 4px; font-size: 15px; }
+.sub { font-size: 12px; color: var(--e-muted); margin-bottom: 12px; line-height: 1.5; }
+.note { font-size: 12px; color: var(--e-muted); }
+.alert { display: none; padding: 12px 16px; margin-bottom: 14px; white-space: pre-line; }
+.alert.show { display: block; }
+.warn { background: var(--e-warn-soft); color: var(--e-warn); border-radius: 8px; padding: 10px 14px; font-size: 12.5px; line-height: 1.5; margin-bottom: 14px; }
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--e-muted); border-bottom: 1px solid var(--e-border); white-space: nowrap; }
+td { padding: 8px; border-bottom: 1px solid var(--e-border); vertical-align: top; }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; align-items: end; }
+.grid input { width: 100%; }
+.tag { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 20px; background: #E0ECFF; color: #1D4ED8; }
+.tag.settled { background: #DCFCE7; color: #166534; } .tag.pending { background: #FEF3C7; color: #92400E; }
+</style>
+<link rel="stylesheet" href="assets/portal.css">
+</head>
+<body data-shell="app" data-title="Co-lending" data-sub="Partner banks that fund part of each loan, and the money to settle between us.">
+<div class="container">
+  <div id="alert" class="alert" role="alert"></div>
+  <div class="warn"><b>For compliance and finance to check.</b> RBI's co-lending directions set conditions: the minimum share the company keeps, an escrow account, what the customer must be told, and more. The share limit here is a guide, so confirm every setting against the current directions and your agreement with the partner. A partner applies only to loans paid out <b>after</b> it is added or changed. The amounts below follow the working in the agreement-check notes on this page; compare them with the partner's own statement before settling.</div>
+  <div class="card" id="newcard"><h2>Add a partner</h2><div class="sub">Each loan paid out goes to the first active partner whose loan range and monthly limit fit.</div><div class="grid">
+    <div><label for="n-name">Partner name</label><input id="n-name"></div>
+    <div><label for="n-share">Partner funds (% of each loan)</label><input id="n-share" type="number" value="80"></div>
+    <div><label for="n-rate">Partner earns (% a year on its share)</label><input id="n-rate" type="number" step="0.1" value="11"></div>
+    <div><label for="n-min">Smallest loan (Rs)</label><input id="n-min" type="number" value="0"></div>
+    <div><label for="n-max">Largest loan (Rs)</label><input id="n-max" type="number" value="1000000"></div>
+    <div><label for="n-cap">Most funded in a month (Rs, 0 = no limit)</label><input id="n-cap" type="number" value="0"></div>
+    <div><button class="btn primary" onclick="add()">Add partner</button></div></div></div>
+  <div class="card"><h2>Partners</h2><div class="scroll" id="partners"></div></div>
+  <div class="card"><h2>Money to settle</h2><div class="sub"><b>Partner pays in</b>: the partner's share of a loan we paid out. <b>We pay the partner</b>: the partner's share of what customers paid. Enter the bank reference when it has moved.</div>
+    <div class="row" style="margin-bottom:10px"><label for="flt" style="margin:0">Show</label><select id="flt" onchange="loadEntries()"><option value="pending">Waiting to be settled</option><option value="settled">Settled</option><option value="">All</option></select><button class="btn" onclick="exportCsv()">Download CSV</button></div>
+    <div class="scroll" id="entries"></div></div>
+</div>
+<script>
+const API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
+const token = localStorage.getItem('admin_token');
+if (!token) location.href = 'admin-config.html';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const inr = n => '₹' + (Math.round((n || 0) * 100) / 100).toLocaleString('en-IN');
+const SRC = { loan: 'Loan paid out', emi: 'Instalment', foreclosure: 'Early closure', settlement: 'Settlement' };
+let D = null;
+function msg(text, kind) { const a = $('alert'); a.textContent = text; a.className = 'alert show ' + (kind === 'ok' ? 'ok' : 'err'); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+async function api(path, method = 'GET', body) {
+  const r = await fetch(API + path, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.errors ? d.errors.join('\n') : d.error || 'Something went wrong');
+  return d;
+}
+function draw() {
+  $('newcard').style.display = D.canManage ? '' : 'none';
+  $('partners').innerHTML = D.partners.length ? `<table><thead><tr><th>Partner</th><th class="n">Funds</th><th class="n">We keep</th><th class="n">Earns a year</th><th class="n">Loans</th><th class="n">Funded</th><th class="n">Partner owes us</th><th class="n">We owe partner</th><th class="n">Interest paid to partner</th><th></th></tr></thead><tbody>${D.partners.map(p => `<tr>
+    <td>${esc(p.name)}<div class="note">Loans ${inr(p.minAmount)} to ${inr(p.maxAmount)}${p.monthlyCap ? ', up to ' + inr(p.monthlyCap) + ' a month' : ''}</div></td><td class="n">${p.partnerSharePercent}%</td><td class="n">${p.nbfcSharePercent}%</td><td class="n">${p.partnerRatePercent}%</td><td class="n">${p.loans}</td><td class="n">${inr(p.funding)}</td>
+    <td class="n">${inr(p.fundingPending.total)}</td><td class="n">${inr(p.remitPending.total)}</td><td class="n">${inr(p.remitSettled.interest + p.remitPending.interest)}</td>
+    <td>${D.canManage ? `<button class="btn" onclick="toggle('${p.id}', ${!p.active})">${p.active ? 'Stop new loans' : 'Start again'}</button>` : ''}${p.active ? '' : ' <span class="note">stopped</span>'}</td></tr>`).join('')}</tbody></table>` : '<div class="note">No partner yet.</div>';
+}
+function drawEntries(list) {
+  $('entries').innerHTML = list.length ? `<table><thead><tr><th>Date</th><th>Partner</th><th>For</th><th>Direction</th><th class="n">Principal</th><th class="n">Interest</th><th class="n">Total</th><th>Status</th><th></th></tr></thead><tbody>${list.map(e => `<tr><td>${new Date(e.at).toLocaleDateString('en-IN')}</td><td>${esc(e.partner)}</td><td>${esc(SRC[e.source] || e.source)}${e.emiNumber ? ' #' + e.emiNumber : ''}<div class="note">loan …${esc(e.loanId.slice(-6))}</div></td><td>${e.kind === 'funding' ? 'Partner pays in' : 'We pay the partner'}</td><td class="n">${inr(e.principal)}</td><td class="n">${inr(e.interest)}</td><td class="n"><b>${inr(e.total)}</b></td>
+    <td><span class="tag ${esc(e.status)}">${esc(e.status === 'pending' ? 'waiting' : 'settled')}</span>${e.reference ? `<div class="note">Ref ${esc(e.reference)}</div>` : ''}</td><td>${D.canSettle && e.status === 'pending' ? `<div class="row"><input id="ref-${e.id}" placeholder="Bank reference" style="width:150px"><button class="btn primary" onclick="settle('${e.id}')">Settled</button></div>` : ''}</td></tr>`).join('')}</tbody></table>` : '<div class="note">Nothing here.</div>';
+}
+async function load() { try { D = await api('/admin/colending'); draw(); loadEntries(); } catch (e) { msg(e.message, 'err'); } }
+async function loadEntries() { try { drawEntries((await api('/admin/colending/entries' + ($('flt').value ? '?status=' + $('flt').value : ''))).entries); } catch (e) { msg(e.message, 'err'); } }
+async function add() {
+  try {
+    await api('/admin/colending/partners', 'POST', { name: $('n-name').value, partnerSharePercent: Number($('n-share').value), partnerRatePercent: Number($('n-rate').value), minAmount: Number($('n-min').value), maxAmount: Number($('n-max').value), monthlyCap: Number($('n-cap').value) });
+    msg('Added. It takes loans paid out from now on.', 'ok'); $('n-name').value = ''; load();
+  } catch (e) { msg(e.message, 'err'); }
+}
+async function toggle(id, active) { try { await api('/admin/colending/partners/' + id, 'PUT', { active }); load(); } catch (e) { msg(e.message, 'err'); } }
+async function settle(id) { try { await api(`/admin/colending/entries/${id}/settle`, 'POST', { reference: $('ref-' + id).value }); msg('Marked settled.', 'ok'); load(); } catch (e) { msg(e.message, 'err'); } }
+async function exportCsv() {
+  try {
+    const r = await fetch(API + '/admin/colending/export' + ($('flt').value ? '?status=' + $('flt').value : ''), { headers: { Authorization: 'Bearer ' + token } });
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'Could not download');
+    const a = document.createElement('a'); a.href = URL.createObjectURL(await r.blob()); a.download = 'colending.csv'; document.body.appendChild(a); a.click(); a.remove();
+  } catch (e) { msg(e.message, 'err'); }
+}
+load();
+</script>
+<script src="assets/portal.js"></script>
+</body>
+</html>

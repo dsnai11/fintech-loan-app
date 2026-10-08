@@ -75,6 +75,7 @@ export async function executeCoolingOff(loanId, expectedTotal, paidBy) {
   if (!claimed) throw fail(409, 'This loan is already closed.');
 
   await EMIPayment.updateMany({ loanId }, { status: 'WAIVED', notes: 'Waived: loan cancelled in the cooling-off period' });
+  try { await (await import('./colendingService.js')).onForeclosure(loanId, { principal: quote.principal }); } catch (e) { console.error('Co-lending entry failed:', e.message); }
   try { await (await import('./partnerService.js')).onLoanCancelled(loanId); } catch (e) { console.error('Partner commission cancel failed:', e.message); }
   await Transaction.create({
     loanId,

@@ -105,6 +105,11 @@ export async function executeForeclosure(loanId, expectedTotal, paidBy, { gatewa
     { _id: { $in: future.map(e => e._id) } },
     { status: 'WAIVED', notes: 'Waived on early closure' }
   );
+  try {
+    const co = await import('./colendingService.js');
+    for (const { emi } of overdueItems) await co.onEmiPaid(emi._id);
+    await co.onForeclosure(loanId, { principal: quote.principal });
+  } catch (e) { console.error('Co-lending entry failed:', e.message); }
 
   await Transaction.create({
     loanId,

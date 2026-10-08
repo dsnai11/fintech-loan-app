@@ -49,6 +49,7 @@
     { href: 'mandates.html', label: 'Auto-debit', icon: 'emi', any: ['collections.view'] },
     { group: 'Risk and reporting' },
     { href: 'compliance.html', label: 'Compliance', icon: 'shield', any: ['kyc.view', 'aml.view', 'audit.view', 'requests.process'] },
+    { href: 'colending.html', label: 'Co-lending', icon: 'loans', any: ['reports.view'] },
     { href: 'accounting.html', label: 'Accounting', icon: 'chart', any: ['reports.view'] },
     { href: 'regulatory.html', label: 'Regulatory', icon: 'scale', any: ['reports.view'] },
     { href: 'sla.html', label: 'Service targets', icon: 'board', any: ['reports.view'] },

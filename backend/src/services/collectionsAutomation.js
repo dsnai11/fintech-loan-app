@@ -251,6 +251,7 @@ export async function recordPayment(offerId, { amount, reference }, by) {
   await Transaction.create({ loanId: o.loanId, userId: o.userId, type: 'EMI_PAYMENT', amount: paid, status: 'COMPLETED', paymentGateway: 'MANUAL', referenceId: `SETTLEMENT-${ref}`, metadata: { settlement: true, offerId: String(o._id), recordedBy: by, completedAt: now } });
   o.status = 'paid'; o.paidAt = now; o.paidReference = ref; o.paidRecordedBy = by;
   await o.save();
+  try { await (await import('./colendingService.js')).onSettlement(o.loanId, paid); } catch (e) { console.error('Co-lending entry failed:', e.message); }
   await CollectionNote.create({ loanId: o.loanId, userId: o.userId, type: 'RECOVERY', text: `Settled for ${inr(paid)} against ${inr(o.originalDue)} (${o.waiverPercent}% waived). Reference ${ref}.`, amount: paid, createdBy: by });
   await audit({ email: by, role: 'staff' }, 'SETTLEMENT_PAID', { type: 'Loan', id: o.loanId }, { amount: paid, waiverPercent: o.waiverPercent, reference: ref }, null);
   await notify(o.userId, { type: 'LOAN_CLOSED', title: 'Loan settled', message: `We received ${inr(paid)} and your loan has been closed as settled. Thank you.`, loanId: o.loanId }, { sms: true });

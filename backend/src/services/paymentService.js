@@ -49,6 +49,12 @@ async function markLoanDisbursed(loanId, amount, transferId, adminEmail) {
   if (!existing) await createEMISchedule(loan._id);
   await notify(loan.userId, templates.disbursed(loan), { sms: true });
   try {
+    const { assign } = await import('./colendingService.js');
+    await assign(loan);
+  } catch (e) {
+    console.error('Co-lending assignment failed:', e.message);
+  }
+  try {
     const { onLoanDisbursed: partnerPaid } = await import('./partnerService.js');
     await partnerPaid(loan);
   } catch (e) {
