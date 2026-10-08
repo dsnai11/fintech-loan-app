@@ -132,6 +132,15 @@ function render() {
     ${FEATURES.map(([k, t, d]) => `<label class="switch"><input type="checkbox" id="f-${k}" ${S.features[k] ? 'checked' : ''}><div><b>${esc(t)}</b><span>${esc(d)}</span></div></label>`).join('')}
   </div>
 
+  <div class="card"><h2>App lock and sign-out</h2>
+    <div class="sub">A PIN stops someone who picks up the customer's phone from opening their loans. The PIN is kept only on the phone, and five wrong tries sign the customer out. Customers who are idle for a while are signed out. Set 0 for "never".</div>
+    <div class="grid">
+      <div><label for="sec-lock">App PIN</label><select id="sec-lock" class="full"><option value="off" ${S.security.appLock === 'off' ? 'selected' : ''}>Off</option><option value="optional" ${S.security.appLock === 'optional' ? 'selected' : ''}>Customer can choose to set a PIN</option><option value="required" ${S.security.appLock === 'required' ? 'selected' : ''}>Every customer must set a PIN</option></select></div>
+      <div><label for="sec-after">Ask for the PIN after the app was left for (seconds)</label><input id="sec-after" type="number" min="0" max="3600" value="${S.security.lockAfterSeconds}"></div>
+      <div><label for="sec-idle">Sign out after this many idle minutes</label><input id="sec-idle" type="number" min="0" max="240" value="${S.security.idleLogoutMinutes}"></div>
+    </div>
+  </div>
+
   <div class="card"><h2>Maintenance and updates</h2>
     <div class="sub">Maintenance locks every customer out of the app behind your message. Use it only when you really must. A minimum version asks people on older builds to update.</div>
     <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="m-on" ${m.enabled ? 'checked' : ''}> Lock the app for maintenance</label>
@@ -170,6 +179,7 @@ function collect() {
   out.banner = { enabled: $('b-on').checked, level: $('b-level').value, text: $('b-text').value };
   out.features = Object.fromEntries(FEATURES.map(([k]) => [k, $('f-' + k).checked]));
   out.maintenance = { enabled: $('m-on').checked, message: $('m-text').value };
+  out.security = { appLock: $('sec-lock').value, lockAfterSeconds: Number($('sec-after').value), idleLogoutMinutes: Number($('sec-idle').value) };
   out.minAppVersion = $('min-v').value.trim();
   return out;
 }

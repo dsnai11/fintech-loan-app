@@ -3,6 +3,7 @@ import '../widgets/tr_text.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import '../services/app_settings.dart';
+import '../services/app_lock.dart';
 import 'app_gate_screen.dart';
 import 'onboarding_flow.dart';
 
@@ -48,6 +49,7 @@ class _SplashScreenState extends State<SplashScreen> {
     final authService = context.read<AuthService>();
 
     if (authService.isAuthenticated) {
+      if (settings.appLockMode != 'off') AppLock.instance.lockNow();
       await continueToHome(context);
     } else {
       Navigator.of(context).pushReplacementNamed('/login');

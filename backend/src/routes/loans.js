@@ -9,6 +9,7 @@ import { getPolicy, computeQuote, checkRequest, quoteProblem } from '../services
 import { contextFor } from '../services/chargeContext.js';
 import { policyFor } from '../services/appSettings.js';
 import { topUp } from '../services/topupService.js';
+import { timelineFor } from '../services/loanTimeline.js';
 import { incomeBasis } from '../services/aaService.js';
 import { termsRequiredFor } from '../services/terms.js';
 import { decideLoan } from '../services/decisionEngine.js';
@@ -309,6 +310,17 @@ router.get('/repeat-offer', authMiddleware, async (req, res) => {
 });
 
 // Account statement: payout, every instalment, late fees and what is still owed
+// Where the application stands, in the customer's words
+router.get('/:loanId/timeline', authMiddleware, async (req, res) => {
+  try {
+    const loan = await Loan.findById(req.params.loanId).catch(() => null);
+    if (!loan || String(loan.userId) !== String(req.user.userId)) return res.status(404).json({ error: 'Loan not found' });
+    res.json(await timelineFor(loan));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.get('/:loanId/statement', authMiddleware, async (req, res) => {
   try {
     const loan = await Loan.findById(req.params.loanId).catch(() => null);

@@ -12,6 +12,8 @@ export const DEFAULTS = {
   banner: { enabled: false, level: 'info', text: '' },
   maintenance: { enabled: false, message: 'We are updating the app. Please try again in a little while.' },
   minAppVersion: '',
+  // How the app protects itself on the customer's phone: a PIN, locking after the app was left, and signing out when idle
+  security: { appLock: 'optional', lockAfterSeconds: 30, idleLogoutMinutes: 15 },
   baseProduct: { name: 'Personal Loan', description: 'Quick personal loan with the charges shown up front.' },
   products: [], // extra products: { key, name, description, enabled, overrides }
 };
@@ -92,6 +94,16 @@ export function validateSettings(candidate) {
   out.minAppVersion = String(s.minAppVersion ?? '').trim();
   if (out.minAppVersion && !versionOk(out.minAppVersion)) errors.push('Minimum app version must look like 1.2.0');
 
+  const sec = s.security || {};
+  out.security.appLock = ['off', 'optional', 'required'].includes(sec.appLock) ? sec.appLock : DEFAULTS.security.appLock;
+  const secNum = (v, def, min, max, label) => {
+    const n = v === undefined || v === null || v === '' ? def : Number(v);
+    if (!Number.isInteger(n) || n < min || n > max) { errors.push(`${label} must be a whole number between ${min} and ${max}`); return def; }
+    return n;
+  };
+  out.security.lockAfterSeconds = secNum(sec.lockAfterSeconds, DEFAULTS.security.lockAfterSeconds, 0, 3600, 'Seconds before the app locks');
+  out.security.idleLogoutMinutes = secNum(sec.idleLogoutMinutes, DEFAULTS.security.idleLogoutMinutes, 0, 240, 'Minutes before signing out');
+
   out.baseProduct.name = text(s.baseProduct?.name, 60, 'Main product name', errors, true);
   out.baseProduct.description = text(s.baseProduct?.description, 200, 'Main product description', errors);
 
@@ -162,6 +174,7 @@ export function publicSettings() {
     banner: s.banner.enabled ? s.banner : { enabled: false },
     maintenance: s.maintenance,
     minAppVersion: s.minAppVersion,
+    security: s.security,
     products,
     support: { email: base.institution.supportEmail, phone: base.institution.supportPhone },
   };

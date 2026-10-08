@@ -62,6 +62,25 @@ class AppSettings extends ChangeNotifier {
     return text.isEmpty ? 'We are updating the app. Please try again in a little while.' : text;
   }
 
+  // The PIN and idle sign-out rules
+  String get appLockMode {
+    final s = _data['security'];
+    final v = s is Map ? (s['appLock'] ?? 'optional').toString() : 'optional';
+    return ['off', 'optional', 'required'].contains(v) ? v : 'optional';
+  }
+
+  int get lockAfterSeconds {
+    final s = _data['security'];
+    final v = s is Map ? s['lockAfterSeconds'] : null;
+    return v is num ? v.toInt() : 30;
+  }
+
+  int get idleLogoutMinutes {
+    final s = _data['security'];
+    final v = s is Map ? s['idleLogoutMinutes'] : null;
+    return v is num ? v.toInt() : 15;
+  }
+
   String get minAppVersion => (_data['minAppVersion'] ?? '').toString();
   bool get updateRequired => minAppVersion.isNotEmpty && versionLess(kAppVersion, minAppVersion);
 

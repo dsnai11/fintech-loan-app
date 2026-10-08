@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'api_service.dart';
+import 'app_lock.dart';
 import '../utils/error_utils.dart';
 
 class AuthService extends ChangeNotifier {
@@ -97,6 +98,7 @@ class AuthService extends ChangeNotifier {
     _token = null;
     _user = null;
     await _apiService.clearToken();
+    await AppLock.instance.removePin(); // the PIN belongs to the signed-in customer
     notifyListeners();
   }
 

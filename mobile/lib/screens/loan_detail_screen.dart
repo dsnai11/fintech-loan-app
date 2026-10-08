@@ -7,6 +7,7 @@ import '../services/api_service.dart';
 import '../utils/error_utils.dart';
 import '../widgets/auto_debit_card.dart';
 import 'pay_options_screen.dart';
+import '../widgets/loan_timeline.dart';
 import '../widgets/settlement_offer_card.dart';
 
 class LoanDetailScreen extends StatefulWidget {
@@ -274,6 +275,8 @@ class _LoanDetailScreenState extends State<LoanDetailScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           _summaryCard(paidCount, total),
+          const SizedBox(height: 12),
+          LoanTimeline(loanId: _loanId),
           if (widget.loan['status'] == 'disbursed' || widget.loan['status'] == 'closed') ...[
             const SizedBox(height: 12),
             OutlinedButton.icon(

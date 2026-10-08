@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import 'services/api_service.dart';
 import 'services/auth_service.dart';
 import 'services/app_settings.dart';
+import 'services/app_lock.dart';
+import 'widgets/lock_gate.dart';
 import 'services/language_service.dart';
 import 'services/push_service.dart';
 import 'screens/offers_screen.dart';
@@ -26,6 +28,7 @@ void main() async {
     statusBarIconBrightness: Brightness.light,
   ));
   final api = ApiService();
+  await AppLock.instance.init();
   await LanguageService.instance.init(api);
   PushService.instance.onOpen = (data) {
     if (data['type'] == 'OFFER') {
@@ -47,6 +50,7 @@ class MyApp extends StatelessWidget {
         Provider<ApiService>.value(value: api),
         ChangeNotifierProvider<LanguageService>.value(value: LanguageService.instance),
         ChangeNotifierProvider<AppSettings>(create: (context) => AppSettings(context.read<ApiService>())),
+        ChangeNotifierProvider<AppLock>.value(value: AppLock.instance),
         ProxyProvider<ApiService, AuthService>(
           update: (_, apiService, authService) =>
               authService ?? AuthService(apiService),
@@ -54,6 +58,7 @@ class MyApp extends StatelessWidget {
       ],
       child: MaterialApp(
         navigatorKey: navigatorKey,
+        builder: (context, child) => LockGate(child: child ?? const SizedBox.shrink()),
         title: 'LIFC - Laxmi India Finance',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(

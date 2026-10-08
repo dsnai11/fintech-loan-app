@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%93%9E%3C/text%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Call-back requests - LIFC Admin</title>
+<style>
+* { box-sizing: border-box; }
+.card { padding: 16px; margin-bottom: 14px; }
+.card h2 { margin: 0 0 4px; font-size: 15px; }
+.sub { font-size: 12px; color: var(--e-muted); margin-bottom: 12px; line-height: 1.5; }
+.note { font-size: 12px; color: var(--e-muted); }
+.alert { display: none; padding: 12px 16px; margin-bottom: 14px; white-space: pre-line; }
+.alert.show { display: block; }
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--e-muted); border-bottom: 1px solid var(--e-border); white-space: nowrap; }
+td { padding: 8px; border-bottom: 1px solid var(--e-border); vertical-align: top; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.tag { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 20px; background: #E0ECFF; color: #1D4ED8; }
+.tag.today { background: #FEF3C7; color: #92400E; }
+</style>
+<link rel="stylesheet" href="assets/portal.css">
+</head>
+<body data-shell="app" data-title="Call-back requests" data-sub="Customers who asked for a phone call, and when they would like it.">
+<div class="container">
+  <div id="alert" class="alert" role="alert"></div>
+  <div class="card">
+    <h2>Requests</h2>
+    <div class="sub">Phone the customer in the slot they chose, then write what happened. If nobody answers, press "Could not reach" and the customer is told in the app.</div>
+    <div class="row" style="margin-bottom:10px"><label for="flt" style="margin:0">Show</label><select id="flt" onchange="load()"><option value="open">Waiting</option><option value="done">Done</option><option value="cancelled">Cancelled by the customer</option></select><span class="note" id="count"></span></div>
+    <div class="scroll" id="list"></div>
+  </div>
+</div>
+<script>
+const API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
+const token = localStorage.getItem('admin_token');
+if (!token) location.href = 'admin-config.html';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const TOPIC = { loan: 'Their loan', payment: 'A payment', kyc: 'KYC', other: 'Something else' };
+let D = null;
+function msg(text, kind) { const a = $('alert'); a.textContent = text; a.className = 'alert show ' + (kind === 'ok' ? 'ok' : 'err'); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+async function api(path, method = 'GET', body) {
+  const r = await fetch(API + path, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.errors ? d.errors.join('\n') : d.error || 'Something went wrong');
+  return d;
+}
+function draw() {
+  $('count').textContent = D.open ? `${D.open} waiting` : '';
+  $('list').innerHTML = D.requests.length ? `<table><thead><tr><th>When to call</th><th>Customer</th><th>About</th><th>Note</th><th>Status</th><th></th></tr></thead><tbody>${D.requests.map(r => `<tr>
+    <td><span class="tag ${r.day === 'today' ? 'today' : ''}">${r.day === 'today' ? 'Today' : 'Tomorrow'}</span><div>${esc(r.slotText)}</div><div class="note">asked ${new Date(r.at).toLocaleString('en-IN')}</div></td>
+    <td>${esc(r.customer)}<div><b>${esc(r.phone)}</b></div></td><td>${esc(TOPIC[r.topic] || r.topic)}</td><td>${esc(r.note)}</td>
+    <td>${esc(r.status)}${r.assignedTo ? `<div class="note">${esc(r.assignedTo)}</div>` : ''}${r.outcome ? `<div class="note">${esc(r.outcome)}</div>` : ''}</td>
+    <td>${D.canReply && r.status === 'open' ? `<div class="row">${r.assignedTo ? '' : `<button class="btn" onclick="claim('${r.id}')">I'll call</button>`}<input id="o-${r.id}" placeholder="What happened" style="width:170px"><button class="btn primary" onclick="done('${r.id}')">Done</button><button class="btn" onclick="missed('${r.id}')">Could not reach</button></div>` : ''}</td></tr>`).join('')}</tbody></table>` : '<div class="note">Nothing here.</div>';
+}
+async function load() { try { D = await api('/admin/callbacks?status=' + $('flt').value); draw(); } catch (e) { msg(e.message, 'err'); } }
+async function claim(id) { try { await api(`/admin/callbacks/${id}/claim`, 'POST', {}); load(); } catch (e) { msg(e.message, 'err'); } }
+async function done(id) { try { await api(`/admin/callbacks/${id}/done`, 'POST', { outcome: $('o-' + id).value }); msg('Recorded.', 'ok'); load(); } catch (e) { msg(e.message, 'err'); } }
+async function missed(id) { try { await api(`/admin/callbacks/${id}/missed`, 'POST', {}); msg('Recorded. The customer has been told.', 'ok'); load(); } catch (e) { msg(e.message, 'err'); } }
+load();
+</script>
+<script src="assets/portal.js"></script>
+</body>
+</html>

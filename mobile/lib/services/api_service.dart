@@ -413,6 +413,42 @@ class ApiService {
     }
   }
 
+  // Where an application stands
+  Future<Map<String, dynamic>> getLoanTimeline(String loanId) async {
+    try {
+      final response = await _dio.get('/loans/$loanId/timeline');
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  // Call me back
+  Future<Map<String, dynamic>> getCallbacks() async {
+    try {
+      final response = await _dio.get('/callbacks/mine');
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<void> requestCallback({required String topic, required String day, required String slot, String note = ''}) async {
+    try {
+      await _dio.post('/callbacks', data: {'topic': topic, 'day': day, 'slot': slot, 'note': note});
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<void> cancelCallback(String id) async {
+    try {
+      await _dio.post('/callbacks/$id/cancel');
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   // Rewards for paying on time
   Future<Map<String, dynamic>> getRewards() async {
     try {
