@@ -2,6 +2,7 @@ import { getConfig, setConfig } from './configService.js';
 import { getPolicy } from './pricingPolicy.js';
 import { activeOffer } from './offerService.js';
 import Loan from '../models/Loan.js';
+import { LANGUAGE_CODES, LANGUAGES as LANGUAGE_META } from '../i18n/catalogue.js';
 
 // What the customer app's home screen shows around the loan offer: the company's branding and the offer
 // banners (animated, scheduled, aimed at a group of customers). Staff manage all of it on the portal's
@@ -28,6 +29,7 @@ export const DEFAULTS = {
     ],
   },
   carousel: { autoplaySeconds: 4 },
+  languages: ['en', 'hi'], // the languages customers can choose; the others are added once someone has checked the wording
   banners: [],
 };
 
@@ -47,6 +49,7 @@ export function getHome() {
     if (stored.brand && typeof stored.brand === 'object') Object.assign(out.brand, stored.brand);
     if (stored.carousel && typeof stored.carousel === 'object') Object.assign(out.carousel, stored.carousel);
     if (Array.isArray(stored.banners)) out.banners = stored.banners;
+    if (Array.isArray(stored.languages)) out.languages = stored.languages;
   }
   return out;
 }
@@ -87,6 +90,20 @@ export function validateHome(candidate) {
     if (text) out.brand.trustStrip.push({ icon: pick(t.icon, TRUST_ICONS, 'check'), text });
   }
 
+  out.brand.i18n = {};
+  for (const code of LANGUAGE_CODES.filter(x => x !== 'en')) {
+    const t = b.i18n?.[code];
+    if (!t || typeof t !== 'object') continue;
+    const entry = { tagline: str(t.tagline, 80, `Tagline (${code})`, errors), trust: [] };
+    for (const [i, x] of (Array.isArray(t.trust) ? t.trust : []).slice(0, 4).entries()) entry.trust.push(str(x, 40, `Trust point ${i + 1} (${code})`, errors));
+    if (entry.tagline || entry.trust.some(Boolean)) out.brand.i18n[code] = entry;
+  }
+
+  const langs = Array.isArray(c.languages) ? c.languages : DEFAULTS.languages;
+  const bad = langs.filter(l => !LANGUAGE_CODES.includes(l));
+  if (bad.length) errors.push(`Unknown language: ${bad.join(', ')}`);
+  out.languages = ['en', ...LANGUAGE_CODES.filter(l => l !== 'en' && langs.includes(l))];
+
   const sec = Number(c.carousel?.autoplaySeconds ?? DEFAULTS.carousel.autoplaySeconds);
   if (!Number.isFinite(sec) || sec < 0 || sec > 30) errors.push('Banner rotation must be between 0 (off) and 30 seconds');
   else out.carousel.autoplaySeconds = Math.round(sec);
@@ -119,7 +136,14 @@ export function validateHome(candidate) {
       endsAt: date(r.endsAt, `${label} end`, errors),
       showCountdown: r.showCountdown === true,
       imageUrl: '',
+      i18n: {},
     };
+    for (const code of LANGUAGE_CODES.filter(x => x !== 'en')) {
+      const t = r.i18n?.[code];
+      if (!t || typeof t !== 'object') continue;
+      const entry = { title: str(t.title, 60, `${label} headline (${code})`, errors), subtitle: str(t.subtitle, 140, `${label} line below (${code})`, errors), badge: str(t.badge, 20, `${label} tag (${code})`, errors), cta: str(t.cta, 24, `${label} button text (${code})`, errors) };
+      if (Object.values(entry).some(Boolean)) bn.i18n[code] = entry;
+    }
     if (bn.theme === 'custom') {
       for (const k of ['color1', 'color2']) {
         const v = String(r[k] ?? '').trim();
@@ -140,7 +164,7 @@ export function validateHome(candidate) {
     }
     if (bn.startsAt && bn.endsAt && new Date(bn.endsAt) <= new Date(bn.startsAt)) errors.push(`${label}: the end must be after the start`);
     if (bn.showCountdown && !bn.endsAt) errors.push(`${label}: the countdown needs an end date`);
-    for (const m of `${bn.title} ${bn.subtitle}`.matchAll(/\{\{\s*([a-zA-Z]+)\s*\}\}/g)) {
+    for (const m of `${bn.title} ${bn.subtitle} ${Object.values(bn.i18n).map(t => `${t.title} ${t.subtitle}`).join(' ')}`.matchAll(/\{\{\s*([a-zA-Z]+)\s*\}\}/g)) {
       if (!TOKENS.includes(m[1])) errors.push(`${label}: {{${m[1]}}} is not a known placeholder (use ${TOKENS.map(t => `{{${t}}}`).join(', ')})`);
     }
     out.banners.push(bn);
@@ -155,6 +179,7 @@ export async function saveHome(candidate, updatedBy) {
   return { ok: true, home };
 }
 
+const LANGUAGES_PUBLIC = codes => LANGUAGE_META.filter(l => codes.includes(l.code)).map(l => ({ code: l.code, name: l.name, native: l.native }));
 const rupees = n => `₹${Number(n).toLocaleString('en-IN')}`;
 
 // Which group of customers is this person in?
@@ -168,8 +193,9 @@ async function audienceOf(userId) {
 const live = (b, now) => b.enabled && (!b.startsAt || new Date(b.startsAt) <= now) && (!b.endsAt || new Date(b.endsAt) > now);
 
 // The home content for one customer: branding, and the banners that are on, in date, and meant for them.
-export async function homeFor(user, now = new Date()) {
+export async function homeFor(user, now = new Date(), lang = 'en') {
   const home = getHome();
+  if (!home.languages.includes(lang)) lang = 'en';
   const policy = getPolicy();
   const groups = await audienceOf(user._id);
   const offer = activeOffer(user);
@@ -180,26 +206,30 @@ export async function homeFor(user, now = new Date()) {
   for (const b of home.banners) {
     if (!live(b, now)) continue;
     if (b.audience !== 'all' && !groups[b.audience]) continue;
-    const text = `${b.title} ${b.subtitle}`;
+    const tl = lang !== 'en' ? b.i18n?.[lang] || {} : {};
+    const title = tl.title || b.title, subtitle = tl.subtitle || b.subtitle;
+    const text = `${title} ${subtitle}`;
     // A line that quotes the customer's own offer or name is skipped when there is nothing to put in it.
     const need = [...text.matchAll(/\{\{\s*([a-zA-Z]+)\s*\}\}/g)].map(m => m[1]);
     if (need.some(t => !values[t])) continue;
     const fill = s => s.replace(/\{\{\s*([a-zA-Z]+)\s*\}\}/g, (_, t) => values[t] ?? '');
-    banners.push({ id: b.id, title: fill(b.title), subtitle: fill(b.subtitle), badge: b.badge, theme: b.theme, color1: b.color1, color2: b.color2, icon: b.icon, animation: b.animation, cta: b.cta, endsAt: b.showCountdown ? b.endsAt : '', imageUrl: b.imageUrl });
+    banners.push({ id: b.id, title: fill(title), subtitle: fill(subtitle), badge: tl.badge || b.badge, theme: b.theme, color1: b.color1, color2: b.color2, icon: b.icon, animation: b.animation, cta: { ...b.cta, text: tl.cta || b.cta.text }, endsAt: b.showCountdown ? b.endsAt : '', imageUrl: b.imageUrl });
   }
 
   const inst = policy.institution || {};
   return {
     brand: {
       name: inst.lenderName || '',
-      tagline: home.brand.tagline,
+      tagline: (lang !== 'en' && home.brand.i18n?.[lang]?.tagline) || home.brand.tagline,
       primaryColor: home.brand.primaryColor,
       secondaryColor: home.brand.secondaryColor,
       heroAnimation: home.brand.heroAnimation,
       registration: home.brand.showRegistration && inst.registrationNumber ? `NBFC · Reg. no. ${inst.registrationNumber}` : '',
-      trustStrip: home.brand.trustStrip,
+      trustStrip: home.brand.trustStrip.map((t, i) => ({ ...t, text: (lang !== 'en' && home.brand.i18n?.[lang]?.trust?.[i]) || t.text })),
     },
     carousel: home.carousel,
+    languages: LANGUAGES_PUBLIC(home.languages),
+    lang,
     banners,
     serverTime: now.toISOString(),
   };

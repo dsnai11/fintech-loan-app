@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import '../widgets/tr_text.dart';
+import '../widgets/language_picker.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import '../services/api_service.dart';
@@ -123,6 +125,8 @@ class _SignupScreenState extends State<SignupScreen> {
                       'Create your account',
                       style: TextStyle(color: Colors.white70, fontSize: 14),
                     ),
+                    const SizedBox(height: 12),
+                    const LanguageChip(),
                   ],
                 ),
               ),

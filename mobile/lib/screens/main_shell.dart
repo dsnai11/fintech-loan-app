@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../main.dart';
+import '../widgets/tr_text.dart' show tr;
 import 'home_screen.dart';
 import 'loan_history_screen.dart';
 import 'profile_screen.dart';
@@ -37,11 +38,11 @@ class _MainShellState extends State<MainShell> {
         backgroundColor: Colors.white,
         indicatorColor: kNavy.withOpacity(0.10),
         height: 66,
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded, color: kNavy), label: 'Home'),
-          NavigationDestination(icon: Icon(Icons.account_balance_wallet_outlined), selectedIcon: Icon(Icons.account_balance_wallet_rounded, color: kNavy), label: 'My Loans'),
-          NavigationDestination(icon: Icon(Icons.chat_bubble_outline_rounded), selectedIcon: Icon(Icons.chat_bubble_rounded, color: kNavy), label: 'Messages'),
-          NavigationDestination(icon: Icon(Icons.person_outline_rounded), selectedIcon: Icon(Icons.person_rounded, color: kNavy), label: 'Profile'),
+        destinations: [
+          NavigationDestination(icon: const Icon(Icons.home_outlined), selectedIcon: const Icon(Icons.home_rounded, color: kNavy), label: tr('Home')),
+          NavigationDestination(icon: const Icon(Icons.account_balance_wallet_outlined), selectedIcon: const Icon(Icons.account_balance_wallet_rounded, color: kNavy), label: tr('My Loans')),
+          NavigationDestination(icon: const Icon(Icons.chat_bubble_outline_rounded), selectedIcon: const Icon(Icons.chat_bubble_rounded, color: kNavy), label: tr('Messages')),
+          NavigationDestination(icon: const Icon(Icons.person_outline_rounded), selectedIcon: const Icon(Icons.person_rounded, color: kNavy), label: tr('Profile')),
         ],
       ),
     );

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'services/api_service.dart';
 import 'services/auth_service.dart';
 import 'services/app_settings.dart';
+import 'services/language_service.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
@@ -19,17 +20,21 @@ void main() async {
     statusBarColor: kNavy,
     statusBarIconBrightness: Brightness.light,
   ));
-  runApp(const MyApp());
+  final api = ApiService();
+  await LanguageService.instance.init(api);
+  runApp(MyApp(api: api));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+  final ApiService api;
+  const MyApp({Key? key, required this.api}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        Provider<ApiService>(create: (_) => ApiService()),
+        Provider<ApiService>.value(value: api),
+        ChangeNotifierProvider<LanguageService>.value(value: LanguageService.instance),
         ChangeNotifierProvider<AppSettings>(create: (context) => AppSettings(context.read<ApiService>())),
         ProxyProvider<ApiService, AuthService>(
           update: (_, apiService, authService) =>

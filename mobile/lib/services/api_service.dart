@@ -242,13 +242,40 @@ class ApiService {
   }
 
   // The home screen's branding and the offer banners meant for this customer
-  Future<Map<String, dynamic>> getHomeContent() async {
+  Future<Map<String, dynamic>> getHomeContent({String? lang}) async {
     try {
-      final response = await _dio.get('/app-home');
+      final response = await _dio.get('/app-home', queryParameters: lang == null ? null : {'lang': lang});
       return Map<String, dynamic>.from(response.data);
     } on DioException catch (e) {
       throw _handleError(e);
     }
+  }
+
+  // The words for one language, and the languages on offer (no sign-in needed)
+  Future<Map<String, dynamic>> getStrings(String lang) async {
+    try {
+      final response = await _dio.get('/app-home/strings', queryParameters: {'lang': lang});
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<List<Map<String, String>>> getLanguages() async {
+    try {
+      final response = await _dio.get('/app-home/languages');
+      final list = (response.data['languages'] as List?) ?? [];
+      return list.whereType<Map>().map((m) => m.map((k, v) => MapEntry(k.toString(), v.toString()))).toList();
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  // Remembers the customer's choice on the server. Only works when signed in; failures are ignored.
+  Future<void> setUserLanguage(String code) async {
+    try {
+      await _dio.put('/users/language', data: {'language': code});
+    } catch (_) {}
   }
 
   // Tells the company a banner was shown or tapped (for the counts in the portal). Never blocks the screen.

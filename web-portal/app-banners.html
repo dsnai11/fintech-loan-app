@@ -82,11 +82,13 @@
   <div class="tabs" role="tablist">
     <button id="tab-banners" class="on" onclick="tab('banners')">Offer banners</button>
     <button id="tab-brand" onclick="tab('brand')">Branding</button>
+    <button id="tab-lang" onclick="tab('lang')">Languages</button>
   </div>
   <div class="layout">
     <div>
       <div id="pane-banners"></div>
       <div id="pane-brand" style="display:none"></div>
+      <div id="pane-lang" style="display:none"></div>
     </div>
     <div class="previewcol">
       <div class="note" style="text-align:center;margin-bottom:8px">Live preview (the sample customer is “Asha” with a ₹50,000 offer)</div>
@@ -99,6 +101,8 @@
           <option value="has_loan" selected>A customer with a loan running</option>
           <option value="no_loan">A customer with no loan running</option>
         </select>
+        <label for="asLang" style="font-size:12px;margin-top:8px;display:block">Language</label>
+        <select id="asLang" class="full" onchange="cust.lang=this.value;drawPhone()"></select>
         <label for="asPhone" style="font-size:12px;margin-top:8px;display:block">Phone</label>
         <select id="asPhone" class="full" onchange="cust.phone=this.value;drawPhone()">
           <option value="iphone">iPhone (the header runs behind the clock and battery)</option>
@@ -120,7 +124,7 @@ if (!token) location.href = 'admin-config.html';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-let H = null, STATS = {}, sel = 0, timer = null, ticker = null, REG = '', cust = { type: 'has_loan', offer: false, phone: 'iphone' };
+let H = null, STATS = {}, sel = 0, timer = null, ticker = null, REG = '', cust = { type: 'has_loan', offer: false, phone: 'iphone', lang: 'en' }, ALLLANG = [], LS = { lang: 'hi', rows: [], filter: '', loaded: false };
 
 const THEMES = { brand: 'Company colours', sunrise: 'Sunrise', ocean: 'Ocean', emerald: 'Emerald', royal: 'Royal', gold: 'Gold', midnight: 'Midnight', custom: 'My own colours' };
 const GRAD = { sunrise: ['#F97316', '#DB2777'], ocean: ['#2563EB', '#0891B2'], emerald: ['#059669', '#0D9488'], royal: ['#7C3AED', '#4338CA'], gold: ['#D97706', '#92400E'], midnight: ['#1F2937', '#0B1220'] };
@@ -154,13 +158,13 @@ async function api(path, method = 'GET', body) {
 }
 
 function tab(t) {
-  for (const k of ['banners', 'brand']) { $('pane-' + k).style.display = k === t ? '' : 'none'; $('tab-' + k).classList.toggle('on', k === t); }
+  for (const k of ['banners', 'brand', 'lang']) { $('pane-' + k).style.display = k === t ? '' : 'none'; $('tab-' + k).classList.toggle('on', k === t); }
 }
 
 async function load() {
   try {
     const d = await api('/app-home/admin');
-    H = d.home; STATS = d.stats || {}; REG = d.registration || '';
+    H = d.home; STATS = d.stats || {}; REG = d.registration || ''; ALLLANG = d.allLanguages || [];
     renderAll();
   } catch (e) { msg(e.message, 'err'); }
 }
@@ -173,7 +177,7 @@ const grad = b => {
 const toLocal = iso => { if (!iso) return ''; const d = new Date(iso); const p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
 const fromLocal = v => (v ? new Date(v).toISOString() : '');
 const fill = s => String(s || '').replace(/\{\{\s*name\s*\}\}/g, 'Asha').replace(/\{\{\s*offer\s*\}\}/g, '₹50,000').replace(/\{\{\s*maxLoan\s*\}\}/g, '₹5,00,000');
-function setPath(o, path, v) { const ks = path.split('.'); while (ks.length > 1) o = o[ks.shift()]; o[ks[0]] = v; }
+function setPath(o, path, v) { const ks = path.split('.'); while (ks.length > 1) { const k = ks.shift(); if (o[k] == null || typeof o[k] !== 'object') o[k] = {}; o = o[k]; } o[ks[0]] = v; }
 function opts(map, cur) { return Object.entries(map).map(([k, v]) => `<option value="${esc(k)}" ${k === cur ? 'selected' : ''}>${esc(Array.isArray(v) ? v[1] : v)}</option>`).join(''); }
 
 // Is this banner shown to the chosen kind of customer right now? Returns '' when yes, or the reason when not.
@@ -216,6 +220,7 @@ function bannerCard(b, i) {
       <div><label class="chk"><input type="checkbox" ${b.showCountdown ? 'checked' : ''} data-i="${i}" data-k="showCountdown" data-t="bool" oninput="edit(event)"> Show a live countdown to the end</label></div>
       <div style="grid-column: span 2"><label>Picture link (optional, https://)</label><input class="full" ${f('imageUrl', b.imageUrl)} oninput="edit(event)" placeholder="a picture shown behind the text"></div>
     </div>
+    ${enabledLangs().map(l => `<details style="margin-top:10px"><summary style="cursor:pointer;font-weight:600;font-size:13px">Translation: ${esc(l.name)} (${esc(l.native)}) <span class="note">leave a box empty to show the English</span></summary><div class="grid" style="margin-top:8px">${[['title', 'Headline'], ['subtitle', 'Line below'], ['badge', 'Small tag'], ['cta', 'Button text']].map(([k, label]) => `<div><label>${label}</label><input maxlength="${k === 'subtitle' ? 140 : k === 'title' ? 60 : k === 'badge' ? 20 : 24}" data-i="${i}" data-k="i18n.${l.code}.${k}" value="${esc(b.i18n && b.i18n[l.code] ? b.i18n[l.code][k] || '' : '')}" oninput="edit(event)"></div>`).join('')}</div></details>`).join('')}
     <div class="note" style="margin-top:8px">You can put <code>{{name}}</code>, <code>{{offer}}</code> (the customer's own offer) or <code>{{maxLoan}}</code> in the text. A banner using <code>{{offer}}</code> is simply skipped for customers who have no offer.</div>
   </div>`;
 }
@@ -231,6 +236,7 @@ function renderBanners() {
 
 function renderBrand() {
   const b = H.brand;
+  const brandLangs = enabledLangs().map(l => { const t = (b.i18n && b.i18n[l.code]) || { tagline: '', trust: [] }; return `<details style="margin-top:10px"><summary style="cursor:pointer;font-weight:600;font-size:13px">Translation: ${esc(l.name)} (${esc(l.native)})</summary><div class="grid" style="margin-top:8px"><div style="grid-column:1/-1"><label>Tagline</label><input class="full" maxlength="80" value="${esc(t.tagline || '')}" data-lc="${l.code}" data-lk="tagline" oninput="editBrandLang(event)"></div>${b.trustStrip.map((x, n) => `<div><label>Trust point ${n + 1} (English: ${esc(x.text)})</label><input maxlength="40" value="${esc((t.trust || [])[n] || '')}" data-lc="${l.code}" data-lk="trust" data-n="${n}" oninput="editBrandLang(event)"></div>`).join('')}</div></details>`; }).join('');
   $('pane-brand').innerHTML = `<div class="card"><h2>Company branding</h2>
     <div class="sub">The colours and words around the top of the home screen. The company name and registration number come from the Pricing page, so they always match your legal details.</div>
     <div class="grid">
@@ -242,14 +248,66 @@ function renderBrand() {
     <div style="margin-top:12px;display:grid;gap:8px">
       <label class="chk"><input type="checkbox" ${b.heroAnimation ? 'checked' : ''} data-b="heroAnimation" data-t="bool" oninput="editBrand(event)"> Soft moving shapes behind the greeting</label>
       <label class="chk"><input type="checkbox" ${b.showRegistration ? 'checked' : ''} data-b="showRegistration" data-t="bool" oninput="editBrand(event)"> Show the NBFC registration number under the company name (only shown if it is filled in on the Pricing page)</label>
-    </div></div>
+    </div>${brandLangs}</div>
   <div class="card"><h2>Trust strip</h2>
     <div class="sub">Up to four short points shown in a row under the greeting. Only say things that are true and that your compliance team has agreed to.</div>
     <div id="trust">${b.trustStrip.map((t, i) => `<div class="trow"><select data-ti="${i}" data-k="icon" onchange="editTrust(event)">${opts(TRUST, t.icon)}</select><input maxlength="40" value="${esc(t.text)}" data-ti="${i}" data-k="text" oninput="editTrust(event)"><button class="btn danger" onclick="delTrust(${i})">Remove</button></div>`).join('')}</div>
     ${b.trustStrip.length < 4 ? '<button class="btn" onclick="addTrust()">Add a point</button>' : ''}</div>`;
 }
 
-function renderAll() { renderBanners(); renderBrand(); drawPhone(); }
+const enabledLangs = () => ALLLANG.filter(l => l.code !== 'en' && (H.languages || []).includes(l.code));
+function editBrandLang(e) {
+  const el = e.target, code = el.dataset.lc;
+  H.brand.i18n = H.brand.i18n || {};
+  const t = H.brand.i18n[code] = H.brand.i18n[code] || { tagline: '', trust: [] };
+  if (el.dataset.lk === 'tagline') t.tagline = el.value; else { t.trust = t.trust || []; t.trust[+el.dataset.n] = el.value; }
+  drawPhone();
+}
+function renderLangSelect() {
+  const sel = $('asLang'); if (!sel) return;
+  const list = [{ code: 'en', name: 'English' }, ...enabledLangs()];
+  if (!list.some(l => l.code === cust.lang)) cust.lang = 'en';
+  sel.innerHTML = list.map(l => `<option value="${esc(l.code)}" ${l.code === cust.lang ? 'selected' : ''}>${esc(l.name)}</option>`).join('');
+}
+
+// ── Languages tab ────────────────────────────────────────────────────────
+function renderLang() {
+  const opts = ALLLANG.filter(l => l.code !== 'en');
+  $('pane-lang').innerHTML = `<div class="card"><h2>Languages customers can choose</h2>
+    <div class="sub">Customers pick their language on the sign-in screen and in their profile. Only the languages ticked here are offered. The built-in translations are a starting point: <b>have someone who speaks the language check them before you switch it on</b>, especially wording about money, charges and consent. Anything without a translation shows in English.</div>
+    <div style="display:grid;gap:8px">${opts.map(l => `<label class="chk"><input type="checkbox" ${H.languages.includes(l.code) ? 'checked' : ''} onchange="toggleLang('${l.code}', this.checked)"> ${esc(l.name)} · ${esc(l.native)}</label>`).join('')}</div>
+    <div class="note" style="margin-top:8px">English is always on. After ticking a language, add its banner and tagline translations on the Offer banners and Branding tabs, then press Save and publish.</div></div>
+  <div class="card"><h2>Check or change the app's words</h2>
+    <div class="sub">Every line in the app, in English, with the built-in translation. Type your own wording to replace it, or leave a box empty to use the built-in one. These save separately from the banners and apply the next time the app opens, with no new app release.</div>
+    <div class="grid" style="margin-bottom:10px"><div><label for="ls-lang">Language</label><select id="ls-lang" onchange="LS.lang=this.value;loadStrings()">${opts.map(l => `<option value="${esc(l.code)}" ${l.code === LS.lang ? 'selected' : ''}>${esc(l.name)} · ${esc(l.native)}</option>`).join('')}</select></div>
+      <div><label for="ls-find">Find a line</label><input id="ls-find" placeholder="type part of the English or the translation" oninput="LS.filter=this.value;drawStrings()"></div></div>
+    <div id="ls-table" style="max-height:520px;overflow:auto"></div>
+    <div style="margin-top:10px"><button class="btn primary" id="ls-save" onclick="saveStrings()">Save these words</button> <span class="note" id="ls-note"></span></div></div>`;
+  if (!LS.loaded) loadStrings(); else drawStrings();
+}
+function toggleLang(code, on) {
+  const set = new Set(H.languages || ['en']); on ? set.add(code) : set.delete(code); set.add('en');
+  H.languages = [...set]; renderBanners(); renderBrand(); renderLangSelect(); drawPhone();
+}
+async function loadStrings() {
+  try { const d = await api('/app-home/admin/strings?lang=' + encodeURIComponent(LS.lang)); LS.rows = d.rows; LS.loaded = true; drawStrings(); } catch (e) { msg(e.message, 'err'); }
+}
+function drawStrings() {
+  const f = LS.filter.trim().toLowerCase();
+  const rows = LS.rows.map((r, i) => [r, i]).filter(([r]) => !f || r.en.toLowerCase().includes(f) || (r.value || r.builtin).toLowerCase().includes(f));
+  $('ls-table').innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr><th style="text-align:left;padding:6px;width:36%">English</th><th style="text-align:left;padding:6px">Your wording (empty = built-in)</th></tr></thead><tbody>${rows.map(([r, i]) => `<tr style="border-top:1px solid var(--e-border)"><td style="padding:6px;vertical-align:top;overflow-wrap:anywhere">${esc(r.en)}</td><td style="padding:6px"><input class="full" data-s="${i}" value="${esc(r.value)}" placeholder="${esc(r.builtin || 'not translated yet, shows English')}" oninput="LS.rows[${i}].value=this.value;LS.rows[${i}].dirty=true"></td></tr>`).join('')}</tbody></table>`;
+}
+async function saveStrings() {
+  const changes = {};
+  for (const r of LS.rows) if (r.dirty) changes[r.en] = r.value;
+  if (!Object.keys(changes).length) return msg('Nothing changed.', 'ok');
+  $('ls-save').disabled = true;
+  try { const d = await api('/app-home/admin/strings', 'PUT', { lang: LS.lang, changes }); LS.rows = d.rows; drawStrings(); msg(d.message, 'ok'); }
+  catch (e) { msg(e.message, 'err'); }
+  $('ls-save').disabled = false;
+}
+
+function renderAll() { renderBanners(); renderBrand(); renderLang(); renderLangSelect(); drawPhone(); }
 
 function edit(e, rerender) {
   const el = e.target, i = +el.dataset.i, k = el.dataset.k;
@@ -288,11 +346,13 @@ const CONF = ['#FBBF24', '#F472B6', '#34D399', '#60A5FA', '#fff', '#F87171'];
 function slideHtml(b) {
   const conf = b.animation === 'confetti' ? `<div class="conf">${Array.from({ length: 16 }, (_, n) => `<i style="left:${(n * 6.3 + 3) % 98}%;background:${CONF[n % CONF.length]};animation-delay:${(n % 8) * 0.4}s;animation-duration:${2.6 + (n % 5) * 0.4}s"></i>`).join('')}</div>` : '';
   const bg = b.imageUrl ? `background:linear-gradient(rgba(0,0,0,.35),rgba(0,0,0,.35)),url('${esc(b.imageUrl.replace(/['")\\]/g, ''))}') center/cover,${grad(b)}` : `background:${grad(b)}`;
+  const tl = cust.lang !== 'en' && b.i18n && b.i18n[cust.lang] ? b.i18n[cust.lang] : {};
+  const title = tl.title || b.title, subtitle = tl.subtitle || b.subtitle, badge = tl.badge || b.badge, ctaText = tl.cta || b.cta.text;
   return `<div class="slide an-${esc(b.animation)}" style="${bg}">${conf}
-    ${b.badge ? `<span class="tag">${esc(b.badge)}</span>` : ''}
+    ${badge ? `<span class="tag">${esc(badge)}</span>` : ''}
     <span class="ico">${ICONS[b.icon] ? ICONS[b.icon][0] : '₹'}</span>
-    <h4>${esc(fill(b.title))}</h4>${b.subtitle ? `<p>${esc(fill(b.subtitle))}</p>` : ''}
-    ${b.cta.text && b.cta.action !== 'none' ? `<button class="cta" type="button">${esc(b.cta.text)}</button>` : ''}
+    <h4>${esc(fill(title))}</h4>${subtitle ? `<p>${esc(fill(subtitle))}</p>` : ''}
+    ${ctaText && b.cta.action !== 'none' ? `<button class="cta" type="button">${esc(ctaText)}</button>` : ''}
     ${b.showCountdown && b.endsAt ? `<span class="cd" data-end="${esc(b.endsAt)}"></span>` : ''}</div>`;
 }
 let rot = 0;
@@ -308,9 +368,9 @@ function drawPhone() {
   const android = cust.phone === 'android';
   const bar = android ? `<div class="sbar solid" style="background:${esc(br.primaryColor)}"><span>11:39</span>${icons}</div>` : `<div class="sbar"><span>11:39</span>${icons}</div>`;
   $('phone').innerHTML = `<div class="ph-top" style="background:linear-gradient(to bottom right,${esc(br.primaryColor)},${esc(br.secondaryColor)})">${orbs}${bar}
-      <div class="hi" style="margin-top:8px">Hi, Asha</div><div class="tg">${esc(br.tagline || 'Laxmi India Finance')}</div>${regLine}</div>
+      <div class="hi" style="margin-top:8px">Hi, Asha</div><div class="tg">${esc(((cust.lang !== 'en' && br.i18n && br.i18n[cust.lang] && br.i18n[cust.lang].tagline) || br.tagline) || 'Laxmi India Finance')}</div>${regLine}</div>
     <div class="ph-body">
-      ${br.trustStrip.filter(t => t.text).length ? `<div class="trust">${br.trustStrip.filter(t => t.text).map(t => `<span>${TRUST_EMOJI[t.icon] || ''}<br>${esc(t.text)}</span>`).join('')}</div>` : ''}
+      ${br.trustStrip.filter(t => t.text).length ? `<div class="trust">${br.trustStrip.map((t, n) => [t, (cust.lang !== 'en' && br.i18n && br.i18n[cust.lang] && (br.i18n[cust.lang].trust || [])[n]) || t.text]).filter(([, text]) => text).map(([t, text]) => `<span>${TRUST_EMOJI[t.icon] || ''}<br>${esc(text)}</span>`).join('')}</div>` : ''}
       ${cur ? slideHtml(cur) : '<div class="fake">No banner is showing for this kind of customer, so they see none.</div>'}
       ${why ? `<div class="fake" style="margin-top:8px;color:#B45309;background:#FEF3C7"><b>Not shown to this customer</b>${esc(why)}. You are looking at it because you picked it.</div>` : ''}
       ${vis.length > 1 ? `<div class="dots">${vis.map(b => `<b class="${b === cur ? 'on' : ''}" onclick="sel=${H.banners.indexOf(b)};drawPhone()"></b>`).join('')}</div>` : ''}

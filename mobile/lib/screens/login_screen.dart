@@ -1,5 +1,7 @@
 import 'onboarding_flow.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import '../widgets/tr_text.dart';
+import '../widgets/language_picker.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import '../services/api_service.dart';
@@ -128,6 +130,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         fontWeight: FontWeight.w500,
                       ),
                     ),
+                    const SizedBox(height: 14),
+                    const LanguageChip(),
                   ],
                 ),
               ),

@@ -1,5 +1,6 @@
 import 'dart:typed_data';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import '../widgets/tr_text.dart';
 import 'package:provider/provider.dart';
 import '../main.dart';
 import '../services/api_service.dart';

@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import '../widgets/tr_text.dart';
 import '../main.dart';
 
 // The frame shared by the account set-up steps: a step counter with a progress bar, the step's content, and a

@@ -5,6 +5,8 @@ import { authMiddleware, adminMiddleware } from '../middleware/auth.js';
 import { audit } from '../services/auditService.js';
 import { approvalRequired, propose } from '../services/changeApprovals.js';
 import { getPolicy } from '../services/pricingPolicy.js';
+import { stringsFor, stringsVersion, editorRows, saveOverrides, isLanguage } from '../services/i18n.js';
+import { LANGUAGES } from '../i18n/catalogue.js';
 import { getHome, saveHome, validateHome, homeFor } from '../services/homeContent.js';
 
 // The home-screen branding and offer banners: what the app reads, and where staff change it.
@@ -12,13 +14,28 @@ const router = express.Router();
 
 router.get('/', authMiddleware, async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId).select('firstName offer');
+    const user = await User.findById(req.user.userId).select('firstName offer language');
     if (!user) return res.status(404).json({ error: 'User not found' });
     res.setHeader('Cache-Control', 'no-store');
-    res.json(await homeFor(user));
+    const lang = isLanguage(req.query.lang) ? req.query.lang : user.language || 'en';
+    res.json(await homeFor(user, new Date(), lang));
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// The words for one language, so the app can show itself in it. No sign-in needed (the sign-in screen is translated too).
+router.get('/strings', (req, res) => {
+  const lang = String(req.query.lang || '');
+  if (!isLanguage(lang)) return res.status(400).json({ error: 'Unknown language' });
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ lang, version: stringsVersion(lang), strings: stringsFor(lang) });
+});
+
+// The languages customers can pick right now.
+router.get('/languages', (req, res) => {
+  const on = getHome().languages;
+  res.json({ languages: LANGUAGES.filter(l => on.includes(l.code)) });
 });
 
 // The app reports a banner being shown or tapped.
@@ -43,7 +60,24 @@ async function statsFor(days = 30) {
 router.get('/admin', adminMiddleware, async (req, res) => {
   try {
     const inst = getPolicy().institution || {};
-    res.json({ home: getHome(), stats: await statsFor(), statsDays: 30, registration: inst.registrationNumber || '', lenderName: inst.lenderName || '' });
+    res.json({ home: getHome(), stats: await statsFor(), statsDays: 30, registration: inst.registrationNumber || '', lenderName: inst.lenderName || '', allLanguages: LANGUAGES });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.get('/admin/strings', adminMiddleware, (req, res) => {
+  const lang = String(req.query.lang || '');
+  if (!isLanguage(lang) || lang === 'en') return res.status(400).json({ error: 'Choose a language other than English' });
+  res.json({ lang, rows: editorRows(lang) });
+});
+
+router.put('/admin/strings', adminMiddleware, async (req, res) => {
+  try {
+    const r = await saveOverrides(String(req.body?.lang || ''), req.body?.changes, req.user.email);
+    if (!r.ok) return res.status(400).json({ error: r.error });
+    await audit(req.user, 'APP_STRINGS_UPDATED', { type: 'Config', id: 'APP_STRINGS' }, { lang: req.body.lang, changed: Object.keys(req.body.changes).length }, req);
+    res.json({ message: 'Saved. The app picks up the new words the next time it opens.', lang: req.body.lang, rows: editorRows(req.body.lang) });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

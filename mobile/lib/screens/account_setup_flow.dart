@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import '../widgets/tr_text.dart';
 import 'onboarding_bank_screen.dart';
 import 'onboarding_kyc_screen.dart';
 import 'onboarding_profile_screen.dart';

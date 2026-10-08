@@ -1,3 +1,4 @@
+import { isLanguage } from '../services/i18n.js';
 import express from 'express';
 import User from '../models/User.js';
 import { authMiddleware } from '../middleware/auth.js';
@@ -15,6 +16,18 @@ router.get('/profile', authMiddleware, async (req, res) => {
     }
 
     res.json(user);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// The language the customer chose in the app, so staff messages and banners can follow it
+router.put('/language', authMiddleware, async (req, res) => {
+  try {
+    const lang = String(req.body?.language || '');
+    if (!isLanguage(lang)) return res.status(400).json({ error: 'Unknown language' });
+    await User.updateOne({ _id: req.user.userId }, { language: lang });
+    res.json({ language: lang });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

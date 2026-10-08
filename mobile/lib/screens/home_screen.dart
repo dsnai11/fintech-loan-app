@@ -1,8 +1,10 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import '../widgets/tr_text.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../widgets/home_banners.dart';
+import '../services/language_service.dart';
 import '../services/auth_service.dart';
 import '../services/api_service.dart';
 import '../services/app_settings.dart';
@@ -51,7 +53,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadHome() async {
     try {
-      final h = await context.read<ApiService>().getHomeContent();
+      final h = await context.read<ApiService>().getHomeContent(lang: LanguageService.instance.code);
       if (mounted) setState(() => _home = h);
     } catch (_) {} // without it the screen simply shows no banners and the standard header
   }
@@ -499,7 +501,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('${i + 1}. ${steps[i][1]}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
+                    Text('${i + 1}. ${tr(steps[i][1] as String)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
                     Text(steps[i][2] as String, style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
                   ]),
                 ),

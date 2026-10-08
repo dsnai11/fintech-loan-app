@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' show FontFeature;
 import 'package:flutter/material.dart';
+import 'tr_text.dart' show tr;
 
 // The home screen's branded header and the animated offer banners. All of the words, colours, timing and
 // targeting come from the company's web portal (Offers and branding); nothing here is fixed in the app.
@@ -117,7 +118,7 @@ class _BrandHeaderState extends State<BrandHeader> with SingleTickerProviderStat
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text('Hi, ${widget.first.isEmpty ? 'there' : widget.first}', style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: Colors.white)),
+                          Text('${tr('Hi')}, ${widget.first.isEmpty ? tr('there') : widget.first}', style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: Colors.white)),
                           Text(tagline.isNotEmpty ? tagline : name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12.5, color: Colors.white70)),
                         ]),
                       ),
