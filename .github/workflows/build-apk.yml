@@ -89,7 +89,12 @@ jobs:
     - name: Build iOS (no codesign)
       run: |
         cd mobile
-        flutter build ios --release --no-codesign
+        set +e
+        flutter build ios --release --no-codesign 2>&1 | tee ../ios-build.log
+        code=${PIPESTATUS[0]}
+        # Show what went wrong as annotations so it is easy to find from the run summary
+        grep -E "error:|Error \(Xcode\)|CocoaPods|pod install|Could not|fatal error|deployment target|requires|Unable to|Failed|failed" ../ios-build.log | head -25 | while read -r line; do echo "::error::${line:0:300}"; done
+        exit $code
 
     - name: Package IPA
       run: |
