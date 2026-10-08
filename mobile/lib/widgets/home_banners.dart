@@ -46,6 +46,15 @@ const _trustIcons = <String, IconData>{
   'star': Icons.star_rounded,
 };
 
+// Used by the Offers tab so an offer looks like a banner with the same name for its look
+List<Color> bannerGradient(String theme, String color1, String color2, {Map<String, dynamic>? brand}) {
+  if (theme == 'custom') return [_hex(color1, const Color(0xFF374151)), _hex(color2, const Color(0xFF111827))];
+  if (theme == 'brand') return [_hex(brand?['primaryColor'], const Color(0xFF7B0000)), _hex(brand?['secondaryColor'], const Color(0xFFC41E3A))];
+  return _themes[theme] ?? _themes['sunrise']!;
+}
+
+IconData bannerIcon(String name) => _icons[name] ?? Icons.card_giftcard_rounded;
+
 List<Color> brandColors(Map<String, dynamic>? brand, Color a, Color b) =>
     [_hex(brand?['primaryColor'], a), _hex(brand?['secondaryColor'], b)];
 

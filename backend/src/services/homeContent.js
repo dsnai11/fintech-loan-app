@@ -183,7 +183,7 @@ const LANGUAGES_PUBLIC = codes => LANGUAGE_META.filter(l => codes.includes(l.cod
 const rupees = n => `₹${Number(n).toLocaleString('en-IN')}`;
 
 // Which group of customers is this person in?
-async function audienceOf(userId) {
+export async function audienceOf(userId) {
   const loans = await Loan.find({ userId }).select('status').lean();
   const live = loans.some(l => ['disbursed', 'defaulted', 'approved', 'under_review', 'submitted'].includes(l.status));
   const everRepaid = loans.some(l => l.status === 'closed');

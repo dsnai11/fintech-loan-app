@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart' hide Text;
 import '../widgets/tr_text.dart';
+import 'offers_screen.dart';
 import 'package:provider/provider.dart';
 import '../main.dart';
 import '../services/api_service.dart';
@@ -110,6 +111,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Future<void> _open(Map<String, dynamic> n) async {
+    // An offer notification opens that offer
+    if (n['type'] == 'OFFER') {
+      final id = (n['data'] is Map) ? '${(n['data'] as Map)['offerId'] ?? ''}' : '';
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => OffersScreen(openOfferId: id)));
+    }
     if (n['read'] == true) return;
     setState(() => n['read'] = true);
     try {
@@ -126,6 +132,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       case 'EMI_REMINDER': return Icons.alarm_rounded;
       case 'EMI_OVERDUE': return Icons.warning_amber_rounded;
       case 'LOAN_CLOSED': return Icons.verified_rounded;
+      case 'OFFER': return Icons.local_offer_rounded;
       default: return Icons.notifications_rounded;
     }
   }

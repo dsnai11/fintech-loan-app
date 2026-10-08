@@ -25,6 +25,7 @@ const TYPE_TO_CATEGORY = {
   EMI_REMINDER: 'reminders',
   SUPPORT_REPLY: 'messages',
   ANNOUNCEMENT: 'offers',
+  OFFER: 'offers',
   REFERRAL_REWARD: 'offers',
 };
 export const categoryOf = type => TYPE_TO_CATEGORY[type] || 'loan';

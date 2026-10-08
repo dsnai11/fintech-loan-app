@@ -20,6 +20,7 @@ import 'agreement_screen.dart';
 import 'onboarding_flow.dart';
 import 'account_setup_flow.dart';
 import 'referral_screen.dart';
+import 'app_actions.dart';
 
 // Home tab. Top to bottom: greeting, any notice from the company, the offer, the customer's own loan (progress and
 // next instalment, or where an application stands), shortcuts, and the loan products.
@@ -67,41 +68,8 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (_) {} // without it the screen simply shows no banners and the standard header
   }
 
-  // What a banner's button does
-  Future<void> _bannerAction(String action, String url) async {
-    switch (action) {
-      case 'apply':
-        _apply('personal', 'Personal Loan');
-        break;
-      case 'calculator':
-        Navigator.of(context).push(MaterialPageRoute(builder: (_) => const EmiCalculatorScreen()));
-        break;
-      case 'loans':
-        widget.onOpenTab?.call(1);
-        break;
-      case 'messages':
-        if (context.read<AppSettings>().support) {
-          widget.onOpenTab?.call(2);
-        } else {
-          Navigator.of(context).push(MaterialPageRoute(builder: (_) => const HelpScreen()));
-        }
-        break;
-      case 'help':
-        Navigator.of(context).push(MaterialPageRoute(builder: (_) => const HelpScreen()));
-        break;
-      case 'referral':
-        Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ReferralScreen()));
-        break;
-      case 'url':
-        final uri = Uri.tryParse(url);
-        if (uri != null && uri.scheme == 'https') {
-          try {
-            await launchUrl(uri, mode: LaunchMode.externalApplication);
-          } catch (_) {}
-        }
-        break;
-    }
-  }
+  // What a banner's button does (the same actions as the Offers tab)
+  Future<void> _bannerAction(String action, String url) => runAppAction(context, action, url, onOpenTab: widget.onOpenTab);
 
   Future<void> _loadPricing() async {
     try {
@@ -422,9 +390,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _shortcuts(AppSettings settings) {
     final items = <List<dynamic>>[
-      [Icons.history_rounded, 'My loans', const Color(0xFF7C3AED), () => widget.onOpenTab?.call(1)],
+      [Icons.history_rounded, 'My loans', const Color(0xFF7C3AED), () => widget.onOpenTab?.call(2)],
       if (settings.emiCalculator) [Icons.calculate_rounded, 'EMI calculator', const Color(0xFF0891B2), () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const EmiCalculatorScreen()))],
-      if (settings.support) [Icons.chat_bubble_rounded, 'Message us', const Color(0xFF059669), () => widget.onOpenTab?.call(2)],
+      if (settings.support) [Icons.chat_bubble_rounded, 'Message us', const Color(0xFF059669), () => widget.onOpenTab?.call(3)],
       [Icons.support_agent_rounded, 'Help', const Color(0xFFD97706), () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const HelpScreen()))],
     ];
     return Row(

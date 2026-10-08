@@ -164,12 +164,24 @@ export function startScheduler() {
       await runEscalations();
       const { settleReferrals } = await import('./referralService.js');
       await settleReferrals();
+      const { sendDueOfferNotifications } = await import('./promoOffers.js');
+      await sendDueOfferNotifications();
     } catch (e) {
       console.error('Reminder/collections job failed:', e.message);
     }
   };
   setTimeout(run, 30 * 1000);
   setInterval(run, 6 * 60 * 60 * 1000);
+  // Offers that start later are announced within a few minutes of going live
+  const offers = async () => {
+    try {
+      const { sendDueOfferNotifications } = await import('./promoOffers.js');
+      await sendDueOfferNotifications();
+    } catch (e) {
+      console.error('Offer notification job failed:', e.message);
+    }
+  };
+  setInterval(offers, 5 * 60 * 1000);
 }
 
 export default { notify, templates, sendEmiReminders, startScheduler };

@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%8E%81%3C/text%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Offers tab - LIFC Admin</title>
+<style>
+* { box-sizing: border-box; }
+.card { padding: 16px; margin-bottom: 14px; }
+.card h2 { margin: 0 0 4px; font-size: 15px; }
+.sub { font-size: 12px; color: var(--e-muted); margin-bottom: 12px; line-height: 1.5; }
+.note { font-size: 12px; color: var(--e-muted); }
+.alert { display: none; padding: 12px 16px; margin-bottom: 14px; white-space: pre-line; }
+.alert.show { display: block; }
+.warnbox { background: var(--e-warn-soft); color: var(--e-warn); border-radius: 8px; padding: 10px 14px; font-size: 12.5px; line-height: 1.5; margin-bottom: 14px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; align-items: end; }
+.grid input, .grid select, .grid textarea, .full { width: 100%; }
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 18px; align-items: start; }
+@media (max-width: 1100px) { .layout { grid-template-columns: minmax(0, 1fr); } .previewcol { position: static !important; } }
+.previewcol { position: sticky; top: 14px; }
+.row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.row .btn { padding: 5px 10px; font-size: 12px; }
+.chk { display: flex; gap: 8px; align-items: center; margin: 0; font-weight: 500; }
+.of { border: 1px solid var(--e-border); border-radius: 10px; padding: 12px; margin-bottom: 10px; background: var(--e-surface-2); }
+.of-head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.of-head .sw { width: 38px; height: 26px; border-radius: 7px; flex: none; }
+.of-head b { flex: 1; min-width: 160px; overflow-wrap: anywhere; }
+.tag { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 20px; }
+.tag.live { background: #DCFCE7; color: #166534; } .tag.scheduled { background: #E0ECFF; color: #1D4ED8; } .tag.ended, .tag.draft { background: #F3F4F6; color: #4B5563; }
+.stats { font-size: 12px; color: var(--e-muted); margin-top: 6px; line-height: 1.6; }
+.tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+/* the phone preview */
+.phone { width: 320px; max-width: 100%; margin: 0 auto; border: 8px solid #111827; border-radius: 34px; background: #F4F5F7; overflow: hidden; box-shadow: 0 12px 30px rgba(0,0,0,.25); color: #111827; padding: 14px 12px 16px; min-height: 380px; }
+.phone h5 { margin: 0 0 10px; font-size: 16px; }
+.pc { position: relative; overflow: hidden; border-radius: 18px; padding: 16px; color: #fff; }
+.pc .b { display: inline-block; font-size: 9.5px; font-weight: 800; letter-spacing: .08em; background: rgba(255,255,255,.22); padding: 3px 8px; border-radius: 20px; margin-bottom: 8px; }
+.pc h4 { margin: 0 0 4px; font-size: 18px; line-height: 1.2; padding-right: 54px; overflow-wrap: anywhere; }
+.pc p { margin: 0 0 12px; font-size: 12px; line-height: 1.4; padding-right: 40px; overflow-wrap: anywhere; }
+.pc .ico { position: absolute; right: 14px; top: 14px; width: 46px; height: 46px; border-radius: 14px; background: rgba(255,255,255,.2); display: grid; place-items: center; font-size: 24px; }
+.pc .cta { background: #fff; color: #111827; border: 0; border-radius: 10px; padding: 8px 14px; font-weight: 800; font-size: 12px; }
+.pc .cd { position: absolute; right: 12px; bottom: 12px; background: rgba(0,0,0,.28); border-radius: 8px; padding: 4px 8px; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.pd { background: #fff; border-radius: 14px; padding: 12px; margin-top: 10px; font-size: 12px; line-height: 1.5; color: #374151; white-space: pre-line; overflow-wrap: anywhere; }
+.pd b { display: block; color: #111827; margin-bottom: 2px; font-size: 12.5px; }
+.pd .code { display: inline-block; border: 1px dashed #9CA3AF; border-radius: 8px; padding: 4px 10px; font-weight: 800; letter-spacing: .08em; margin-top: 4px; }
+</style>
+<link rel="stylesheet" href="assets/portal.css">
+</head>
+<body data-shell="app" data-title="Offers tab" data-sub="The offers customers see on the Offers tab of the app, and the notifications that tell them about each one.">
+<div class="container">
+  <div id="alert" class="alert" role="alert"></div>
+  <div class="warnbox"><b>Before you publish:</b> every claim in an offer must be true for every customer who can see it. Do not promise approval, an interest rate or a limit unless the Pricing and Decisions pages give it. Have compliance approve the wording. Promotional notifications need the customer's consent under commercial-message rules, and customers can switch them off on their phone. All changes are in the audit log.</div>
+  <div id="list-view">
+    <div class="row" style="margin-bottom:12px"><button class="btn primary" onclick="newOffer()" style="padding:8px 14px;font-size:13px">New offer</button><span class="note" id="push-note"></span></div>
+    <div id="list"></div>
+  </div>
+  <div id="edit-view" style="display:none">
+    <div class="layout">
+      <div>
+        <div class="card"><h2 id="ed-title">New offer</h2>
+          <div class="grid">
+            <div style="grid-column: span 2"><label>Title (up to 60)</label><input maxlength="60" id="f-title" oninput="read()"></div>
+            <div><label>Small tag, like LIMITED TIME</label><input maxlength="20" id="f-badge" oninput="read()"></div>
+            <div style="grid-column: 1 / -1"><label>Short description (up to 140). It is also the text of the notification.</label><input class="full" maxlength="140" id="f-summary" oninput="read()"></div>
+            <div style="grid-column: 1 / -1"><label>Details (shown when the customer opens the offer)</label><textarea id="f-details" rows="4" maxlength="1500" oninput="read()"></textarea></div>
+            <div style="grid-column: 1 / -1"><label>Terms and conditions</label><textarea id="f-terms" rows="3" maxlength="1500" oninput="read()"></textarea></div>
+            <div><label>Look</label><select id="f-theme" onchange="read(true)"></select></div>
+            <div id="c1" style="display:none"><label>Colour 1</label><input type="color" id="f-c1" oninput="read()"></div>
+            <div id="c2" style="display:none"><label>Colour 2</label><input type="color" id="f-c2" oninput="read()"></div>
+            <div><label>Icon</label><select id="f-icon" onchange="read()"></select></div>
+            <div><label>Coupon code to show (optional)</label><input id="f-code" maxlength="20" oninput="read()"></div>
+            <div><label>Button text</label><input maxlength="24" id="f-cta" oninput="read()"></div>
+            <div><label>Button does</label><select id="f-action" onchange="read(true)"></select></div>
+            <div id="urlbox" style="display:none;grid-column: span 2"><label>Web address (https://)</label><input class="full" id="f-url" placeholder="https://"></div>
+            <div><label>Shown to</label><select id="f-aud"></select></div>
+            <div><label>Starts (optional)</label><input type="datetime-local" id="f-start" oninput="read()"></div>
+            <div><label>Ends (optional)</label><input type="datetime-local" id="f-end" oninput="read()"></div>
+            <div><label>Order (smaller shows first)</label><input type="number" id="f-order" value="0"></div>
+            <div><label class="chk"><input type="checkbox" id="f-feat" onchange="read()"> Featured (shown first)</label></div>
+          </div>
+          <div id="tr"></div>
+        </div>
+        <div class="card"><h2>Publishing and notification</h2>
+          <div class="grid">
+            <div><label>Status</label><select id="f-status"><option value="draft">Draft (customers do not see it)</option><option value="published">Published (customers see it when its dates allow)</option></select></div>
+            <div><label>Notify customers</label><select id="f-notify"><option value="none">No notification</option><option value="publish">Automatically, when it goes live</option><option value="manual">I will send it myself from the list</option></select></div>
+          </div>
+          <div class="note" style="margin-top:8px">An automatic notification is sent once, to the group above, in each customer's language, as an in-app notification and as a push to phones that can receive them. Customers who switched off offers get no push.</div>
+          <div class="row" style="margin-top:12px"><button class="btn primary" id="save" onclick="save()" style="padding:8px 14px;font-size:13px">Save offer</button><button class="btn" onclick="cancel()" style="padding:8px 14px;font-size:13px">Close</button></div>
+        </div>
+      </div>
+      <div class="previewcol">
+        <div class="note" style="text-align:center;margin-bottom:8px">How it looks in the app</div>
+        <div class="phone" id="phone"></div>
+        <label for="pv-lang" style="font-size:12px;margin-top:10px;display:block">Language</label>
+        <select id="pv-lang" class="full" onchange="pvLang=this.value;draw()"></select>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+const API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
+const token = localStorage.getItem('admin_token');
+if (!token) location.href = 'admin-config.html';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const THEMES = { brand: 'Company colours', sunrise: 'Sunrise', ocean: 'Ocean', emerald: 'Emerald', royal: 'Royal', gold: 'Gold', midnight: 'Midnight', custom: 'My own colours' };
+const GRAD = { sunrise: ['#F97316', '#DB2777'], ocean: ['#2563EB', '#0891B2'], emerald: ['#059669', '#0D9488'], royal: ['#7C3AED', '#4338CA'], gold: ['#D97706', '#92400E'], midnight: ['#1F2937', '#0B1220'] };
+const ICONS = { rupee: '₹', gift: '🎁', bolt: '⚡', star: '⭐', shield: '🛡️', clock: '⏰', rocket: '🚀', heart: '❤️', calendar: '📅', party: '🎉' };
+const ACTIONS = { none: 'Nothing (information only)', apply: 'Start a loan application', calculator: 'Open the EMI calculator', loans: 'Open My loans', messages: 'Open Messages', help: 'Open Help', referral: 'Open Refer and earn', url: 'Open a web page' };
+const AUDS = { all: 'Everyone', new: 'New customers (no loan yet)', repeat: 'Repeat customers (repaid a loan)', has_loan: 'Customers with a loan running', no_loan: 'Customers with no loan running' };
+const STATE = { live: 'Live', scheduled: 'Scheduled', ended: 'Ended', draft: 'Draft' };
+const opts = (m, cur) => Object.entries(m).map(([k, v]) => `<option value="${esc(k)}" ${k === cur ? 'selected' : ''}>${esc(v)}</option>`).join('');
+let OFFERS = [], LANGS = [], ALL = [], PUSH = false, cur = null, pvLang = 'en', ticker = null;
+
+function msg(text, kind) {
+  const a = $('alert'); a.textContent = text; a.className = 'alert show ' + (kind === 'ok' ? 'ok' : 'err');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+async function api(path, method = 'GET', body) {
+  const r = await fetch(API + path, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) { const e = new Error(d.errors ? d.errors.join('\n') : d.error || 'Something went wrong'); e.data = d; throw e; }
+  return d;
+}
+const grad = o => { const g = o.theme === 'custom' ? [o.color1 || '#374151', o.color2 || '#111827'] : o.theme === 'brand' ? ['#7B0000', '#C41E3A'] : GRAD[o.theme] || GRAD.sunrise; return `linear-gradient(135deg, ${g[0]}, ${g[1]})`; };
+const toLocal = iso => { if (!iso) return ''; const d = new Date(iso), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
+const fromLocal = v => (v ? new Date(v).toISOString() : null);
+const when = d => (d ? new Date(d).toLocaleString('en-IN') : '');
+
+async function load() {
+  try {
+    const d = await api('/admin/offers');
+    OFFERS = d.offers; LANGS = d.allLanguages.filter(l => l.code !== 'en' && d.languages.includes(l.code)); ALL = d.allLanguages; PUSH = d.pushAvailable;
+    $('push-note').textContent = PUSH ? 'Push notifications are on.' : 'Push notifications are not set up yet, so notifications appear in the app\'s bell only. See Integrations.';
+    renderList();
+  } catch (e) { msg(e.message, 'err'); }
+}
+
+function renderList() {
+  $('list').innerHTML = OFFERS.length ? OFFERS.map(o => `<div class="of"><div class="of-head"><span class="sw" style="background:${grad(o)}"></span><b>${esc(o.title)}</b><span class="tag ${o.state}">${STATE[o.state]}</span></div>
+    <div class="stats">${esc(AUDS[o.audience] || o.audience)} · ${o.startsAt ? 'from ' + esc(when(o.startsAt)) : 'no start date'} · ${o.endsAt ? 'until ' + esc(when(o.endsAt)) : 'no end date'}${o.featured ? ' · featured' : ''}<br>
+      ${o.views} opens · ${o.clicks} button taps · ${o.notify.sentAt ? `notified ${o.notify.recipients} customers on ${esc(when(o.notify.sentAt))}${o.notify.pushed ? ` (${o.notify.pushed} phones)` : ''}` : o.notify.when === 'publish' ? 'will notify when it goes live' : 'not notified'}</div>
+    <div class="row" style="margin-top:8px"><button class="btn" onclick="edit('${esc(o.id)}')">Edit</button>
+      <button class="btn" onclick="setStatus('${esc(o.id)}','${o.status === 'published' ? 'draft' : 'published'}')">${o.status === 'published' ? 'Unpublish' : 'Publish'}</button>
+      ${o.state === 'live' ? `<button class="btn" onclick="notifyNow('${esc(o.id)}')">Notify customers now</button>` : ''}
+      <button class="btn danger" onclick="del('${esc(o.id)}')">Delete</button></div></div>`).join('') : '<div class="note">No offers yet. Press New offer to write the first one.</div>';
+}
+
+// ── editor ───────────────────────────────────────────────────────────────
+function fill() {
+  $('f-theme').innerHTML = opts(THEMES, 'brand'); $('f-icon').innerHTML = opts(Object.fromEntries(Object.entries(ICONS).map(([k, v]) => [k, v + ' ' + k])), 'gift');
+  $('f-action').innerHTML = opts(ACTIONS, 'none'); $('f-aud').innerHTML = opts(AUDS, 'all');
+  $('pv-lang').innerHTML = [{ code: 'en', name: 'English' }, ...LANGS].map(l => `<option value="${esc(l.code)}">${esc(l.name)}</option>`).join('');
+}
+function put(o) {
+  $('ed-title').textContent = o.id ? 'Edit offer' : 'New offer';
+  $('f-title').value = o.title || ''; $('f-badge').value = o.badge || ''; $('f-summary').value = o.summary || ''; $('f-details').value = o.details || ''; $('f-terms').value = o.terms || '';
+  $('f-theme').value = o.theme || 'brand'; $('f-c1').value = o.color1 || '#374151'; $('f-c2').value = o.color2 || '#111827'; $('f-icon').value = o.icon || 'gift'; $('f-code').value = o.couponCode || '';
+  $('f-cta').value = (o.cta || {}).text || ''; $('f-action').value = (o.cta || {}).action || 'none'; $('f-url').value = (o.cta || {}).url || '';
+  $('f-aud').value = o.audience || 'all'; $('f-start').value = toLocal(o.startsAt); $('f-end').value = toLocal(o.endsAt); $('f-order').value = o.order || 0; $('f-feat').checked = !!o.featured;
+  $('f-status').value = o.status || 'draft'; $('f-notify').value = (o.notify || {}).when || 'none';
+  $('tr').innerHTML = LANGS.map(l => { const t = (o.i18n || {})[l.code] || {}; return `<details style="margin-top:12px"><summary style="cursor:pointer;font-weight:600;font-size:13px">Translation: ${esc(l.name)} (${esc(l.native)}) <span class="note">leave empty to show the English</span></summary><div class="grid" style="margin-top:8px">
+    ${[['title', 'Title', 60], ['summary', 'Short description', 140], ['cta', 'Button text', 24]].map(([k, lab, max]) => `<div><label>${lab}</label><input maxlength="${max}" data-l="${l.code}" data-k="${k}" value="${esc(t[k] || '')}" oninput="read()"></div>`).join('')}
+    <div style="grid-column:1/-1"><label>Details</label><textarea rows="3" maxlength="1500" data-l="${l.code}" data-k="details" oninput="read()">${esc(t.details || '')}</textarea></div>
+    <div style="grid-column:1/-1"><label>Terms</label><textarea rows="2" maxlength="1500" data-l="${l.code}" data-k="terms" oninput="read()">${esc(t.terms || '')}</textarea></div></div></details>`; }).join('');
+  read(true);
+}
+function read(layout) {
+  cur = cur || {};
+  Object.assign(cur, { title: $('f-title').value, badge: $('f-badge').value, summary: $('f-summary').value, details: $('f-details').value, terms: $('f-terms').value, theme: $('f-theme').value, color1: $('f-c1').value, color2: $('f-c2').value, icon: $('f-icon').value, couponCode: $('f-code').value, cta: { text: $('f-cta').value, action: $('f-action').value, url: $('f-url').value }, startsAt: fromLocal($('f-start').value), endsAt: fromLocal($('f-end').value), featured: $('f-feat').checked });
+  cur.i18n = { ...(cur.i18n || {}) }; // keeps translations for languages that are switched off right now
+  document.querySelectorAll('#tr [data-l]').forEach(el => { (cur.i18n[el.dataset.l] = cur.i18n[el.dataset.l] || {})[el.dataset.k] = el.value; });
+  if (layout) { $('c1').style.display = $('c2').style.display = cur.theme === 'custom' ? '' : 'none'; $('urlbox').style.display = cur.cta.action === 'url' ? '' : 'none'; }
+  draw();
+}
+function draw() {
+  const o = cur || {}, t = pvLang !== 'en' && o.i18n && o.i18n[pvLang] ? o.i18n[pvLang] : {};
+  const title = t.title || o.title || 'Your offer title', summary = t.summary || o.summary || '', details = t.details || o.details || '', terms = t.terms || o.terms || '', cta = t.cta || (o.cta || {}).text || '';
+  $('phone').innerHTML = `<h5>Offers</h5><div class="pc" style="background:${grad(o)}">${o.badge ? `<span class="b">${esc(o.badge)}</span>` : ''}<span class="ico">${ICONS[o.icon] || '🎁'}</span><h4>${esc(title)}</h4>${summary ? `<p>${esc(summary)}</p>` : ''}${cta && (o.cta || {}).action !== 'none' ? `<button class="cta" type="button">${esc(cta)}</button>` : ''}${o.endsAt ? `<span class="cd" data-end="${esc(o.endsAt)}"></span>` : ''}</div>
+    ${details ? `<div class="pd"><b>About this offer</b>${esc(details)}</div>` : ''}${o.couponCode ? `<div class="pd"><b>Coupon code</b><span class="code">${esc(String(o.couponCode).toUpperCase())}</span></div>` : ''}${terms ? `<div class="pd"><b>Terms</b>${esc(terms)}</div>` : ''}`;
+  tick();
+}
+function tick() {
+  document.querySelectorAll('#phone .cd').forEach(el => {
+    const ms = new Date(el.dataset.end) - Date.now();
+    if (!(ms > 0)) { el.textContent = 'Ended'; return; }
+    const s = Math.floor(ms / 1000), dd = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60), x = s % 60, p = n => String(n).padStart(2, '0');
+    el.textContent = 'Ends in ' + (dd ? dd + 'd ' : '') + p(h) + ':' + p(m) + ':' + p(x);
+  });
+}
+function show(editing) { $('list-view').style.display = editing ? 'none' : ''; $('edit-view').style.display = editing ? '' : 'none'; window.scrollTo({ top: 0 }); }
+function newOffer() { cur = { status: 'draft' }; fill(); put(cur); cur.id = undefined; show(true); }
+function edit(id) { cur = JSON.parse(JSON.stringify(OFFERS.find(o => o.id === id))); fill(); put(cur); show(true); }
+function cancel() { cur = null; show(false); load(); }
+
+async function save() {
+  read();
+  const body = { ...cur, order: Number($('f-order').value) || 0, audience: $('f-aud').value, status: $('f-status').value, notify: { when: $('f-notify').value } };
+  delete body.state; delete body.views; delete body.clicks; delete body.updatedAt; delete body.updatedBy;
+  $('save').disabled = true;
+  try {
+    const d = cur.id ? await api('/admin/offers/' + encodeURIComponent(cur.id), 'PUT', body) : await api('/admin/offers', 'POST', body);
+    cur = d.offer; msg('Saved.', 'ok'); put(cur);
+  } catch (e) { msg(e.message, 'err'); }
+  $('save').disabled = false;
+}
+async function setStatus(id, status) {
+  try { await api('/admin/offers/' + encodeURIComponent(id), 'PUT', { status }); msg(status === 'published' ? 'Published.' : 'Back to draft. Customers no longer see it.', 'ok'); load(); } catch (e) { msg(e.message, 'err'); }
+}
+async function del(id) {
+  if (!confirm('Delete this offer for good?')) return;
+  try { await api('/admin/offers/' + encodeURIComponent(id), 'DELETE'); msg('Deleted.', 'ok'); load(); } catch (e) { msg(e.message, 'err'); }
+}
+async function notifyNow(id) {
+  const o = OFFERS.find(x => x.id === id);
+  try {
+    const c = await api('/admin/offers/count?audience=' + encodeURIComponent(o.audience));
+    if (!c.count) return msg('No customers are in this offer\'s group right now.', 'err');
+    if (!confirm(`Notify ${c.count} customer${c.count === 1 ? '' : 's'} about "${o.title}"?${c.pushAvailable ? `\n${c.devices} of them have a phone that can get a push.` : '\nPush is not set up, so it appears in their notification bell only.'}\nIt cannot be taken back.`)) return;
+    const d = await api('/admin/offers/' + encodeURIComponent(id) + '/notify', 'POST', { expectedCount: c.count });
+    msg(`Notified ${d.recipients} customers${d.pushQueued ? '; the push notifications are going out now' : ''}.`, 'ok'); load();
+  } catch (e) { msg(e.message, 'err'); }
+}
+ticker = setInterval(tick, 1000);
+load();
+</script>
+<script src="assets/portal.js"></script>
+</body>
+</html>

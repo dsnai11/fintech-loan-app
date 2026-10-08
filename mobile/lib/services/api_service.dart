@@ -317,6 +317,22 @@ class ApiService {
     }
   }
 
+  // The Offers tab
+  Future<Map<String, dynamic>> getOffers({String? lang}) async {
+    try {
+      final response = await _dio.get('/offers', queryParameters: lang == null ? null : {'lang': lang});
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<void> sendOfferEvent(String id, String type) async {
+    try {
+      await _dio.post('/offers/$id/event', data: {'type': type});
+    } catch (_) {}
+  }
+
   // Tells the company a banner was shown or tapped (for the counts in the portal). Never blocks the screen.
   Future<void> sendBannerEvent(String id, String type) async {
     try {

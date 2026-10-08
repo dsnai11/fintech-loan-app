@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../main.dart';
+import 'package:provider/provider.dart';
+import '../services/api_service.dart';
 import '../widgets/tr_text.dart' show tr;
+import 'offers_screen.dart';
 import 'home_screen.dart';
 import 'loan_history_screen.dart';
 import 'profile_screen.dart';
@@ -17,8 +20,24 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   int _tab = 0;
+  int _newOffers = 0; // offers the customer has not looked at yet, shown as a dot on the tab
 
-  void _open(int tab) => setState(() => _tab = tab);
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(_refreshOffers);
+  }
+
+  Future<void> _refreshOffers() async {
+    final n = await OffersSeen.unseen(context.read<ApiService>());
+    if (mounted) setState(() => _newOffers = n);
+  }
+
+  void _open(int tab) {
+    final leftOffers = _tab == 1 && tab != 1;
+    setState(() { _tab = tab; if (tab == 1) _newOffers = 0; });
+    if (leftOffers || tab == 0) _refreshOffers();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,9 +45,10 @@ class _MainShellState extends State<MainShell> {
     // and the messages tab only checks for replies while you are looking at it.
     final pages = <Widget>[
       HomeScreen(onOpenTab: _open),
-      _tab == 1 ? const LoanHistoryScreen(embedded: true) : const SizedBox.shrink(),
-      _tab == 2 ? const SupportScreen() : const SizedBox.shrink(),
-      _tab == 3 ? const ProfileScreen(embedded: true) : const SizedBox.shrink(),
+      _tab == 1 ? OffersScreen(embedded: true, onOpenTab: _open) : const SizedBox.shrink(),
+      _tab == 2 ? const LoanHistoryScreen(embedded: true) : const SizedBox.shrink(),
+      _tab == 3 ? const SupportScreen() : const SizedBox.shrink(),
+      _tab == 4 ? const ProfileScreen(embedded: true) : const SizedBox.shrink(),
     ];
     return Scaffold(
       body: IndexedStack(index: _tab, children: pages),
@@ -40,6 +60,7 @@ class _MainShellState extends State<MainShell> {
         height: 66,
         destinations: [
           NavigationDestination(icon: const Icon(Icons.home_outlined), selectedIcon: const Icon(Icons.home_rounded, color: kNavy), label: tr('Home')),
+          NavigationDestination(icon: Badge(isLabelVisible: _newOffers > 0, smallSize: 9, child: const Icon(Icons.local_offer_outlined)), selectedIcon: const Icon(Icons.local_offer_rounded, color: kNavy), label: tr('Offers')),
           NavigationDestination(icon: const Icon(Icons.account_balance_wallet_outlined), selectedIcon: const Icon(Icons.account_balance_wallet_rounded, color: kNavy), label: tr('My Loans')),
           NavigationDestination(icon: const Icon(Icons.chat_bubble_outline_rounded), selectedIcon: const Icon(Icons.chat_bubble_rounded, color: kNavy), label: tr('Messages')),
           NavigationDestination(icon: const Icon(Icons.person_outline_rounded), selectedIcon: const Icon(Icons.person_rounded, color: kNavy), label: tr('Profile')),

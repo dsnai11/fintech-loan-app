@@ -6,12 +6,13 @@ const notificationSchema = new mongoose.Schema(
     loanId: { type: mongoose.Schema.Types.ObjectId, ref: 'Loan' },
     type: {
       type: String,
-      enum: ['LOAN_APPROVED', 'LOAN_REJECTED', 'LOAN_DISBURSED', 'EMI_PAID', 'EMI_REMINDER', 'EMI_OVERDUE', 'LOAN_CLOSED', 'COLLECTION_NOTICE', 'KYC_UPDATE', 'SUPPORT_REPLY', 'ANNOUNCEMENT', 'REFERRAL_REWARD'],
+      enum: ['LOAN_APPROVED', 'LOAN_REJECTED', 'LOAN_DISBURSED', 'EMI_PAID', 'EMI_REMINDER', 'EMI_OVERDUE', 'LOAN_CLOSED', 'COLLECTION_NOTICE', 'KYC_UPDATE', 'SUPPORT_REPLY', 'ANNOUNCEMENT', 'REFERRAL_REWARD', 'OFFER'],
       required: true,
     },
     title: { type: String, required: true },
     message: { type: String, required: true },
     read: { type: Boolean, default: false },
+    data: mongoose.Schema.Types.Mixed, // anything the app needs to open the right screen, like { offerId }
     channels: {
       email: { type: String, enum: ['sent', 'failed', 'skipped'], default: 'skipped' },
       sms: { type: String, enum: ['sent', 'failed', 'skipped'], default: 'skipped' },

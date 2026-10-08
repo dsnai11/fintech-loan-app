@@ -31,7 +31,7 @@ export const PERMISSIONS = [
   { key: 'announcements.send', group: 'Customer messages', label: 'Send announcements to groups of customers' },
   { key: 'terms.edit', group: 'Administration', label: 'Edit and publish the terms and conditions customers accept' },
   { key: 'appsettings.edit', group: 'Administration', label: 'Change what the customer apps show (products, banner, switches, maintenance)' },
-  { key: 'banners.edit', group: 'Administration', label: 'Manage the home-screen offer banners and app branding' },
+  { key: 'banners.edit', group: 'Administration', label: 'Manage offers, the home-screen banners and app branding' },
   { key: 'changes.approve', group: 'Administration', label: 'Approve or reject pricing and banner changes proposed by others' },
   { key: 'referrals.view', group: 'Customers', label: 'See the referral programme, who referred whom, and the rewards' },
   { key: 'referrals.manage', group: 'Customers', label: 'Change the referral rules, mark rewards paid or cancel them' },
@@ -119,6 +119,7 @@ const RULES = [
   [/^\/api\/admin\/announcements(\/|$)/, 'announcements.send', 'announcements.send'],
   [/^\/api\/app-settings\/admin(\/|$)/, 'appsettings.edit', 'appsettings.edit'],
   [/^\/api\/app-home\/admin(\/|$)/, 'banners.edit', 'banners.edit'],
+  [/^\/api\/admin\/offers(\/|$)/, 'banners.edit', 'banners.edit'],
   [/^\/api\/admin\/approvals(\/|$)/, ANY, ANY], // the route itself checks who may approve
   [/^\/api\/admin\/terms(\/|$)/, 'terms.edit', 'terms.edit'],
   [/^\/api\/admin\/config(\/|$)/, 'config.manage', 'config.manage'],
