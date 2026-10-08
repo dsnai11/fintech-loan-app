@@ -148,7 +148,11 @@ function renderThread() {
 async function sendReply() {
   const text = $('reply').value.trim();
   if (!text) return;
-  try { await api(`/admin/support/${current.id}/reply`, 'POST', { text }); await openThread(current.id); } catch (e) { msg(e.message, 'err'); }
+  const btn = document.querySelector('.reply .btn'), box = $('reply');
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
+  box.disabled = true;
+  try { await api(`/admin/support/${current.id}/reply`, 'POST', { text }); await openThread(current.id); }
+  catch (e) { msg(e.message, 'err'); if (btn) { btn.disabled = false; btn.textContent = 'Send'; } box.disabled = false; }
 }
 async function act(what) {
   try { await api(`/admin/support/${current.id}/${what}`, 'POST', {}); await openThread(current.id); } catch (e) { msg(e.message, 'err'); }

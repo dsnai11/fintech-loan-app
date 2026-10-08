@@ -15,6 +15,9 @@ function getTransporter() {
     transporter = nodemailer.createTransport({
       service: process.env.EMAIL_SERVICE || getConfig('EMAIL_SERVICE') || 'gmail',
       auth: { user, pass },
+      connectionTimeout: 8000, // give up quickly if the mail server cannot be reached
+      greetingTimeout: 8000,
+      socketTimeout: 15000,
     });
   }
   return { transporter, from: `LIFC <${user}>` };
@@ -53,16 +56,22 @@ export async function sendPlainEmail(to, subject, text) {
 }
 
 // Never throws: a notification failure must not break loan or payment flows.
-export async function notify(userId, { type, title, message, loanId }, { email = true, sms = false } = {}) {
+export async function notify(userId, { type, title, message, loanId, data: extra }, { email = true, sms = false } = {}) {
   try {
     const user = await User.findById(userId).select('firstName email phone');
     if (!user) return null;
-    const channels = {
-      email: email ? await sendEmail(user, title, message) : 'skipped',
-      sms: sms ? await sendSms(user, message) : 'skipped',
-      push: await pushToUser(userId, { title, body: message, type, data: loanId ? { loanId: String(loanId) } : {} }),
-    };
-    return await Notification.create({ userId, loanId, type, title, message, channels });
+    // Email, SMS and push talk to outside services that can be slow or down. They start now, and we wait for them for a
+    // few seconds at most, so a loan action or a staff reply never hangs on them. Anything slower is recorded when it finishes.
+    const settle = r => (r.status === 'fulfilled' ? r.value : 'failed');
+    const work = Promise.allSettled([
+      email ? sendEmail(user, title, message) : 'skipped',
+      sms ? sendSms(user, message) : 'skipped',
+      pushToUser(userId, { title, body: message, type, data: loanId ? { loanId: String(loanId), ...(extra || {}) } : { ...(extra || {}) } }),
+    ]).then(r => ({ email: settle(r[0]), sms: settle(r[1]), push: settle(r[2]) }));
+    const quick = await Promise.race([work, new Promise(resolve => setTimeout(() => resolve(null), 3500))]);
+    const doc = await Notification.create({ userId, loanId, type, title, message, ...(extra ? { data: extra } : {}), channels: quick || { email: 'skipped', sms: 'skipped', push: 'skipped' } });
+    if (!quick) work.then(channels => Notification.updateOne({ _id: doc._id }, { channels })).catch(() => {});
+    return doc;
   } catch (e) {
     console.error('notify error:', e.message);
     return null;
