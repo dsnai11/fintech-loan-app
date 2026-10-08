@@ -323,6 +323,33 @@ class ApiService {
     }
   }
 
+  // Auto-debit of EMIs
+  Future<Map<String, dynamic>> getMyMandates() async {
+    try {
+      final response = await _dio.get('/mandates/mine');
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> startMandate(String loanId, String method) async {
+    try {
+      final response = await _dio.post('/mandates/start', data: {'loanId': loanId, 'method': method});
+      return Map<String, dynamic>.from(response.data['mandate']);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<void> cancelMandate(String id) async {
+    try {
+      await _dio.post('/mandates/$id/cancel');
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   // The Offers tab
   Future<Map<String, dynamic>> getOffers({String? lang}) async {
     try {

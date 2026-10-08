@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%94%81%3C/text%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Auto-debit - LIFC Admin</title>
+<style>
+* { box-sizing: border-box; }
+.card { padding: 16px; margin-bottom: 14px; }
+.card h2 { margin: 0 0 4px; font-size: 15px; }
+.sub { font-size: 12px; color: var(--e-muted); margin-bottom: 12px; line-height: 1.5; }
+.note { font-size: 12px; color: var(--e-muted); }
+.alert { display: none; padding: 12px 16px; margin-bottom: 14px; white-space: pre-line; }
+.alert.show { display: block; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 14px; }
+.tile { background: var(--e-surface); border: 1px solid var(--e-border); border-radius: 12px; padding: 14px; }
+.tile .l { font-size: 12px; color: var(--e-muted); font-weight: 600; }
+.tile .v { font-size: 24px; font-weight: 800; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--e-muted); border-bottom: 1px solid var(--e-border); white-space: nowrap; }
+td { padding: 8px; border-bottom: 1px solid var(--e-border); vertical-align: top; }
+.row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.tag { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 20px; background: #E0ECFF; color: #1D4ED8; }
+.tag.active, .tag.success, .tag.completed { background: #DCFCE7; color: #166534; }
+.tag.failed, .tag.cancelled { background: #FEE2E2; color: #991B1B; }
+.tag.paused, .tag.pending_auth, .tag.notified { background: #FEF3C7; color: #92400E; }
+.state { padding: 10px 12px; border-radius: 8px; font-size: 13px; line-height: 1.5; margin-bottom: 14px; background: var(--e-primary-soft); color: var(--e-primary); }
+</style>
+<link rel="stylesheet" href="assets/portal.css">
+</head>
+<body data-shell="app" data-title="Auto-debit" data-sub="Customers who allowed their EMI to be collected automatically, and how the collections are going.">
+<div class="container">
+  <div id="alert" class="alert" role="alert"></div>
+  <div id="mode" class="state" style="display:none"></div>
+  <div class="tiles" id="tiles"></div>
+  <div class="card">
+    <h2>How it works</h2>
+    <div class="sub">The customer approves once in the app (UPI AutoPay or a bank mandate). A day before each due date they are told how much will be collected. On the due date the instalment is collected; if it fails it is tried again up to 3 times, a day apart, and the customer is told each time. Collected instalments are marked paid like any other payment. The customer can stop it any time in the app. Rules for mandates (maximum amount, notice period) come from your payment provider and RBI; confirm them with your compliance team.</div>
+    <div class="row"><button class="btn primary" id="runBtn" onclick="runNow()">Run collections now</button><span class="note">Normally runs by itself every 30 minutes.</span></div>
+  </div>
+  <div class="card">
+    <h2>Mandates</h2>
+    <div class="row" style="margin-bottom:10px"><label for="flt" style="margin:0">Show</label>
+      <select id="flt" onchange="load()"><option value="">All</option><option value="active">Active</option><option value="pending_auth">Waiting for approval</option><option value="paused">Paused</option><option value="failed">Failed</option><option value="cancelled">Cancelled</option><option value="completed">Finished</option></select></div>
+    <div class="scroll" id="list"></div>
+  </div>
+  <div class="card" id="dbox" style="display:none"><h2>Collections for the selected mandate</h2><div class="scroll" id="debits"></div></div>
+</div>
+<script>
+const API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
+const token = localStorage.getItem('admin_token');
+if (!token) location.href = 'admin-config.html';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const inr = n => '₹' + Math.round(n || 0).toLocaleString('en-IN');
+const when = d => (d ? new Date(d).toLocaleDateString('en-IN') : '');
+const WORDS = { pending_auth: 'Waiting for approval', active: 'Active', paused: 'Paused', cancelled: 'Cancelled', failed: 'Failed', completed: 'Finished', notified: 'Customer told', success: 'Collected' };
+let D = null;
+
+function msg(text, kind) {
+  const a = $('alert'); a.textContent = text; a.className = 'alert show ' + (kind === 'ok' ? 'ok' : 'err');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+async function api(path, method = 'GET', body) {
+  const r = await fetch(API + path, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.errors ? d.errors.join('\n') : d.error || 'Something went wrong');
+  return d;
+}
+function draw() {
+  const c = D.counts || {}, l = D.last30;
+  $('mode').style.display = D.note ? '' : 'none';
+  $('mode').textContent = D.note || '';
+  $('tiles').innerHTML = [
+    ['Active', c.active || 0], ['Waiting for approval', c.pending_auth || 0], ['Paused', c.paused || 0],
+    ['Collected (30 days)', l.collected], ['Failed (30 days)', l.failed], ['Success rate', l.successRate == null ? '-' : l.successRate + '%'],
+  ].map(t => `<div class="tile"><div class="l">${t[0]}</div><div class="v">${t[1]}</div></div>`).join('');
+  $('runBtn').style.display = D.canManage ? '' : 'none';
+  $('list').innerHTML = D.mandates.length ? `<table><thead><tr><th>Customer</th><th>Method</th><th>Up to</th><th>Status</th><th>Since</th><th>Last collected</th><th></th></tr></thead><tbody>${D.mandates.map(m => `<tr>
+    <td>${esc(m.customer)}<div class="note">${esc(m.phone || '')}</div></td><td>${m.method === 'enach' ? 'Bank mandate' : 'UPI AutoPay'}<div class="note">${esc(m.provider)}</div></td><td>${inr(m.maxAmount)}</td>
+    <td><span class="tag ${esc(m.status)}">${WORDS[m.status] || esc(m.status)}</span>${m.failedReason ? `<div class="note">${esc(m.failedReason)}</div>` : ''}</td><td>${when(m.activatedAt || m.at)}</td><td>${when(m.lastDebitAt)}</td>
+    <td class="row"><button class="btn" onclick="debits('${m.id}')">History</button>${D.canManage && m.status === 'active' ? `<button class="btn" onclick="act('${m.id}','pause')">Pause</button>` : ''}${D.canManage && m.status === 'paused' ? `<button class="btn" onclick="act('${m.id}','resume')">Resume</button>` : ''}${D.canManage && ['active', 'paused', 'pending_auth'].includes(m.status) ? `<button class="btn" onclick="act('${m.id}','cancel')">Cancel</button>` : ''}</td></tr>`).join('')}</tbody></table>` : '<div class="note">Nothing here yet.</div>';
+}
+async function load() {
+  try { D = await api('/admin/mandates' + ($('flt').value ? '?status=' + $('flt').value : '')); draw(); } catch (e) { msg(e.message, 'err'); }
+}
+async function debits(id) {
+  try {
+    const r = await api(`/admin/mandates/${id}/debits`);
+    $('dbox').style.display = '';
+    $('debits').innerHTML = r.debits.length ? `<table><thead><tr><th>EMI</th><th>Amount</th><th>Due</th><th>Status</th><th>Tries</th><th>Next try</th><th>Reason</th></tr></thead><tbody>${r.debits.map(d => `<tr><td>#${d.emiNumber}</td><td>${inr(d.amount)}</td><td>${when(d.dueDate)}</td><td><span class="tag ${esc(d.status)}">${WORDS[d.status] || esc(d.status)}</span></td><td>${d.attempts || 0}</td><td>${when(d.nextAttemptAt)}</td><td>${esc(d.failureReason || '')}</td></tr>`).join('')}</tbody></table>` : '<div class="note">No collections yet.</div>';
+    $('dbox').scrollIntoView({ behavior: 'smooth' });
+  } catch (e) { msg(e.message, 'err'); }
+}
+async function act(id, what) {
+  try { await api(`/admin/mandates/${id}/${what}`, 'POST', {}); msg('Done.', 'ok'); load(); } catch (e) { msg(e.message, 'err'); }
+}
+async function runNow() {
+  try { const r = await api('/admin/mandates/run', 'POST', {}); msg(r.message, 'ok'); load(); } catch (e) { msg(e.message, 'err'); }
+}
+load();
+</script>
+<script src="assets/portal.js"></script>
+</body>
+</html>

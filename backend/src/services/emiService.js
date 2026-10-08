@@ -218,7 +218,7 @@ export async function initiateEMIPayment(loanId, emiNumber, userId) {
   }
 }
 
-async function markEMIPaid(emi, paymentId, amountPaid) {
+export async function markEMIPaid(emi, paymentId, amountPaid) {
   const paid = amountPaid ?? emi.amount + emi.penaltyApplied;
   await EMIPayment.findByIdAndUpdate(emi._id, {
     status: 'PAID',

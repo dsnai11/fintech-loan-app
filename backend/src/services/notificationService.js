@@ -191,6 +191,17 @@ export function startScheduler() {
     }
   };
   setInterval(offers, 5 * 60 * 1000);
+  // Auto-debit: tell customers a day ahead, collect on the due date, retry failures
+  const autoDebit = async () => {
+    try {
+      const { runAutoDebits } = await import('./mandateService.js');
+      await runAutoDebits();
+    } catch (e) {
+      console.error('Auto-debit job failed:', e.message);
+    }
+  };
+  setTimeout(autoDebit, 60 * 1000);
+  setInterval(autoDebit, 30 * 60 * 1000);
 }
 
 export default { notify, templates, sendEmiReminders, startScheduler };

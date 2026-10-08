@@ -3,6 +3,7 @@ import { smsConfigured } from './smsService.js';
 import { bureauConfigured, providerName as bureauProvider, missingSettings as bureauMissing, PROVIDERS as BUREAUS } from './bureauService.js';
 import { aiConfigured, providerName as assistantProvider, missingProviderSettings as assistantMissing } from './assistantService.js';
 import { pushConfigured, providerName as pushProvider, missingSettings as pushMissing } from './pushService.js';
+import { availability as mandateAvailability } from './mandateService.js';
 import { modeNow as digilockerMode, providerName as digilockerProvider, PROVIDERS as DIGILOCKERS } from './digilockerService.js';
 
 // One place that says, for every outside service, whether the app is using the real thing or its test mode, and
@@ -69,6 +70,17 @@ export const INTEGRATIONS = [
       if (p && pushMissing().length) return { mode: 'misconfigured', provider: p, missing: pushMissing(), note: 'Fill in the missing settings.' };
       if (pushConfigured()) return { mode: 'live', provider: 'fcm', note: 'Customers\' phones also need the app build with Firebase added (see the setup steps).' };
       return { mode: 'off', note: 'Not set up. Alerts still appear in the app\'s notification bell.' };
+    },
+  },
+  {
+    id: 'autodebit', label: 'Auto-debit of EMIs (UPI AutoPay / bank mandate)', purpose: 'Lets customers allow their EMI to be collected automatically on the due date.',
+    fields: [
+      field('MANDATE_PROVIDER', 'Provider', { options: ['', 'razorpay'], hint: 'Uses your Razorpay account (Subscriptions must be enabled by Razorpay). Leave empty for test mode.' }),
+    ],
+    envOnly: ['RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET', 'RAZORPAY_WEBHOOK_SECRET'],
+    status: () => {
+      const a = mandateAvailability();
+      return { mode: a.mode, provider: a.mode === 'live' ? 'razorpay' : undefined, note: a.note || 'In Razorpay, send the events subscription.authenticated, activated, charged, pending, halted, cancelled and completed to /api/emi/webhook/razorpay.' };
     },
   },
   {

@@ -127,6 +127,10 @@ router.post('/webhook/razorpay', async (req, res) => {
     if (!check.ok) return res.status(check.status).json({ error: check.error });
 
     const { event, payload } = req.body || {};
+    if (String(event).startsWith('subscription.')) {
+      const { handleSubscriptionEvent } = await import('../services/mandateService.js');
+      return res.json({ status: 'ok', ...(await handleSubscriptionEvent(event, payload)) });
+    }
     if (event !== 'invoice.paid') return res.json({ status: 'ok', ignored: true, event });
 
     const invoice = payload?.invoice?.entity;
