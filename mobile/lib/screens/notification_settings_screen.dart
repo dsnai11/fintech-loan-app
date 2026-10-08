@@ -28,7 +28,8 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
   Future<void> _load() async {
     try {
       final d = await context.read<ApiService>().getPushPreferences();
-      if (mounted) setState(() { _d = d; _error = null; });
+      final on = await PushService.instance.isAllowed();
+      if (mounted) setState(() { _d = d; _error = null; _phoneOn = on; });
     } catch (e) {
       if (mounted) setState(() => _error = 'Could not load your choices. Pull down to try again.');
     }

@@ -309,6 +309,12 @@ class ApiService {
     }
   }
 
+  Future<void> unregisterPushToken(String token) async {
+    try {
+      await _dio.delete('/push/register', data: {'token': token});
+    } catch (_) {}
+  }
+
   Future<void> registerPushToken(String token, String platform) async {
     try {
       await _dio.post('/push/register', data: {'token': token, 'platform': platform, 'appVersion': '1.0.0'});

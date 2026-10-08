@@ -66,3 +66,8 @@ flutter {
 dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
 }
+
+// Push notifications: the company's Firebase file. Without it the app still builds and runs, with phone alerts off.
+if (file('google-services.json').exists()) {
+    apply plugin: 'com.google.gms.google-services'
+}

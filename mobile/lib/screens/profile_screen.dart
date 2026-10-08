@@ -4,6 +4,7 @@ import '../widgets/tr_text.dart';
 import '../widgets/language_picker.dart';
 import 'referral_screen.dart';
 import 'notification_settings_screen.dart';
+import '../services/push_service.dart';
 import 'package:provider/provider.dart';
 import '../main.dart';
 import '../services/api_service.dart';
@@ -389,9 +390,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
-              onPressed: () {
-                context.read<AuthService>().logout();
-                Navigator.of(context).pushReplacementNamed('/login');
+              onPressed: () async {
+                final auth = context.read<AuthService>();
+                final nav = Navigator.of(context);
+                // Stop alerts for this account reaching this phone, before the sign-in is cleared
+                await PushService.instance.unregister().timeout(const Duration(seconds: 3), onTimeout: () {});
+                auth.logout();
+                nav.pushReplacementNamed('/login');
               },
               icon: const Icon(Icons.logout_rounded, size: 18),
               label: const Text('Sign Out'),

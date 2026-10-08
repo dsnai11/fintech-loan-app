@@ -21,6 +21,7 @@ import 'onboarding_flow.dart';
 import 'account_setup_flow.dart';
 import 'referral_screen.dart';
 import 'app_actions.dart';
+import '../services/push_service.dart';
 
 // Home tab. Top to bottom: greeting, any notice from the company, the offer, the customer's own loan (progress and
 // next instalment, or where an application stands), shortcuts, and the loan products.
@@ -47,6 +48,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     Future.microtask(() => context.read<AuthService>().loadUserProfile());
+    Future.microtask(() => PushService.instance.syncIfAllowed()); // keeps this phone's address fresh; never shows a prompt
     Future.microtask(_refresh);
   }
 

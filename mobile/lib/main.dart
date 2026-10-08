@@ -5,6 +5,8 @@ import 'services/api_service.dart';
 import 'services/auth_service.dart';
 import 'services/app_settings.dart';
 import 'services/language_service.dart';
+import 'services/push_service.dart';
+import 'screens/offers_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
@@ -14,6 +16,9 @@ const kNavy = Color(0xFF7B0000);
 const kGreen = Color(0xFFC41E3A);
 const kBg = Color(0xFFFFF8F8);
 
+// Lets a tapped notification open a screen from outside any widget
+final navigatorKey = GlobalKey<NavigatorState>();
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
@@ -22,6 +27,12 @@ void main() async {
   ));
   final api = ApiService();
   await LanguageService.instance.init(api);
+  PushService.instance.onOpen = (data) {
+    if (data['type'] == 'OFFER') {
+      navigatorKey.currentState?.push(MaterialPageRoute(builder: (_) => OffersScreen(openOfferId: '${data['offerId'] ?? ''}')));
+    }
+  };
+  PushService.instance.init(api); // starts in the background; the app does not wait for it
   runApp(MyApp(api: api));
 }
 
@@ -42,6 +53,7 @@ class MyApp extends StatelessWidget {
         ),
       ],
       child: MaterialApp(
+        navigatorKey: navigatorKey,
         title: 'LIFC - Laxmi India Finance',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
