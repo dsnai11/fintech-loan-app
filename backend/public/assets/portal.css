@@ -60,6 +60,23 @@ body.ent-lite header, body.ent-lite .header { background: var(--e-side) !importa
   .ent-user .who { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .ent-side { transition: none; } }
+/* On a phone: tables scroll sideways inside the page instead of pushing it wider, buttons and fields are easy to tap
+   (16px text stops the phone zooming in on a field), and long titles give way to the content. */
+@media (max-width: 700px) {
+  .ent-main table { display: block; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .ent-main th, .ent-main td { white-space: nowrap; }
+  .ent-main td { white-space: normal; min-width: 90px; }
+  .ent-main .btn, .ent-main button, .ent-top .btn { min-height: 40px; }
+  .ent-main input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), .ent-main select, .ent-main textarea { font-size: 16px; max-width: 100%; }
+  .ent-title h1 { font-size: 15px; }
+  .ent-title p { display: none; }
+  .ent-content { overflow-x: clip; }
+  .ent-main .row { gap: 6px; }
+  .ent-nav a { padding: 11px 10px; }
+  .ent-side { width: min(86vw, 300px); }
+  .ent-toast { left: 12px; right: 12px; bottom: 12px; }
+}
+
 
 /* ── Standard components ───────────────────────────────── */
 .ent-main .btn, .ent-main button.primary, .ent-main button.secondary, .ent-main .btn-primary, .ent-main .btn-secondary, .ent-main .logout-btn, .ent-top .btn {

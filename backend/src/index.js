@@ -57,6 +57,7 @@ import { customerRouter as rewardsRoutes, adminRouter as adminRewardsRoutes } fr
 import { customerRouter as callbackRoutes, adminRouter as adminCallbackRoutes } from './routes/callbacks.js';
 import adminAccountingRoutes from './routes/adminAccounting.js';
 import adminPortfolioRoutes from './routes/adminPortfolio.js';
+import adminSlaRoutes from './routes/adminSla.js';
 import mandatesRoutes from './routes/mandates.js';
 import adminMandatesRoutes from './routes/adminMandates.js';
 import appHomeRoutes from './routes/appHome.js';
@@ -171,6 +172,7 @@ app.use('/api/callbacks', callbackRoutes);
 app.use('/api/admin/callbacks', adminCallbackRoutes);
 app.use('/api/admin/accounting', adminAccountingRoutes);
 app.use('/api/admin/portfolio', adminPortfolioRoutes);
+app.use('/api/admin/sla', adminSlaRoutes);
 app.use('/api/mandates', mandatesRoutes);
 app.use('/api/admin/mandates', adminMandatesRoutes);
 app.use('/api/offers', offersRoutes);

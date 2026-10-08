@@ -50,6 +50,7 @@
     { href: 'compliance.html', label: 'Compliance', icon: 'shield', any: ['kyc.view', 'aml.view', 'audit.view', 'requests.process'] },
     { href: 'accounting.html', label: 'Accounting', icon: 'chart', any: ['reports.view'] },
     { href: 'regulatory.html', label: 'Regulatory', icon: 'scale', any: ['reports.view'] },
+    { href: 'sla.html', label: 'Service targets', icon: 'board', any: ['reports.view'] },
     { href: 'dashboard.html', label: 'Leadership dashboard', icon: 'board', any: ['reports.view'] },
     { href: 'portfolio.html', label: 'Portfolio reports', icon: 'chart', any: ['reports.view'] },
     { href: 'analytics.html', label: 'Analytics', icon: 'chart', any: ['reports.view'] },

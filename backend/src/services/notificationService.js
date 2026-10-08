@@ -220,6 +220,16 @@ export function startScheduler() {
       console.error('Nudge job failed:', e.message);
     }
   };
+  const sla = async () => {
+    try {
+      const { escalate } = await import('./slaService.js');
+      await escalate();
+    } catch (e) {
+      console.error('Service-target job failed:', e.message);
+    }
+  };
+  setTimeout(sla, 150 * 1000);
+  setInterval(sla, 15 * 60 * 1000);
   setTimeout(nudges, 120 * 1000);
   setInterval(nudges, 30 * 60 * 1000);
   setTimeout(reminders, 90 * 1000);

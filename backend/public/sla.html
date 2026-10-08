@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%E2%8F%B1%3C/text%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Service targets - LIFC Admin</title>
+<style>
+* { box-sizing: border-box; }
+.card { padding: 16px; margin-bottom: 14px; }
+.card h2 { margin: 0 0 4px; font-size: 15px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.sub { font-size: 12px; color: var(--e-muted); margin-bottom: 12px; line-height: 1.5; }
+.note { font-size: 12px; color: var(--e-muted); }
+.alert { display: none; padding: 12px 16px; margin-bottom: 14px; white-space: pre-line; }
+.alert.show { display: block; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 14px; }
+.tile { background: var(--e-surface); border: 1px solid var(--e-border); border-radius: 12px; padding: 14px; }
+.tile .l { font-size: 12px; color: var(--e-muted); font-weight: 600; }
+.tile .v { font-size: 24px; font-weight: 800; margin-top: 4px; }
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--e-muted); border-bottom: 1px solid var(--e-border); white-space: nowrap; }
+td { padding: 8px; border-bottom: 1px solid var(--e-border); vertical-align: top; }
+.tag { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 20px; background: #DCFCE7; color: #166534; white-space: nowrap; }
+.tag.late { background: #FEE2E2; color: #991B1B; }
+.tag.soon { background: #FEF3C7; color: #92400E; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; align-items: end; }
+.grid input { width: 100%; }
+</style>
+<link rel="stylesheet" href="assets/portal.css">
+</head>
+<body data-shell="app" data-title="Service targets" data-sub="How long customers and requests have been waiting for the team, against the targets you set.">
+<div class="container">
+  <div id="alert" class="alert" role="alert"></div>
+  <div class="tiles" id="tiles"></div>
+  <div id="queues"></div>
+  <div class="card"><h2>Targets</h2><div class="sub">The clock runs day and night. Late items are reported once to the email address below, if you set one.</div><div id="settings"></div></div>
+</div>
+<script>
+const API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
+const token = localStorage.getItem('admin_token');
+if (!token) location.href = 'admin-config.html';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const WORD = { late: 'Late', soon: 'Close to the limit', ok: 'On track' };
+let D = null;
+function msg(text, kind) { const a = $('alert'); a.textContent = text; a.className = 'alert show ' + (kind === 'ok' ? 'ok' : 'err'); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+async function api(path, method = 'GET', body) {
+  const r = await fetch(API + path, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.errors ? d.errors.join('\n') : d.error || 'Something went wrong');
+  return d;
+}
+const ago = h => (h < 1 ? Math.round(h * 60) + ' min' : h < 48 ? Math.round(h * 10) / 10 + ' h' : Math.round(h / 24) + ' days');
+function draw() {
+  const t = D.totals;
+  $('tiles').innerHTML = [['Waiting', t.waiting], ['Close to the limit', t.soon], ['Late', t.late]].map(x => `<div class="tile"><div class="l">${x[0]}</div><div class="v">${x[1]}</div></div>`).join('');
+  $('queues').innerHTML = D.queues.map(q => `<div class="card"><h2>${esc(q.label)} <span class="tag ${q.late ? 'late' : q.soon ? 'soon' : ''}">${q.waiting} waiting${q.late ? ' · ' + q.late + ' late' : ''}</span></h2>
+    <div class="sub">Target: ${esc(q.target)}. ${esc(q.hint)} <a href="${esc(q.page)}">Open the page</a></div>
+    ${q.items.length ? `<div class="scroll"><table><thead><tr><th>Item</th><th>Waiting</th><th>Status</th></tr></thead><tbody>${q.items.map(i => `<tr><td>${esc(i.label)}</td><td>${ago(i.waitingHours)}</td><td><span class="tag ${i.state}">${WORD[i.state]}</span>${i.state === 'late' ? ` <span class="note">${ago(i.hoursOver)} over</span>` : ''}</td></tr>`).join('')}</tbody></table></div>` : '<div class="note">Nothing waiting.</div>'}</div>`).join('');
+  const s = D.settings, dis = D.canEdit ? '' : 'disabled';
+  $('settings').innerHTML = `<label style="display:flex;gap:8px;align-items:center;margin-bottom:10px"><input type="checkbox" id="on" ${s.enabled ? 'checked' : ''} ${dis}> Report late items</label>
+    <div class="grid">${Object.keys(s.hours).map(k => `<div><label for="h-${k}">${esc(D.queues.find(q => q.key === k)?.label || k)} (hours)</label><input id="h-${k}" type="number" step="0.25" value="${s.hours[k]}" ${dis}></div>`).join('')}
+    <div><label for="warn">"Close to the limit" at (% of the target)</label><input id="warn" type="number" value="${s.warnAtPercent}" ${dis}></div>
+    <div><label for="mail">Email late items to</label><input id="mail" value="${esc(s.alertEmail)}" placeholder="managers@yourcompany.in" ${dis}></div></div>
+    ${D.canEdit ? '<div style="margin-top:12px"><button class="btn primary" onclick="save()">Save</button></div>' : '<div class="note" style="margin-top:8px">Your role can look but not change these.</div>'}`;
+}
+async function load() { try { D = await api('/admin/sla'); draw(); } catch (e) { msg(e.message, 'err'); } }
+async function save() {
+  const hours = {}; Object.keys(D.settings.hours).forEach(k => (hours[k] = Number($('h-' + k).value)));
+  try { await api('/admin/sla/settings', 'PUT', { enabled: $('on').checked, hours, warnAtPercent: Number($('warn').value), alertEmail: $('mail').value }); msg('Saved.', 'ok'); load(); } catch (e) { msg(e.message, 'err'); }
+}
+load();
+</script>
+<script src="assets/portal.js"></script>
+</body>
+</html>
