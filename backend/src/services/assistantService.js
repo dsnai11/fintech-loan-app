@@ -124,6 +124,55 @@ function aiBudgetLeft() {
   return hourCalls < MAX_AI_CALLS_PER_HOUR;
 }
 
+// What the provider said was wrong, when it says
+async function providerMessage(res) {
+  try {
+    const j = await res.json();
+    const m = String(j?.error?.message || '').replace(/\s+/g, ' ').slice(0, 160);
+    return m ? ` (${m})` : '';
+  } catch (e) {
+    return '';
+  }
+}
+
+// For the portal's "Check connection": looks at the key's shape and makes one tiny request, without using any customer's details.
+export async function checkProvider() {
+  const checks = [];
+  const add = (name, ok, detail) => checks.push({ name, ok, detail });
+  const p = providerName();
+  add('Provider chosen', p === 'anthropic', p === 'anthropic' ? 'anthropic' : p ? `"${p}" is not an assistant provider here. Choose anthropic.` : 'No provider is chosen. Pick anthropic and save.');
+  const key = String(getConfig('ASSISTANT_API_KEY') || '');
+  add('API key saved', !!key, key ? `${key.length} characters saved` : 'No key is saved. Paste your key and save.');
+  if (key) {
+    const shaped = key.startsWith('sk-ant-') && !/\s|["']/.test(key) && key.length >= 40;
+    add('The key looks like an Anthropic API key', shaped, shaped ? 'It starts with sk-ant- and has no spaces or quote marks' : `It should start with "sk-ant-", be long (about 100 characters), and have no spaces or quote marks. Yours starts with "${key.slice(0, 7)}", is ${key.length} characters${/\s/.test(key) ? ' and contains a space' : ''}${/["']/.test(key) ? ' and contains a quote mark' : ''}. Create the key at console.anthropic.com under API keys, copy all of it, and paste it again.`);
+  }
+  if (p === 'anthropic' && key) {
+    try {
+      const res = await fetch(`${apiBase()}/v1/messages`, {
+        method: 'POST',
+        headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+        body: JSON.stringify({ model: model(), max_tokens: 5, messages: [{ role: 'user', content: 'Say OK' }] }),
+        signal: AbortSignal.timeout(15000),
+      });
+      if (res.ok) add('Anthropic accepts the key', true, `Connected. The model "${model()}" answered.`);
+      else {
+        const detail = await providerMessage(res);
+        const hint = res.status === 401 ? 'The key was not accepted. It may be mistyped, copied with extra characters, deleted, or from the wrong place (it must be an API key from console.anthropic.com, not a Claude chat login). Create a new key and paste it again.'
+          : res.status === 403 ? 'The key is not allowed to use this. Check the key\'s permissions on console.anthropic.com.'
+          : res.status === 404 ? `The model "${model()}" was not found. Leave the Model box empty to use the default, or enter a model your account can use.`
+          : res.status === 429 ? 'Too many requests, or the account has reached its limit. Check usage and limits on console.anthropic.com.'
+          : res.status === 400 ? 'Anthropic refused the request. If the message mentions credit, add credit under Plans and Billing on console.anthropic.com.'
+          : 'Anthropic could not complete the request. Try again in a minute.';
+        add('Anthropic accepts the key', false, `Answered ${res.status}${detail}. ${hint}`);
+      }
+    } catch (e) {
+      add('Anthropic accepts the key', false, `Could not reach Anthropic: ${e.message}`);
+    }
+  }
+  return { ok: checks.every(c => c.ok), checks };
+}
+
 async function askAi(system, user) {
   hourCalls++;
   const res = await fetch(`${apiBase()}/v1/messages`, {
@@ -132,7 +181,7 @@ async function askAi(system, user) {
     body: JSON.stringify({ model: model(), max_tokens: 500, temperature: 0.2, system, messages: [{ role: 'user', content: user }] }),
     signal: AbortSignal.timeout(Number(process.env.ASSISTANT_TIMEOUT_MS) || 15000),
   });
-  if (!res.ok) throw new Error(`The AI provider answered ${res.status}`);
+  if (!res.ok) throw new Error(`The AI provider answered ${res.status}${await providerMessage(res)}`);
   const body = await res.json();
   const out = (body.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
   const m = out.match(/\{[\s\S]*\}/);

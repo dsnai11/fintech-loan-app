@@ -20,6 +20,7 @@ const ai = http.createServer((req, res) => {
     const j = JSON.parse(body || '{}');
     calls.push({ key: req.headers['x-api-key'], version: req.headers['anthropic-version'], body: j });
     if (mode === 'down') { res.writeHead(500); return res.end('{}'); }
+    if (mode === 'unauth') { res.writeHead(401, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ type: 'error', error: { type: 'authentication_error', message: 'invalid x-api-key' } })); }
     const text = mode === 'junk' ? 'Sorry, I cannot do that' : mode === 'handover' ? JSON.stringify({ reply: 'Let me get a colleague.', handover: true }) : `Sure! ${JSON.stringify({ reply: 'Your next instalment is due on the date shown in My Loans.', handover: false })}`;
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ content: [{ type: 'text', text }] }));
@@ -231,6 +232,20 @@ const callsBefore = calls.length;
 await say2(t2, 'I want to complain about a wrong charge');
 await waitBot2(t2, 1);
 check('sensitive messages never even reach the provider', calls.length === callsBefore);
+
+mode = 'unauth';
+await SupportThread.deleteMany({});
+await say2(t2, 'What is a credit score?');
+await waitBot2(t2, 1);
+check('when the provider rejects the key, the reason shows the provider own words', /answered 401 \(invalid x-api-key\)/.test((await SupportThread.findOne({ userId: u2._id })).bot.handoverReason), (await SupportThread.findOne({ userId: u2._id })).bot.handoverReason);
+const bad = await call2('GET', '/admin/assistant/check', admin);
+const badAccepts = bad.d.checks.find(c => /accepts the key/.test(c.name));
+check('the connection check says the key was not accepted, with advice', bad.d.ok === false && badAccepts.ok === false && /401/.test(badAccepts.detail) && /console\.anthropic\.com/.test(badAccepts.detail), JSON.stringify(bad.d.checks));
+check('it also notices a key that does not look like an Anthropic key, without showing the key', bad.d.checks.some(c => /looks like an Anthropic API key/.test(c.name) && c.ok === false) && !JSON.stringify(bad.d).includes('sk-test-123'), JSON.stringify(bad.d.checks.map(c => c.detail)));
+check('customers cannot run the check (403)', (await call2('GET', '/admin/assistant/check', t2)).s === 403);
+mode = 'answer';
+const good = await call2('GET', '/admin/assistant/check', admin);
+check('with a working provider the connection step passes', good.d.checks.find(c => /accepts the key/.test(c.name)).ok === true);
 
 const aiTry = await call2('POST', '/admin/assistant/test', admin, { question: 'What documents do I need?', language: 'hi' });
 check('the portal test uses the provider but shares no customer details, and asks for the customer\'s language', aiTry.d.mode === 'ai' && /Hindi/.test(calls[calls.length - 1].body.system) && /First name: Test/.test(calls[calls.length - 1].body.messages[0].content) && !/Rs \d/.test(calls[calls.length - 1].body.messages[0].content), JSON.stringify(aiTry.d));

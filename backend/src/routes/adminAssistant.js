@@ -2,7 +2,7 @@ import express from 'express';
 import SupportThread from '../models/SupportThread.js';
 import { adminMiddleware } from '../middleware/auth.js';
 import { audit } from '../services/auditService.js';
-import { getSettings, saveSettings, respond, aiConfigured, providerName, missingProviderSettings } from '../services/assistantService.js';
+import { getSettings, saveSettings, respond, aiConfigured, providerName, missingProviderSettings, checkProvider } from '../services/assistantService.js';
 
 // Staff side of the AI assistant: how it behaves, the FAQ it answers from, a way to try it, and how it is doing.
 const router = express.Router();
@@ -42,6 +42,15 @@ router.put('/', async (req, res) => {
     if (!r.ok) return res.status(400).json({ error: r.errors[0], errors: r.errors });
     await audit(req.user, 'ASSISTANT_UPDATED', { type: 'Config', id: 'ASSISTANT_SETTINGS' }, { enabledBefore: before.enabled, enabledAfter: r.settings.enabled, faqCount: r.settings.kb.length }, req);
     res.json({ message: r.settings.enabled ? 'Saved. The assistant is on and answers customers on the Messages tab.' : 'Saved. The assistant is off. Customers\' messages go straight to your team.', settings: r.settings });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Looks at the connection to the AI provider and says what is wrong, without using any customer's details
+router.get('/check', async (req, res) => {
+  try {
+    res.json(await checkProvider());
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
