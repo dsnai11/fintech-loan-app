@@ -61,6 +61,13 @@ router.post('/signup', async (req, res) => {
       ...(process.env.REQUIRE_TERMS !== 'false' ? { termsVersion: currentVersion(), termsAcceptedAt: new Date(), termsAcceptedIp: req.ip } : {}),
     });
 
+    {
+      const clean = v => String(v ?? '').trim().toLowerCase().replace(/[^a-z0-9_.-]/g, '').slice(0, 40);
+      const src = clean(req.body.utmSource), camp = clean(req.body.utmCampaign), med = clean(req.body.utmMedium);
+      if (src || camp || med) user.acquisition = { source: src || 'unknown', campaign: camp, medium: med };
+      else if (referral.referrer) user.acquisition = { source: 'referral', campaign: '', medium: '' };
+      else user.acquisition = { source: 'app', campaign: '', medium: '' };
+    }
     await user.save();
     if (referral.referrer) {
       try { await attach(user, referral.referrer, referral.code, req); } catch (e) { console.error('Referral link failed:', e.message); } // the account is still created

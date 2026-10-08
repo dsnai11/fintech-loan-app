@@ -51,6 +51,7 @@
     { href: 'accounting.html', label: 'Accounting', icon: 'chart', any: ['reports.view'] },
     { href: 'regulatory.html', label: 'Regulatory', icon: 'scale', any: ['reports.view'] },
     { href: 'dashboard.html', label: 'Leadership dashboard', icon: 'board', any: ['reports.view'] },
+    { href: 'portfolio.html', label: 'Portfolio reports', icon: 'chart', any: ['reports.view'] },
     { href: 'analytics.html', label: 'Analytics', icon: 'chart', any: ['reports.view'] },
     { group: 'Administration' },
     { href: 'pricing.html', label: 'Pricing and controls', icon: 'tag', any: ['pricing.view'] },

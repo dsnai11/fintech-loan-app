@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Portfolio reports - LIFC Admin</title>
+<style>
+* { box-sizing: border-box; }
+.card { padding: 16px; margin-bottom: 14px; }
+.card h2 { margin: 0 0 4px; font-size: 15px; }
+.sub { font-size: 12px; color: var(--e-muted); margin-bottom: 12px; line-height: 1.5; }
+.note { font-size: 12px; color: var(--e-muted); }
+.alert { display: none; padding: 12px 16px; margin-bottom: 14px; white-space: pre-line; }
+.alert.show { display: block; }
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--e-muted); border-bottom: 1px solid var(--e-border); white-space: nowrap; }
+td { padding: 8px; border-bottom: 1px solid var(--e-border); vertical-align: top; }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+td.h { text-align: center; font-variant-numeric: tabular-nums; min-width: 54px; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+</style>
+<link rel="stylesheet" href="assets/portal.css">
+</head>
+<body data-shell="app" data-title="Portfolio reports" data-sub="How the loan book behaves over time, and where customers come from.">
+<div class="container">
+  <div id="alert" class="alert" role="alert"></div>
+  <div class="card"><h2>Vintage</h2><div class="sub">Loans grouped by the month they were paid out. Each box is the share of the money paid out that is late by at least the chosen number of days, measured at the end of each month after payout (month 1, month 2, and so on). A darker box is worse. If a group's boxes climb faster than older groups', lending from that month is performing worse.</div>
+    <div class="row"><label for="th" style="margin:0">Late by at least</label><select id="th" onchange="loadVintage()"><option value="30">30 days</option><option value="60">60 days</option><option value="90">90 days</option></select><button class="btn" onclick="csv('vintage')">Download CSV</button></div>
+    <div class="scroll" id="vintage"></div></div>
+  <div class="card"><h2>Roll rate</h2><div class="sub">Of the loans in each bucket on the first date, where were they on the second date. A loan "rolls" when it moves to a later bucket. Each row shows the share of loans (and of the rupees) that got worse.</div>
+    <div class="row"><label for="rf" style="margin:0">From</label><input type="date" id="rf"><label for="rt" style="margin:0">To</label><input type="date" id="rt"><button class="btn primary" onclick="loadRoll()">Show</button><button class="btn" onclick="csv('roll')">Download CSV</button></div>
+    <div class="scroll" id="roll"></div></div>
+  <div class="card"><h2>Where customers came from</h2><div class="sub">Customers who signed up in the dates below, by source and campaign, and how far each group got. Customers who sign up with a friend's code are counted as referrals; the rest as "app" unless the sign-up link carried a source.</div>
+    <div class="row"><label for="af" style="margin:0">From</label><input type="date" id="af"><label for="at" style="margin:0">To</label><input type="date" id="at"><button class="btn primary" onclick="loadAcq()">Show</button><button class="btn" onclick="csv('acq')">Download CSV</button></div>
+    <div class="scroll" id="acq"></div></div>
+</div>
+<script>
+const API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
+const token = localStorage.getItem('admin_token');
+if (!token) location.href = 'admin-config.html';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const inr = n => '₹' + Math.round(n || 0).toLocaleString('en-IN');
+const DATA = {};
+function msg(text) { const a = $('alert'); a.textContent = text; a.className = 'alert show err'; window.scrollTo({ top: 0, behavior: 'smooth' }); }
+async function api(path) {
+  const r = await fetch(API + path, { headers: { Authorization: 'Bearer ' + token } });
+  if (r.status === 401) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || 'Something went wrong');
+  return d;
+}
+const shade = p => { const t = Math.min(1, p / 40); return `background:rgba(220,38,38,${(0.08 + t * 0.6).toFixed(2)})`; };
+async function loadVintage() {
+  try {
+    const d = DATA.vintage = await api('/admin/portfolio/vintage?dpd=' + $('th').value);
+    const maxM = Math.max(0, ...d.cohorts.map(c => c.cells.length));
+    $('vintage').innerHTML = d.cohorts.length ? `<table><thead><tr><th>Paid out in</th><th class="n">Loans</th><th class="n">Amount</th>${Array.from({ length: maxM }, (_, i) => `<th class="h">Month ${i + 1}</th>`).join('')}</tr></thead><tbody>${d.cohorts.map(c => `<tr><td>${esc(c.month)}</td><td class="n">${c.loans}</td><td class="n">${inr(c.disbursed)}</td>${Array.from({ length: maxM }, (_, i) => c.cells[i] ? `<td class="h" style="${shade(c.cells[i].percent)}" title="${inr(c.cells[i].amount)}">${c.cells[i].percent}%</td>` : '<td></td>').join('')}</tr>`).join('')}</tbody></table>` : '<div class="note">No loans paid out yet.</div>';
+  } catch (e) { msg(e.message); }
+}
+async function loadRoll() {
+  try {
+    const d = DATA.roll = await api('/admin/portfolio/roll-rate?' + ($('rf').value ? `from=${$('rf').value}&to=${$('rt').value}` : ''));
+    $('rf').value = d.from; $('rt').value = d.to;
+    $('roll').innerHTML = `<table><thead><tr><th>On ${esc(d.from)}</th><th class="n">Loans</th><th class="n">Owed</th>${d.columns.map(c => `<th class="h">${esc(c.label)}</th>`).join('')}<th class="n">Got worse</th></tr></thead><tbody>${d.rows.map(r => `<tr><td>${esc(r.label)}</td><td class="n">${r.loans}</td><td class="n">${inr(r.amount)}</td>${r.cells.map(c => `<td class="h">${c.loans || ''}</td>`).join('')}<td class="n">${r.rollPercent == null ? '-' : r.rollPercent + '% of loans · ' + r.rollAmountPercent + '% of rupees'}</td></tr>`).join('')}</tbody></table><div class="note" style="margin-top:6px">Columns show where those loans were on ${esc(d.to)}.</div>`;
+  } catch (e) { msg(e.message); }
+}
+async function loadAcq() {
+  try {
+    const d = DATA.acq = await api('/admin/portfolio/acquisition?' + ($('af').value ? `from=${$('af').value}&to=${$('at').value}` : ''));
+    $('af').value = d.from; $('at').value = d.to;
+    $('acq').innerHTML = d.rows.length ? `<table><thead><tr><th>Source</th><th>Campaign</th><th class="n">Signed up</th><th class="n">Finished set-up</th><th class="n">Applied</th><th class="n">Approved</th><th class="n">Paid out</th><th class="n">Amount</th><th class="n">Defaulted</th></tr></thead><tbody>${d.rows.map(r => `<tr><td>${esc(r.source)}</td><td>${esc(r.campaign)}</td><td class="n">${r.signups}</td><td class="n">${r.setupDone}</td><td class="n">${r.applied} <span class="note">(${r.appliedPercent}%)</span></td><td class="n">${r.approved}</td><td class="n">${r.disbursed} <span class="note">(${r.disbursedPercent}%)</span></td><td class="n">${inr(r.amount)}</td><td class="n">${r.badPercent == null ? '-' : r.badPercent + '%'}</td></tr>`).join('')}<tr><td><b>Total</b></td><td></td><td class="n"><b>${d.total.signups}</b></td><td></td><td class="n"><b>${d.total.applied}</b></td><td></td><td class="n"><b>${d.total.disbursed}</b></td><td class="n"><b>${inr(d.total.amount)}</b></td><td></td></tr></tbody></table>` : '<div class="note">No sign-ups in these dates.</div>';
+  } catch (e) { msg(e.message); }
+}
+function csv(kind) {
+  const rows = [];
+  if (kind === 'vintage' && DATA.vintage) { const d = DATA.vintage; const maxM = Math.max(0, ...d.cohorts.map(c => c.cells.length)); rows.push(['Paid out in', 'Loans', 'Amount', ...Array.from({ length: maxM }, (_, i) => `Month ${i + 1} (% ${d.threshold}+ days late)`)]); d.cohorts.forEach(c => rows.push([c.month, c.loans, c.disbursed, ...Array.from({ length: maxM }, (_, i) => (c.cells[i] ? c.cells[i].percent : ''))])); }
+  if (kind === 'roll' && DATA.roll) { const d = DATA.roll; rows.push(['Bucket on ' + d.from, 'Loans', 'Owed', ...d.columns.map(c => c.label + ' on ' + d.to), 'Roll % of loans', 'Roll % of rupees']); d.rows.forEach(r => rows.push([r.label, r.loans, r.amount, ...r.cells.map(c => c.loans), r.rollPercent ?? '', r.rollAmountPercent ?? ''])); }
+  if (kind === 'acq' && DATA.acq) { rows.push(['Source', 'Campaign', 'Signed up', 'Finished set-up', 'Applied', 'Approved', 'Paid out', 'Amount', 'Defaulted %']); DATA.acq.rows.forEach(r => rows.push([r.source, r.campaign, r.signups, r.setupDone, r.applied, r.approved, r.disbursed, r.amount, r.badPercent ?? ''])); }
+  if (!rows.length) return;
+  const cell = v => { let s = String(v ?? ''); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return '"' + s.replace(/"/g, '""') + '"'; };
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([rows.map(r => r.map(cell).join(',')).join('\r\n')], { type: 'text/csv' }));
+  a.download = kind + '-report.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+loadVintage(); loadRoll(); loadAcq();
+</script>
+<script src="assets/portal.js"></script>
+</body>
+</html>
