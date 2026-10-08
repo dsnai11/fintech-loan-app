@@ -303,7 +303,7 @@ async function save() {
     const d = await api('/app-home/admin', 'PUT', H);
     H = d.home; renderAll();
     msg(d.message, 'ok');
-    $('saved').textContent = 'Saved ' + new Date().toLocaleTimeString('en-IN');
+    $('saved').textContent = (d.pending ? 'Sent for approval ' : 'Saved ') + new Date().toLocaleTimeString('en-IN');
   } catch (e) { msg(e.message, 'err'); }
   $('save').disabled = false;
 }

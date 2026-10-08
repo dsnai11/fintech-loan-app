@@ -2,7 +2,8 @@ import express from 'express';
 import { adminMiddleware } from '../middleware/auth.js';
 import { audit } from '../services/auditService.js';
 import { can } from '../services/permissions.js';
-import { getPolicy, savePolicy, sampleQuotes, missingInstitutionDetails, PLAN_KEYS } from '../services/pricingPolicy.js';
+import { approvalRequired, propose } from '../services/changeApprovals.js';
+import { getPolicy, savePolicy, validatePolicy, sampleQuotes, missingInstitutionDetails, PLAN_KEYS } from '../services/pricingPolicy.js';
 
 const router = express.Router();
 router.use(adminMiddleware);
@@ -39,6 +40,12 @@ router.put('/', async (req, res) => {
     if (controlsChanged && !can(req.user.role, 'controls.edit')) return res.status(403).json({ error: 'Your role cannot change internal controls.', code: 'NOT_PERMITTED', needs: 'controls.edit' });
     if (!pricesChanged && !controlsChanged) return res.json({ message: 'Nothing to change.', ...view(before) });
 
+    if (approvalRequired('PRICING')) {
+      const check = validatePolicy(candidate);
+      if (check.errors.length) return res.status(400).json({ error: check.errors[0], errors: check.errors });
+      const doc = await propose('PRICING', candidate, req.user, req);
+      return res.status(202).json({ pending: true, requestId: String(doc._id), message: 'Sent for approval. It goes live once someone else approves it.', ...view(before) });
+    }
     const result = await savePolicy(candidate, req.user.email);
     if (!result.ok) return res.status(result.status).json({ error: result.errors[0], errors: result.errors });
 

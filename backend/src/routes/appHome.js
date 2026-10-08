@@ -3,7 +3,8 @@ import User from '../models/User.js';
 import BannerStat from '../models/BannerStat.js';
 import { authMiddleware, adminMiddleware } from '../middleware/auth.js';
 import { audit } from '../services/auditService.js';
-import { getHome, saveHome, homeFor } from '../services/homeContent.js';
+import { approvalRequired, propose } from '../services/changeApprovals.js';
+import { getHome, saveHome, validateHome, homeFor } from '../services/homeContent.js';
 
 // The home-screen branding and offer banners: what the app reads, and where staff change it.
 const router = express.Router();
@@ -50,6 +51,12 @@ router.put('/admin', adminMiddleware, async (req, res) => {
   try {
     if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) return res.status(400).json({ error: 'Send the content as a JSON object' });
     const before = getHome();
+    if (approvalRequired('APP_HOME')) {
+      const check = validateHome({ ...before, ...req.body });
+      if (check.errors.length) return res.status(400).json({ error: check.errors[0], errors: check.errors });
+      const doc = await propose('APP_HOME', check.home, req.user, req);
+      return res.status(202).json({ pending: true, requestId: String(doc._id), message: 'Sent for approval. It goes live once someone else approves it.', home: before });
+    }
     const result = await saveHome({ ...before, ...req.body }, req.user.email);
     if (!result.ok) return res.status(400).json({ error: result.errors[0], errors: result.errors });
     await audit(req.user, 'APP_HOME_UPDATED', { type: 'Config', id: 'APP_HOME' }, { before, after: result.home }, req);

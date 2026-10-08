@@ -32,6 +32,7 @@ export const PERMISSIONS = [
   { key: 'terms.edit', group: 'Administration', label: 'Edit and publish the terms and conditions customers accept' },
   { key: 'appsettings.edit', group: 'Administration', label: 'Change what the customer apps show (products, banner, switches, maintenance)' },
   { key: 'banners.edit', group: 'Administration', label: 'Manage the home-screen offer banners and app branding' },
+  { key: 'changes.approve', group: 'Administration', label: 'Approve or reject pricing and banner changes proposed by others' },
   { key: 'decisions.view', group: 'Decisions', label: 'See the decision rules and what the engine decided' },
   { key: 'decisions.edit', group: 'Decisions', label: 'Change the decision rules and switch automatic approval on or off' },
   { key: 'staff.manage', group: 'Administration', label: 'Add staff and change their access (only up to your own level)' },
@@ -116,6 +117,7 @@ const RULES = [
   [/^\/api\/admin\/announcements(\/|$)/, 'announcements.send', 'announcements.send'],
   [/^\/api\/app-settings\/admin(\/|$)/, 'appsettings.edit', 'appsettings.edit'],
   [/^\/api\/app-home\/admin(\/|$)/, 'banners.edit', 'banners.edit'],
+  [/^\/api\/admin\/approvals(\/|$)/, ANY, ANY], // the route itself checks who may approve
   [/^\/api\/admin\/terms(\/|$)/, 'terms.edit', 'terms.edit'],
   [/^\/api\/admin\/config(\/|$)/, 'config.manage', 'config.manage'],
   [/^\/api\/app-config\/admin(\/|$)/, 'config.manage', 'config.manage'],

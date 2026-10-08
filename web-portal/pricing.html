@@ -222,7 +222,7 @@ async function save() {
     render();
     renderPreview(d.samples);
     renderMissing(d.missingInstitutionDetails);
-    $('saved').textContent = 'Saved ' + new Date().toLocaleTimeString();
+    $('saved').textContent = (d.pending ? 'Sent for approval ' : 'Saved ') + new Date().toLocaleTimeString();
     msg(d.message, 'ok');
   } catch (e) { msg(e.message, 'err'); }
   $('save').disabled = false;

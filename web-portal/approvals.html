@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%E2%9C%85%3C/text%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Approvals - LIFC Admin</title>
+<style>
+* { box-sizing: border-box; }
+.card { padding: 16px; margin-bottom: 14px; }
+.card h2 { margin: 0 0 4px; }
+.sub { font-size: 12px; color: var(--e-muted); margin-bottom: 12px; line-height: 1.5; }
+.note { font-size: 12px; color: var(--e-muted); }
+.alert { display: none; padding: 12px 16px; margin-bottom: 14px; white-space: pre-line; }
+.alert.show { display: block; }
+.switch { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid var(--e-border); }
+.switch:last-child { border-bottom: 0; }
+.switch b { display: block; font-size: 13.5px; }
+.switch span { font-size: 12px; color: var(--e-muted); }
+.req { border: 1px solid var(--e-border); border-radius: 10px; padding: 14px; margin-bottom: 12px; background: var(--e-surface-2); }
+.req.pending { border-color: var(--e-primary); }
+.req h3 { margin: 0 0 4px; font-size: 14px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.lines { margin: 8px 0; padding: 10px 12px; background: var(--e-surface); border-radius: 8px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; max-height: 220px; overflow: auto; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.row input { flex: 1; min-width: 200px; }
+</style>
+<link rel="stylesheet" href="assets/portal.css">
+</head>
+<body data-shell="app" data-title="Approvals" data-sub="Pricing and banner changes that need a second person before customers see them.">
+<div class="container">
+  <div id="alert" class="alert" role="alert"></div>
+  <div id="rule"></div>
+  <div class="card"><h2>Changes</h2>
+    <div class="sub" id="who"></div>
+    <div id="list"></div>
+  </div>
+</div>
+<script>
+const API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
+const token = localStorage.getItem('admin_token');
+if (!token) location.href = 'admin-config.html';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const when = d => (d ? new Date(d).toLocaleString('en-IN') : '');
+let D = null;
+
+function msg(text, kind) {
+  const a = $('alert'); a.textContent = text; a.className = 'alert show ' + (kind === 'ok' ? 'ok' : 'err');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+async function api(path, method = 'GET', body) {
+  const r = await fetch(API + path, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.errors ? d.errors.join('\n') : d.error || 'Something went wrong');
+  return d;
+}
+
+async function load() {
+  try { D = await api('/admin/approvals'); render(); } catch (e) { msg(e.message, 'err'); }
+}
+
+function render() {
+  const superAdmin = localStorage.getItem('admin_role') === 'super_admin';
+  const s = D.settings;
+  $('rule').innerHTML = `<div class="card"><h2>Two-person rule</h2>
+    <div class="sub">When it is on for an area, saving there does not change anything for customers. It creates a request, and someone else with the approval permission has to approve it. Nobody can approve their own change.${superAdmin ? '' : ' Only the super admin can switch this.'}</div>
+    <label class="switch"><input type="checkbox" id="r-pricing" ${s.pricing ? 'checked' : ''} ${superAdmin ? '' : 'disabled'} onchange="setRule()"><div><b>Pricing</b><span>Rates, fees, limits, plans, lender details and internal controls.</span></div></label>
+    <label class="switch"><input type="checkbox" id="r-banners" ${s.banners ? 'checked' : ''} ${superAdmin ? '' : 'disabled'} onchange="setRule()"><div><b>Offers and branding</b><span>Home-screen banners and company branding.</span></div></label>
+    ${superAdmin ? '<div class="note" style="margin-top:8px">Before switching on, make sure at least two people can approve. Give a role the permission "Approve or reject pricing and banner changes" on the Roles page.</div>' : ''}</div>`;
+  $('who').textContent = D.canApprove ? 'You can approve changes made by others.' : 'You see the changes you proposed. Your role cannot approve changes.';
+  const rows = D.requests;
+  $('list').innerHTML = rows.length ? rows.map(card).join('') : '<div class="note">Nothing yet. Changes show here when the two-person rule is on.</div>';
+}
+
+function card(r) {
+  const mine = r.requestedBy.toLowerCase() === (D.me || '').toLowerCase();
+  const pill = { pending: 'pending', approved: 'approved', rejected: 'rejected', withdrawn: 'pending' }[r.status];
+  return `<div class="req ${r.status}"><h3>${esc(r.label)} <span class="pill ${pill}">${esc(r.status)}</span></h3>
+    <div class="note">Proposed by ${esc(r.requestedBy)} on ${esc(when(r.requestedAt))}${r.decidedBy ? ` · ${esc(r.status)} by ${esc(r.decidedBy)} on ${esc(when(r.decidedAt))}` : ''}${r.note ? ` · “${esc(r.note)}”` : ''}</div>
+    <div class="lines">${r.summary.map(esc).join('<br>')}</div>
+    ${r.status === 'pending' ? `<div class="row">
+      ${D.canApprove && !mine ? `<input id="n-${esc(r.id)}" placeholder="Reason (needed to reject)" maxlength="300"><button class="btn primary" onclick="act('${esc(r.id)}','approve')">Approve and publish</button><button class="btn danger" onclick="act('${esc(r.id)}','reject')">Reject</button>` : ''}
+      ${mine ? `<button class="btn" onclick="act('${esc(r.id)}','withdraw')">Withdraw</button><span class="note">Waiting for someone else to approve.</span>` : ''}
+      ${D.canApprove && mine ? '<span class="note">You proposed this, so someone else must approve it.</span>' : ''}</div>` : ''}</div>`;
+}
+
+async function act(id, what) {
+  const n = $('n-' + id);
+  try {
+    const d = await api(`/admin/approvals/${encodeURIComponent(id)}/${what}`, 'POST', { note: n ? n.value : '' });
+    msg(d.message, 'ok'); load();
+  } catch (e) { msg(e.message, 'err'); }
+}
+async function setRule() {
+  try {
+    const d = await api('/admin/approvals/settings', 'PUT', { pricing: $('r-pricing').checked, banners: $('r-banners').checked });
+    D.settings = d.settings; msg('Saved.', 'ok');
+  } catch (e) { msg(e.message, 'err'); load(); }
+}
+load();
+</script>
+<script src="assets/portal.js"></script>
+</body>
+</html>
