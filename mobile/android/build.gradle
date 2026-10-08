@@ -15,6 +15,17 @@ allprojects {
         google()
         mavenCentral()
     }
+    // The camera and face-detection libraries pull in newer copies of these two than the Android build tools
+    // here can turn into an app ("Error while dexing"). Keep them at versions the tools handle.
+    configurations.all {
+        resolutionStrategy {
+            force 'androidx.annotation:annotation-jvm:1.7.1'
+            force 'androidx.annotation:annotation:1.7.1'
+            force "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+            force "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+            force "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
+        }
+    }
 }
 
 rootProject.buildDir = '../build'
