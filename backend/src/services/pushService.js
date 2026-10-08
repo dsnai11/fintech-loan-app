@@ -158,6 +158,21 @@ export async function checkSetup() {
   return { ok: checks.every(c => c.ok), checks, lastSend, platforms: await DeviceToken.aggregate([{ $group: { _id: '$platform', n: { $sum: 1 } } }]) };
 }
 
+// Sends a test notification to the customer's own phones and says what happened, so a problem can be seen from the app.
+export async function testToUser(userId) {
+  if (!pushConfigured()) return { ok: false, code: 'not_configured', message: 'Phone notifications are not switched on at the company yet.' };
+  const devices = await DeviceToken.find({ userId }).sort({ lastSeenAt: -1 }).limit(MAX_DEVICES);
+  if (!devices.length) return { ok: false, code: 'no_devices', message: 'The server does not have your phone yet. Tap "Turn on notifications" first.' };
+  const results = [];
+  for (const d of devices) {
+    const r = await sendOne(d.token, { title: 'LIFC test notification', body: 'If you can read this in your notification tray, notifications work on this phone.', data: { type: 'TEST' } });
+    results.push({ platform: d.platform, result: r, detail: r === 'sent' ? '' : (lastSend && lastSend.detail) || '' });
+    if (r === 'gone') await DeviceToken.deleteOne({ _id: d._id });
+  }
+  const sent = results.filter(r => r.result === 'sent').length;
+  return { ok: sent > 0, code: 'tried', results, message: sent ? `Sent to ${sent} phone${sent === 1 ? '' : 's'}. It should appear in the notification tray in a few seconds.` : `Could not send. ${results[0]?.detail || 'The notification service did not accept it.'}` };
+}
+
 export const unregisterDevice = (userId, token) => DeviceToken.deleteOne({ userId, token });
 
 export const deviceCount = userIds => DeviceToken.distinct('userId', userIds ? { userId: { $in: userIds } } : {}).then(a => a.length);

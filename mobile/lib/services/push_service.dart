@@ -13,6 +13,7 @@ class PushService {
   PushService._();
 
   bool _ready = false;
+  String? initError; // why Firebase could not start, if it could not
   ApiService? _api;
 
   // Set by the app to open the right screen when a customer taps a notification (for example an offer)
@@ -30,8 +31,9 @@ class PushService {
       final first = await FirebaseMessaging.instance.getInitialMessage(); // tapped while the app was closed
       if (first != null) _opened(first);
       FirebaseMessaging.instance.onTokenRefresh.listen(_register);
-    } catch (_) {
+    } catch (e) {
       _ready = false;
+      initError = e.toString().split('\n').first;
     }
   }
 
@@ -86,6 +88,32 @@ class PushService {
   // Called when the customer opens the app signed in: refreshes the phone's address, but never shows a prompt
   Future<void> syncIfAllowed() async {
     if (await isAllowed()) await syncToken();
+  }
+
+  // A plain list of what is and is not working on this phone, for the Notifications screen
+  Future<List<List<String>>> diagnose(ApiService api) async {
+    _api = api;
+    final rows = <List<String>>[];
+    rows.add(['Notifications built into this app', _ready ? 'yes' : 'no: ${initError ?? 'Firebase did not start. This app was probably built without the Firebase file.'}']);
+    if (!_ready) return rows;
+    final allowed = await isAllowed();
+    rows.add(['Permission on this phone', allowed ? 'allowed' : 'not allowed yet. Tap "Turn on notifications" and choose Allow.']);
+    String? token;
+    try {
+      token = await FirebaseMessaging.instance.getToken();
+      rows.add(['This phone\'s notification address', token == null || token.isEmpty ? 'not received from Google yet' : 'received']);
+    } catch (e) {
+      rows.add(['This phone\'s notification address', 'failed: ${e.toString().split('\n').first}']);
+    }
+    if (token != null && token.isNotEmpty) {
+      try {
+        await api.registerPushToken(token, defaultTargetPlatform == TargetPlatform.iOS ? 'ios' : 'android');
+        rows.add(['Registered with LIFC', 'yes']);
+      } catch (e) {
+        rows.add(['Registered with LIFC', 'failed: $e']);
+      }
+    }
+    return rows;
   }
 
   // Called when the customer signs out, so the next person on this phone does not get their alerts

@@ -68,6 +68,7 @@ const ann0 = await pc('POST', '/admin/announcements', padmin, { title: 'Hello', 
 check('an announcement still goes to the notification bell, and no push is attempted', ann0.s === 201 && ann0.d.pushQueued === false && (await Notification.countDocuments({ type: 'ANNOUNCEMENT' })) === 3, JSON.stringify(ann0.d));
 const st0 = await pc('GET', '/admin/integrations', padmin);
 check('the Integrations page shows push as not set up', st0.d.integrations.find(i => i.id === 'push').status.mode === 'off');
+check('the test button says push is not set up yet', (await pc('POST', '/push/test', ta, {})).d.code === 'not_configured');
 const chk0 = await pc('GET', '/admin/integrations/push-check', padmin);
 check('the portal check says what is missing when nothing is set up', chk0.s === 200 && chk0.d.ok === false && chk0.d.checks[0].ok === false && /Pick fcm/.test(chk0.d.checks[0].detail), JSON.stringify(chk0.d.checks));
 check('customers cannot run the check (403)', (await pc('GET', '/admin/integrations/push-check', ta)).s === 403);
@@ -114,6 +115,17 @@ const loan2 = await Loan.create({ userId: b._id, loanAmount: 5000, tenure: 3, in
 const rej = await call('POST', `/admin/loans/${loan2._id}/reject`, padmin, { reason: 'Test' });
 check('the loan action still works and the notification still appears in the app', rej.s === 200 && !!(await Notification.findOne({ userId: b._id, type: 'LOAN_REJECTED' })));
 check('and records that the push failed', (await Notification.findOne({ userId: b._id, type: 'LOAN_REJECTED' })).channels.push === 'failed');
+fcmDown = false;
+
+section('A TEST NOTIFICATION TO MYSELF');
+const test1 = await call('POST', '/push/test', ta, {});
+check('a customer can send a test to their own phone', test1.s === 200 && test1.d.ok === true && /Sent to 1 phone/.test(test1.d.message), JSON.stringify(test1.d));
+check('it arrives as a test notification', messages.some(m => m.token === GOOD_A && m.data.type === 'TEST' && /test/i.test(m.notification.title)));
+check('trying again straight away is refused (429)', (await call('POST', '/push/test', ta, {})).s === 429);
+check('with no phone registered it says so', (await call('POST', '/push/test', await tokenFor(c), {})).d.code === 'no_devices');
+fcmDown = true;
+const test2 = await call('POST', '/push/test', tb, {});
+check('when Firebase refuses, the customer is told why', test2.d.ok === false && /Could not send/.test(test2.d.message) && /503/.test(test2.d.message), JSON.stringify(test2.d));
 fcmDown = false;
 
 section('SIGNING OUT OF PUSH');

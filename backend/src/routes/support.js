@@ -51,6 +51,31 @@ router.post('/handover', async (req, res) => {
   }
 });
 
+// Back to the assistant, when the customer pressed "Talk to a person" but nobody from the team has replied yet
+router.post('/resume', async (req, res) => {
+  try {
+    const thread = await SupportThread.findOne({ userId: req.user.userId, status: 'open' }).sort({ lastMessageAt: -1 });
+    if (!thread || thread.bot?.active !== false) return res.json({ thread: thread ? viewThread(thread) : null });
+    if (thread.messages.some(m => m.from === 'staff')) return res.status(409).json({ error: 'A member of our team is already helping you here. They will reply soon.' });
+    const s = assistantSettings();
+    if (!s.enabled) return res.status(409).json({ error: 'The assistant is not available right now. Our team will reply here.' });
+    thread.bot.active = true;
+    thread.bot.turns = 0;
+    const last = thread.messages[thread.messages.length - 1];
+    if (!last || last.from !== 'customer') {
+      thread.messages.push({ from: 'bot', senderName: s.name, text: 'I am back. What would you like to know?', meta: { mode: 'rules', handover: false } });
+      thread.lastFrom = 'bot';
+      thread.lastMessageAt = new Date();
+      thread.unreadForCustomer += 1;
+    }
+    await thread.save();
+    runAssistant(thread._id).catch(() => {}); // answers the customer's latest message, if it is still waiting
+    res.json({ thread: viewThread(thread) });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Thumbs up or down on an assistant answer
 router.post('/messages/:id/feedback', async (req, res) => {
   try {

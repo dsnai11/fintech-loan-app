@@ -375,6 +375,25 @@ class ApiService {
     }
   }
 
+  // Back to the assistant, before anyone from the team has replied
+  Future<void> resumeAssistant() async {
+    try {
+      await _dio.post('/support/resume');
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  // Sends a test notification to this customer's own phone and returns what happened
+  Future<Map<String, dynamic>> testPush() async {
+    try {
+      final response = await _dio.post('/push/test');
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   Future<void> requestPerson() async {
     try {
       await _dio.post('/support/handover');

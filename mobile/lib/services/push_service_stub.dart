@@ -10,6 +10,7 @@ class PushService {
   void Function(Map<String, dynamic> data)? onOpen;
 
   bool get supported => false;
+  String? initError;
 
   Future<void> init(ApiService api) async {}
   Future<bool> isAllowed() async => false;
@@ -17,4 +18,5 @@ class PushService {
   Future<bool> syncToken([ApiService? api]) async => false;
   Future<void> syncIfAllowed() async {}
   Future<void> unregister() async {}
+  Future<List<List<String>>> diagnose(ApiService api) async => [['Notifications built into this app', 'no: phone notifications are not part of the iPhone app yet']];
 }

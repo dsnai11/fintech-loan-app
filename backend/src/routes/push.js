@@ -1,7 +1,7 @@
 import express from 'express';
 import User from '../models/User.js';
 import { authMiddleware } from '../middleware/auth.js';
-import { CATEGORIES, pushConfigured, registerDevice, unregisterDevice } from '../services/pushService.js';
+import { CATEGORIES, pushConfigured, registerDevice, unregisterDevice, testToUser } from '../services/pushService.js';
 
 // The customer's phone registering for push notifications, and their choices about which kinds to get.
 const router = express.Router();
@@ -33,6 +33,19 @@ router.put('/preferences', async (req, res) => {
     if (!Object.keys(set).length) return res.status(400).json({ error: 'Choose which notifications you want' });
     await User.updateOne({ _id: req.user.userId }, { $set: set });
     res.json(await view(req.user.userId));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// A test notification to the customer's own phone, with the result in plain words
+const lastTest = new Map();
+router.post('/test', async (req, res) => {
+  try {
+    const key = String(req.user.userId);
+    if (Date.now() - (lastTest.get(key) || 0) < 8000) return res.status(429).json({ error: 'Please wait a few seconds before trying again.' });
+    lastTest.set(key, Date.now());
+    res.json(await testToUser(req.user.userId));
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

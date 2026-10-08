@@ -118,6 +118,26 @@ for (let i = 0; i < 4; i++) { await say(t3, 'hello'); await waitBot(t3, i + 1); 
 const lim = await SupportThread.findOne({ userId: u3._id });
 check('after the set number of answers (3) a person takes over', lim.bot.active === false && /limit/.test(lim.bot.handoverReason), JSON.stringify(lim.bot));
 
+section('GOING BACK TO THE ASSISTANT');
+await SupportThread.deleteMany({ userId: u1._id });
+await say(t1, 'how do I pay my emi');
+await waitBot(t1, 1);
+await call('POST', '/support/handover', t1, {});
+check('after Talk to a person the assistant steps back', (await thread(t1)).botActive === false);
+await say(t1, 'how do I apply for a loan');
+await sleep(500);
+const waiting = await thread(t1);
+check('and a new message waits for staff', waiting.messages[waiting.messages.length - 1].from === 'customer');
+const back = await call('POST', '/support/resume', t1, {});
+check('before staff reply, the customer can go back to the assistant', back.s === 200 && back.d.thread.botActive === true);
+await until(async () => { const t = await thread(t1); return t.messages[t.messages.length - 1].from === 'bot'; });
+check('and it answers the question that was waiting', /Home tab/.test((await lastBot(t1)).text), (await lastBot(t1)).text);
+const thr = await SupportThread.findOne({ userId: u1._id });
+await call('POST', `/admin/support/${thr._id}/reply`, admin, { text: 'Team here' });
+const refused = await call('POST', '/support/resume', t1, {});
+check('once a person has replied, going back is refused (409)', refused.s === 409 && /already helping/.test(refused.d.error), JSON.stringify(refused.d));
+check('resume with no conversation is harmless', (await call('POST', '/support/resume', t3, {})).s === 200);
+
 section('THUMBS UP AND DOWN');
 const th2 = await thread(t2);
 const botMsg = th2.messages.find(x => x.from === 'bot');

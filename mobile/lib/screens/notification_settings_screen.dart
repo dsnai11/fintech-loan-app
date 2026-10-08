@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../main.dart';
 import '../services/api_service.dart';
 import '../services/push_service.dart';
+import '../utils/error_utils.dart';
 import '../widgets/tr_text.dart';
 
 // Which kinds of alert the customer wants on their phone, and the switch that turns push notifications on for this phone.
@@ -18,6 +19,9 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
   String? _error;
   bool _saving = false;
   bool _phoneOn = false;
+  List<List<String>>? _diag;
+  String? _testResult;
+  bool _busy = false;
 
   @override
   void initState() {
@@ -53,6 +57,27 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
     final granted = await push.requestPermission();
     if (granted) _phoneOn = await push.syncToken(context.read<ApiService>());
     if (mounted) setState(() {});
+    _check();
+  }
+
+  // Looks at each step on this phone and shows which one is not working
+  Future<void> _check() async {
+    setState(() => _busy = true);
+    final rows = await PushService.instance.diagnose(context.read<ApiService>());
+    if (mounted) setState(() { _diag = rows; _busy = false; });
+  }
+
+  // Sends a real notification to this phone through the company's server
+  Future<void> _sendTest() async {
+    setState(() { _busy = true; _testResult = null; });
+    String text;
+    try {
+      final r = await context.read<ApiService>().testPush();
+      text = '${r['message'] ?? ''}';
+    } catch (e) {
+      text = friendlyError(e);
+    }
+    if (mounted) setState(() { _testResult = text; _busy = false; });
   }
 
   @override
@@ -70,6 +95,32 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
             if (_error != null) Padding(padding: const EdgeInsets.only(top: 60), child: Center(child: Text(_error!, textAlign: TextAlign.center))),
             if (_d != null) ...[
               _statusCard(available),
+              const SizedBox(height: 12),
+              Wrap(spacing: 8, runSpacing: 4, children: [
+                OutlinedButton(onPressed: _busy ? null : _check, child: const Text('Check this phone')),
+                OutlinedButton(onPressed: _busy ? null : _sendTest, child: const Text('Send me a test notification')),
+              ]),
+              if (_busy) const Padding(padding: EdgeInsets.only(top: 10), child: LinearProgressIndicator(color: kNavy)),
+              if (_diag != null)
+                Container(
+                  margin: const EdgeInsets.only(top: 12),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE5E7EB))),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    for (final r in _diag!)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 3),
+                        child: Text('${r[1].startsWith('yes') || r[1] == 'allowed' || r[1] == 'received' ? '✓' : '✕'}  ${r[0]}: ${r[1]}', style: TextStyle(fontSize: 12.5, height: 1.4, color: r[1].startsWith('yes') || r[1] == 'allowed' || r[1] == 'received' ? const Color(0xFF166534) : const Color(0xFF92400E))),
+                      ),
+                  ]),
+                ),
+              if (_testResult != null)
+                Container(
+                  margin: const EdgeInsets.only(top: 12),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: const Color(0xFFF3F4F6), borderRadius: BorderRadius.circular(12)),
+                  child: Text(_testResult!, style: const TextStyle(fontSize: 12.5, height: 1.4, color: Color(0xFF374151))),
+                ),
               const SizedBox(height: 18),
               const Text('Choose what to get', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Color(0xFF111827))),
               const SizedBox(height: 10),

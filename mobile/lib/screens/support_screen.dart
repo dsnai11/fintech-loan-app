@@ -106,6 +106,18 @@ class _SupportScreenState extends State<SupportScreen> {
     if (mounted) setState(() => _sending = false);
   }
 
+  bool get _staffJoined => _messages.any((m) => m['from'] == 'staff');
+
+  Future<void> _resume() async {
+    try {
+      await context.read<ApiService>().resumeAssistant();
+      _waitingSince = DateTime.now();
+      await _load();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
+    }
+  }
+
   Future<void> _askForPerson() async {
     try {
       await context.read<ApiService>().requestPerson();
@@ -147,6 +159,21 @@ class _SupportScreenState extends State<SupportScreen> {
           : Column(
               children: [
                 Expanded(child: _body()),
+                if (_assistantOn && !_botActive && _messages.isNotEmpty)
+                  Container(
+                    width: double.infinity,
+                    color: const Color(0xFFFEF3C7),
+                    padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
+                    child: Row(children: [
+                      Expanded(
+                        child: Text(
+                          _staffJoined ? 'A member of our team is helping you here.' : 'Our team has been asked to reply. You will get a notification when they do.',
+                          style: const TextStyle(fontSize: 12.5, color: Color(0xFF92400E), height: 1.35),
+                        ),
+                      ),
+                      if (!_staffJoined) TextButton(onPressed: _resume, child: const Text('Ask the assistant instead')),
+                    ]),
+                  ),
                 if (_assistantOn && _botActive && _messages.isNotEmpty)
                   Container(
                     color: Colors.white,
