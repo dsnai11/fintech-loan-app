@@ -25,7 +25,7 @@ class AppLock extends ChangeNotifier {
   }
 
   String _hash(String pin, String salt) {
-    var h = utf8.encode('$salt|$pin');
+    List<int> h = utf8.encode('$salt|$pin');
     for (var i = 0; i < 10000; i++) {
       h = sha256.convert(h).bytes;
     }
