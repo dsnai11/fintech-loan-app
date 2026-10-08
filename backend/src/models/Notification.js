@@ -6,7 +6,7 @@ const notificationSchema = new mongoose.Schema(
     loanId: { type: mongoose.Schema.Types.ObjectId, ref: 'Loan' },
     type: {
       type: String,
-      enum: ['LOAN_APPROVED', 'LOAN_REJECTED', 'LOAN_DISBURSED', 'EMI_PAID', 'EMI_REMINDER', 'EMI_OVERDUE', 'LOAN_CLOSED', 'COLLECTION_NOTICE', 'KYC_UPDATE', 'SUPPORT_REPLY', 'ANNOUNCEMENT', 'REFERRAL_REWARD', 'OFFER', 'AUTOPAY'],
+      enum: ['LOAN_APPROVED', 'LOAN_REJECTED', 'LOAN_DISBURSED', 'EMI_PAID', 'EMI_REMINDER', 'EMI_OVERDUE', 'LOAN_CLOSED', 'COLLECTION_NOTICE', 'KYC_UPDATE', 'SUPPORT_REPLY', 'ANNOUNCEMENT', 'REFERRAL_REWARD', 'OFFER', 'AUTOPAY', 'SETTLEMENT'],
       required: true,
     },
     title: { type: String, required: true },

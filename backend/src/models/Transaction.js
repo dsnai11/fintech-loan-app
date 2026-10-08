@@ -28,7 +28,7 @@ const transactionSchema = new mongoose.Schema(
     },
     paymentGateway: {
       type: String,
-      enum: ['RAZORPAY', 'CASHFREE', 'SANDBOX'],
+      enum: ['RAZORPAY', 'CASHFREE', 'SANDBOX', 'MANUAL'],
       default: 'SANDBOX',
     },
     transferId: {

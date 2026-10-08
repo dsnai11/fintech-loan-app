@@ -359,6 +359,24 @@ class ApiService {
     }
   }
 
+  // Settlement offers
+  Future<Map<String, dynamic>> getMySettlements() async {
+    try {
+      final response = await _dio.get('/settlements/mine');
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<void> respondSettlement(String id, bool accept) async {
+    try {
+      await _dio.post('/settlements/$id/${accept ? 'accept' : 'decline'}');
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   // Auto-debit of EMIs
   Future<Map<String, dynamic>> getMyMandates() async {
     try {

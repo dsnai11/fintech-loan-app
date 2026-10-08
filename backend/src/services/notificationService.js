@@ -131,6 +131,9 @@ export async function sendEmiReminders() {
   const { checkAndMarkOverdue } = await import('./emiService.js');
   await checkAndMarkOverdue();
 
+  const { getSettings } = await import('./collectionsAutomation.js');
+  if (getSettings().enabled) return { reminders: 0, overdueNotices: 0, replacedBy: 'automation' };
+
   const writtenOff = await Loan.find({ status: 'written_off' }).distinct('_id');
   const soon = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
   const upcoming = await EMIPayment.find({ status: 'PENDING', loanId: { $nin: writtenOff }, dueDate: { $lte: soon }, 'metadata.reminderSent': { $ne: true } });
@@ -200,6 +203,17 @@ export function startScheduler() {
       console.error('Auto-debit job failed:', e.message);
     }
   };
+  const reminders = async () => {
+    try {
+      const { runReminders, expireOffers } = await import('./collectionsAutomation.js');
+      await runReminders();
+      await expireOffers();
+    } catch (e) {
+      console.error('Reminder job failed:', e.message);
+    }
+  };
+  setTimeout(reminders, 90 * 1000);
+  setInterval(reminders, 30 * 60 * 1000);
   setTimeout(autoDebit, 60 * 1000);
   setInterval(autoDebit, 30 * 60 * 1000);
 }

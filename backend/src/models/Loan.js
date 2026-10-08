@@ -12,7 +12,7 @@ const loanSchema = new mongoose.Schema(
     decision: mongoose.Schema.Types.Mixed,
     // The Key Fact Statement the customer was shown when they applied. Later price changes never alter it.
     kfs: mongoose.Schema.Types.Mixed,
-    closureType: { type: String, enum: ['repaid', 'foreclosure', 'cooling_off'] },
+    closureType: { type: String, enum: ['repaid', 'foreclosure', 'cooling_off', 'settlement'] },
     loanType: { type: String, enum: ['Personal Loan', 'Micro Loan', 'Business Loan'], default: 'Personal Loan' },
     status: {
       type: String,

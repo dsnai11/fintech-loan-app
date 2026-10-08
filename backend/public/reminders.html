@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%E2%8F%B0%3C/text%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reminders and settlements - LIFC Admin</title>
+<style>
+* { box-sizing: border-box; }
+.card { padding: 16px; margin-bottom: 14px; }
+.card h2 { margin: 0 0 4px; font-size: 15px; }
+.sub { font-size: 12px; color: var(--e-muted); margin-bottom: 12px; line-height: 1.5; }
+.note { font-size: 12px; color: var(--e-muted); }
+.alert { display: none; padding: 12px 16px; margin-bottom: 14px; white-space: pre-line; }
+.alert.show { display: block; }
+.warn { background: var(--e-warn-soft); color: var(--e-warn); border-radius: 8px; padding: 10px 14px; font-size: 12.5px; line-height: 1.5; margin-bottom: 14px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; align-items: end; }
+.grid input { width: 100%; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 14px; }
+.tile { background: var(--e-surface); border: 1px solid var(--e-border); border-radius: 12px; padding: 14px; }
+.tile .l { font-size: 12px; color: var(--e-muted); font-weight: 600; }
+.tile .v { font-size: 22px; font-weight: 800; margin-top: 4px; }
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--e-muted); border-bottom: 1px solid var(--e-border); white-space: nowrap; }
+td { padding: 8px; border-bottom: 1px solid var(--e-border); vertical-align: top; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.chk { display: flex; gap: 6px; align-items: center; font-size: 13px; }
+.step { border: 1px solid var(--e-border); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+.step textarea { width: 100%; }
+.tag { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 20px; background: #E0ECFF; color: #1D4ED8; white-space: nowrap; }
+.tag.accepted, .tag.paid { background: #DCFCE7; color: #166534; }
+.tag.declined, .tag.expired, .tag.withdrawn { background: #F3F4F6; color: #4B5563; }
+</style>
+<link rel="stylesheet" href="assets/portal.css">
+</head>
+<body data-shell="app" data-title="Reminders and settlements" data-sub="Messages sent around each due date, and one-time settlement offers for customers who cannot repay in full.">
+<div class="container">
+  <div id="alert" class="alert" role="alert"></div>
+  <div class="warn"><b>Check with compliance before switching on.</b> The wording, the hours, and any waiver or settlement terms must follow your RBI-approved recovery and fair-practice policy. WhatsApp needs approved message templates and a provider (Integrations page). Reminders go in the app and as a push first; SMS and WhatsApp only where you tick them.</div>
+  <div class="tiles" id="tiles"></div>
+  <div id="main"></div>
+</div>
+<script>
+const API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
+const token = localStorage.getItem('admin_token');
+if (!token) location.href = 'admin-config.html';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const inr = n => '₹' + Math.round(n || 0).toLocaleString('en-IN');
+const when = d => (d ? new Date(d).toLocaleDateString('en-IN') : '');
+let D = null, S = null, ELIG = null, OFFERS = [];
+
+function msg(text, kind) {
+  const a = $('alert'); a.textContent = text; a.className = 'alert show ' + (kind === 'ok' ? 'ok' : 'err');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+async function api(path, method = 'GET', body) {
+  const r = await fetch(API + path, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.errors ? d.errors.join('\n') : d.error || 'Something went wrong');
+  return d;
+}
+const dayWord = o => (o < 0 ? `${-o} day${o === -1 ? '' : 's'} before` : o === 0 ? 'On' : `${o} day${o === 1 ? '' : 's'} after`);
+function num(id, label, v, extra = '') { return `<div><label for="${id}">${label}</label><input id="${id}" type="number" value="${v ?? ''}" ${extra} ${D.canManage ? '' : 'disabled'}></div>`; }
+function sw(id, on, label) { return `<label class="chk"><input type="checkbox" id="${id}" ${on ? 'checked' : ''} ${D.canManage ? '' : 'disabled'}> ${label}</label>`; }
+
+function stepHtml(s, i) {
+  return `<div class="step"><div class="grid">
+    ${num('st-off-' + i, 'Day (negative = before the due date)', s.offset)}
+    <div><label for="st-title-${i}">Title</label><input id="st-title-${i}" value="${esc(s.title)}" ${D.canManage ? '' : 'disabled'}></div>
+    <div class="row">${sw('st-sms-' + i, s.sms, 'Also SMS')}${sw('st-wa-' + i, s.whatsapp, 'Also WhatsApp')}${D.canManage ? `<button class="btn" onclick="removeStep(${i})">Remove</button>` : ''}</div></div>
+    <label for="st-msg-${i}" style="margin-top:8px">Message (use {name}, {amount}, {date}, {days})</label><textarea id="st-msg-${i}" rows="2" ${D.canManage ? '' : 'disabled'}>${esc(s.message)}</textarea></div>`;
+}
+function collect() {
+  const n = id => Number($(id).value);
+  return {
+    enabled: $('on').checked, quietStart: n('qs'), quietEnd: n('qe'), dailyCap: n('cap'), holdOnPromise: $('hold').checked, skipBeforeDueOnAutoDebit: $('skipad').checked,
+    steps: S.steps.map((_, i) => ({ offset: n('st-off-' + i), title: $('st-title-' + i).value, message: $('st-msg-' + i).value, sms: $('st-sms-' + i).checked, whatsapp: $('st-wa-' + i).checked })),
+    settlement: { enabled: $('so-on').checked, minDaysOverdue: n('so-min'), maxWaiverPercent: n('so-max'), validDays: n('so-valid') },
+  };
+}
+function addStep() { S = collect(); S.steps.push({ offset: 5, title: 'Reminder', message: 'Hi {name}, your EMI of {amount} is overdue.', sms: false, whatsapp: false }); draw(); }
+function removeStep(i) { S = collect(); S.steps.splice(i, 1); draw(); }
+
+function draw() {
+  const st = D.stats;
+  $('tiles').innerHTML = [['Status', S.enabled ? 'On' : 'Off'], ['Sent (7 days)', st.total], ['WhatsApp', D.whatsapp === 'live' ? 'Live' : D.whatsapp === 'test' ? 'Test mode' : 'Not set up'], ...st.byStep.map(x => [dayWord(x.offset), x.sent])].map(x => `<div class="tile"><div class="l">${esc(x[0])}</div><div class="v">${esc(x[1])}</div></div>`).join('');
+  const ro = D.canManage ? '' : '<div class="note">Your role can look but not change these.</div>';
+  $('main').innerHTML = `
+  <div class="card"><h2>Automatic reminders</h2><div class="sub">For each customer's oldest unpaid EMI, the latest step whose day has come is sent once. Nothing is sent in quiet hours (India time), no customer gets more than the daily limit, and customers who promised to pay are left alone until their date passes.</div>
+    <div class="row" style="margin-bottom:12px">${sw('on', S.enabled, '<b>Reminders are on</b>')}</div>
+    <div class="grid">${num('qs', 'Quiet hours start (hour, 0-23)', S.quietStart)}${num('qe', 'Quiet hours end (hour)', S.quietEnd)}${num('cap', 'Most reminders a customer gets in a day', S.dailyCap)}</div>
+    <div class="row" style="margin:12px 0">${sw('hold', S.holdOnPromise, 'Pause while a promise to pay is running')}${sw('skipad', S.skipBeforeDueOnAutoDebit, 'Skip the days-before reminders for customers on auto-debit')}</div>
+    <div id="steps">${S.steps.map(stepHtml).join('')}</div>
+    ${D.canManage ? '<button class="btn" onclick="addStep()">Add a step</button>' : ''}
+    ${ro}</div>
+  <div class="card"><h2>Settlement offers</h2><div class="sub">A one-time settlement lets a customer who is far behind close the loan for less than the full amount. The customer accepts in the app, pays outside the app to the company account, and the collections team records the payment, which closes the loan as settled. Waiver limits are your policy: confirm them with compliance and finance.</div>
+    <div class="row" style="margin-bottom:12px">${sw('so-on', S.settlement.enabled, '<b>Settlement offers are on</b>')}</div>
+    <div class="grid">${num('so-min', 'Days overdue before an offer can be made', S.settlement.minDaysOverdue)}${num('so-max', 'Largest waiver collections staff can give (%)', S.settlement.maxWaiverPercent)}${num('so-valid', 'Days an offer stays open', S.settlement.validDays)}</div></div>
+  ${D.canManage ? '<div class="row" style="margin-bottom:14px"><button class="btn primary" onclick="save()">Save</button><button class="btn" onclick="runNow()">Send due reminders now</button></div>' : ''}
+  <div class="card"><h2>Loans that can be offered a settlement</h2><div class="sub">Loans at least ${S.settlement.minDaysOverdue} days overdue.</div><div class="scroll" id="elig"></div></div>
+  <div class="card"><h2>Offers</h2><div class="scroll" id="offers"></div></div>
+  <div class="card"><h2>Recent reminders</h2><div class="scroll">${st.recent.length ? `<table><thead><tr><th>When</th><th>Customer</th><th>Step</th><th>App</th><th>SMS</th><th>WhatsApp</th></tr></thead><tbody>${st.recent.map(r => `<tr><td>${new Date(r.at).toLocaleString('en-IN')}</td><td>${esc(r.customer)}</td><td>${esc(dayWord(r.offset))}</td><td>${esc(r.results?.app || '')}</td><td>${esc(r.results?.sms || '')}</td><td>${esc(r.results?.whatsapp || '')}</td></tr>`).join('')}</tbody></table>` : '<div class="note">Nothing sent in the last 7 days.</div>'}</div></div>`;
+  drawElig(); drawOffers();
+}
+function drawElig() {
+  if (!ELIG) return;
+  $('elig').innerHTML = ELIG.items.length ? `<table><thead><tr><th>Customer</th><th>Days overdue</th><th>Overdue now</th><th>Offer</th></tr></thead><tbody>${ELIG.items.map(i => `<tr><td>${esc(i.customer)}<div class="note">${esc(i.phone || '')}</div></td><td>${i.daysOverdue}</td><td>${inr(i.amountDue)}</td><td>${D.canManage && ELIG.enabled ? `<div class="row"><input id="w-${i.loanId}" type="number" value="10" min="1" max="90" style="width:70px"> % off <button class="btn" onclick="offer('${i.loanId}')">Offer</button></div>` : '<span class="note">' + (ELIG.enabled ? 'View only' : 'Switch offers on first') + '</span>'}</td></tr>`).join('')}</tbody></table>` : '<div class="note">None right now.</div>';
+}
+function drawOffers() {
+  $('offers').innerHTML = OFFERS.length ? `<table><thead><tr><th>Customer</th><th>Status</th><th>Owed in full</th><th>Settle for</th><th>Open until</th><th></th></tr></thead><tbody>${OFFERS.map(o => `<tr><td>${esc(o.customer)}<div class="note">${esc(o.phone)} · by ${esc(o.createdBy || '')}</div></td><td><span class="tag ${esc(o.status)}">${esc(o.status)}</span>${o.paidReference ? `<div class="note">Ref ${esc(o.paidReference)}</div>` : ''}</td><td>${inr(o.originalDue)}</td><td>${inr(o.amount)} <span class="note">(${o.waiverPercent}% off)</span></td><td>${when(o.validUntil)}</td>
+    <td>${D.canManage && o.status === 'accepted' ? `<div class="row"><input id="amt-${o.id}" type="number" value="${o.amount}" style="width:90px" title="Amount received"><input id="ref-${o.id}" placeholder="Bank or UPI reference" style="width:170px"><button class="btn primary" onclick="paid('${o.id}')">Money received</button></div>` : ''}${D.canManage && ['offered', 'accepted'].includes(o.status) ? `<button class="btn" onclick="withdraw('${o.id}')">Withdraw</button>` : ''}</td></tr>`).join('')}</tbody></table>` : '<div class="note">No offers yet.</div>';
+}
+async function load() {
+  try {
+    D = await api('/admin/reminders'); S = D.settings;
+    [ELIG, OFFERS] = await Promise.all([api('/admin/reminders/eligible'), api('/admin/reminders/settlements').then(r => r.offers)]);
+    draw();
+  } catch (e) { msg(e.message, 'err'); }
+}
+async function save() { try { const r = await api('/admin/reminders/settings', 'PUT', collect()); msg(r.message, 'ok'); load(); } catch (e) { msg(e.message, 'err'); } }
+async function runNow() { try { const r = await api('/admin/reminders/run', 'POST', {}); msg(r.message, 'ok'); load(); } catch (e) { msg(e.message, 'err'); } }
+async function offer(loanId) { try { await api('/admin/reminders/settlements', 'POST', { loanId, waiverPercent: Number($('w-' + loanId).value) }); msg('Offer sent to the customer.', 'ok'); load(); } catch (e) { msg(e.message, 'err'); } }
+async function paid(id) {
+  const amount = Number($('amt-' + id).value);
+  const reference = $('ref-' + id).value.trim();
+  try { await api(`/admin/reminders/settlements/${id}/paid`, 'POST', { amount, reference }); msg('Recorded. The loan is closed as settled.', 'ok'); load(); } catch (e) { msg(e.message, 'err'); }
+}
+async function withdraw(id) { try { await api(`/admin/reminders/settlements/${id}/withdraw`, 'POST', {}); msg('Withdrawn.', 'ok'); load(); } catch (e) { msg(e.message, 'err'); } }
+load();
+</script>
+<script src="assets/portal.js"></script>
+</body>
+</html>

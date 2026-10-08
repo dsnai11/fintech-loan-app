@@ -6,6 +6,7 @@ import '../main.dart';
 import '../services/api_service.dart';
 import '../utils/error_utils.dart';
 import '../widgets/auto_debit_card.dart';
+import '../widgets/settlement_offer_card.dart';
 
 class LoanDetailScreen extends StatefulWidget {
   final Map<String, dynamic> loan;
@@ -275,6 +276,10 @@ class _LoanDetailScreenState extends State<LoanDetailScreen> {
               icon: const Icon(Icons.description_outlined),
               label: const Text('View loan statement'),
             ),
+          ],
+          if (widget.loan['status'] == 'disbursed' || widget.loan['status'] == 'defaulted') ...[
+            const SizedBox(height: 12),
+            SettlementOfferCard(loanId: _loanId, onChanged: _fetch),
           ],
           if (widget.loan['status'] == 'disbursed' && _emis.any((e) => e['status'] != 'PAID' && e['status'] != 'WAIVED')) ...[
             const SizedBox(height: 12),

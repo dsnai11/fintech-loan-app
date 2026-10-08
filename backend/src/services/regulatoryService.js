@@ -155,7 +155,7 @@ export async function bureauFile(now = new Date()) {
   };
   const rows = [
     ...c.loans.map(l => row(loans[l.loanId], { balance: l.outstanding, overdue: l.overdueAmount, dpd: l.dpd, cls: SHORT[l.class] })),
-    ...closed.map(l => row(l, { balance: 0, overdue: 0, dpd: 0, cls: 'CLSD' })),
+    ...closed.map(l => row(l, { balance: 0, overdue: 0, dpd: 0, cls: l.closureType === 'settlement' ? 'SETTLED' : 'CLSD' })),
   ];
   return { header, rows };
 }
