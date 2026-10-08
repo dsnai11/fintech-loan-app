@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
+import net from 'node:net';
 import mongoose from 'mongoose';
 
 // Tokens are signed and checked with this secret, in this process and in the servers we start.
@@ -10,6 +11,12 @@ process.env.ADMIN_EMAIL = 'admin@lifc.in';
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const backendDir = path.resolve(here, '..');
 export const MONGO = (process.env.TEST_MONGO_URL || 'mongodb://localhost:27017').replace(/\/$/, '');
+
+// Every server a suite starts is stopped when the suite ends, so no server is left running to hold a port for the next suite.
+const children = new Set();
+process.on('exit', () => { for (const c of children) { try { c.kill(); } catch (e) { /* already gone */ } } });
+// Asks the system for a port nobody is using
+const freePort = () => new Promise((resolve, reject) => { const s = net.createServer(); s.once('error', reject); s.listen(0, '127.0.0.1', () => { const { port } = s.address(); s.close(() => resolve(port)); }); });
 
 let passed = 0;
 let failed = 0;
@@ -41,7 +48,7 @@ async function waitForHealth(url, ms, exited) {
 // Starts the real server as a child process on a random port, against its own database.
 export async function startServer(db, env = {}) {
   for (let attempt = 0; attempt < 5; attempt++) {
-    const port = 5100 + Math.floor(Math.random() * 3000);
+    const port = await freePort();
     const child = spawn(process.execPath, ['src/index.js'], {
       cwd: backendDir,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -68,6 +75,7 @@ export async function startServer(db, env = {}) {
         ...env,
       },
     });
+    children.add(child);
     let logs = '';
     child.stdout.on('data', d => { logs += d; });
     child.stderr.on('data', d => { logs += d; });
