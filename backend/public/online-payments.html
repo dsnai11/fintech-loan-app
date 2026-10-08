@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%92%B3%3C/text%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Online payments - LIFC Admin</title>
+<style>
+* { box-sizing: border-box; }
+.card { padding: 16px; margin-bottom: 14px; }
+.card h2 { margin: 0 0 4px; font-size: 15px; }
+.sub { font-size: 12px; color: var(--e-muted); margin-bottom: 12px; line-height: 1.5; }
+.note { font-size: 12px; color: var(--e-muted); }
+.alert { display: none; padding: 12px 16px; margin-bottom: 14px; white-space: pre-line; }
+.alert.show { display: block; }
+.state { padding: 10px 12px; border-radius: 8px; font-size: 13px; line-height: 1.5; margin-bottom: 14px; background: var(--e-primary-soft); color: var(--e-primary); }
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--e-muted); border-bottom: 1px solid var(--e-border); white-space: nowrap; }
+td { padding: 8px; border-bottom: 1px solid var(--e-border); vertical-align: top; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.tag { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 20px; background: #E0ECFF; color: #1D4ED8; white-space: nowrap; }
+.tag.paid, .tag.resolved { background: #DCFCE7; color: #166534; }
+.tag.review { background: #FEE2E2; color: #991B1B; }
+.tag.processing { background: #FEF3C7; color: #92400E; }
+</style>
+<link rel="stylesheet" href="assets/portal.css">
+</head>
+<body data-shell="app" data-title="Online payments" data-sub="Customers paying several EMIs, closing a loan or paying a settlement online. Payments that arrived but could not be applied by themselves show here.">
+<div class="container">
+  <div id="alert" class="alert" role="alert"></div>
+  <div id="mode" class="state" style="display:none"></div>
+  <div class="card">
+    <h2>Payments</h2>
+    <div class="sub">A payment is applied to the loan only when the payment provider confirms it. If it cannot be applied (for example the instalment was paid by auto-debit in between, or less than the right amount arrived) it is held here as <b>review</b>. The customer has been told not to pay again. Refund it or apply it by hand, then write what you did.</div>
+    <div class="row" style="margin-bottom:10px"><label for="flt" style="margin:0">Show</label>
+      <select id="flt" onchange="load()"><option value="">Paid and needing review</option><option value="review">Needing review</option><option value="paid">Paid</option><option value="resolved">Resolved</option><option value="created">Started, not paid</option><option value="expired">Expired</option><option value="cancelled">Cancelled</option></select></div>
+    <div class="scroll" id="list"></div>
+  </div>
+</div>
+<script>
+const API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
+const token = localStorage.getItem('admin_token');
+if (!token) location.href = 'admin-config.html';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const inr = n => '₹' + Math.round(n || 0).toLocaleString('en-IN');
+const PURPOSE = { pay_ahead: 'Several EMIs', foreclosure: 'Close the loan', settlement: 'Settlement' };
+let D = null;
+function msg(text, kind) { const a = $('alert'); a.textContent = text; a.className = 'alert show ' + (kind === 'ok' ? 'ok' : 'err'); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+async function api(path, method = 'GET', body) {
+  const r = await fetch(API + path, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.errors ? d.errors.join('\n') : d.error || 'Something went wrong');
+  return d;
+}
+function draw() {
+  $('mode').style.display = D.note ? '' : 'none';
+  $('mode').textContent = D.note || '';
+  $('list').innerHTML = D.payments.length ? `<table><thead><tr><th>When</th><th>Customer</th><th>For</th><th>Amount</th><th>Status</th><th>Provider reference</th><th></th></tr></thead><tbody>${D.payments.map(p => `<tr>
+    <td>${new Date(p.at).toLocaleString('en-IN')}</td><td>${esc(p.customer)}<div class="note">${esc(p.phone)}</div></td><td>${esc(PURPOSE[p.purpose] || p.purpose)}</td><td>${inr(p.amount)}</td>
+    <td><span class="tag ${esc(p.status)}">${esc(p.status)}</span>${p.reviewReason ? `<div class="note">${esc(p.reviewReason)}</div>` : ''}</td><td class="note">${esc(p.paymentId || '')}</td>
+    <td>${D.canManage && p.status === 'review' ? `<div class="row"><input id="n-${p.id}" placeholder="What you did" style="width:190px"><button class="btn primary" onclick="resolve('${p.id}')">Mark resolved</button></div>` : ''}</td></tr>`).join('')}</tbody></table>` : '<div class="note">Nothing here.</div>';
+}
+async function load() { try { D = await api('/admin/online-payments' + ($('flt').value ? '?status=' + $('flt').value : '')); draw(); } catch (e) { msg(e.message, 'err'); } }
+async function resolve(id) { try { await api(`/admin/online-payments/${id}/resolve`, 'POST', { note: $('n-' + id).value }); msg('Marked resolved.', 'ok'); load(); } catch (e) { msg(e.message, 'err'); } }
+load();
+</script>
+<script src="assets/portal.js"></script>
+</body>
+</html>

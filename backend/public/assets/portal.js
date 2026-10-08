@@ -42,6 +42,7 @@
     { group: 'Recovery' },
     { href: 'collections.html', label: 'Collections', icon: 'phone', any: ['collections.view'] },
     { href: 'reminders.html', label: 'Reminders and settlements', icon: 'phone', any: ['collections.view'] },
+    { href: 'online-payments.html', label: 'Online payments', icon: 'emi', any: ['collections.view'] },
     { href: 'mandates.html', label: 'Auto-debit', icon: 'emi', any: ['collections.view'] },
     { group: 'Risk and reporting' },
     { href: 'compliance.html', label: 'Compliance', icon: 'shield', any: ['kyc.view', 'aml.view', 'audit.view', 'requests.process'] },

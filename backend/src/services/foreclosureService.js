@@ -63,14 +63,16 @@ export async function getForeclosureQuote(loanId, now = new Date()) {
   };
 }
 
-export async function executeForeclosure(loanId, expectedTotal, paidBy) {
-  if (process.env.PAYMENT_MODE === 'PRODUCTION') {
+export async function executeForeclosure(loanId, expectedTotal, paidBy, { gatewayPaid = false, paymentId = null } = {}) {
+  // In production the money must come through the payment provider (see onlinePayments.js); only that path sets gatewayPaid
+  if (process.env.PAYMENT_MODE === 'PRODUCTION' && !gatewayPaid) {
     throw fail(501, 'Online early closure is not enabled yet. Please contact support.');
   }
   const now = new Date();
   const { loan, overdueItems, future, quote } = await getForeclosureQuote(loanId, now);
 
-  if (!Number.isFinite(expectedTotal) || Math.abs(expectedTotal - quote.total) > 1) {
+  // A payment already made through the provider was for the quote we gave, so it is honoured even if the figure moved overnight
+  if (!gatewayPaid && (!Number.isFinite(expectedTotal) || Math.abs(expectedTotal - quote.total) > 1)) {
     throw fail(409, 'The amount changed. Please review the new quote.', { quote });
   }
 
@@ -96,7 +98,7 @@ export async function executeForeclosure(loanId, expectedTotal, paidBy) {
   for (const { emi, penalty } of overdueItems) {
     await EMIPayment.updateOne(
       { _id: emi._id },
-      { status: 'PAID', paidDate: now, paidAmount: emi.amount + penalty, penaltyApplied: penalty, paymentId: `foreclosure_${Date.now()}`, notes: 'Paid as part of early closure' }
+      { status: 'PAID', paidDate: now, paidAmount: emi.amount + penalty, penaltyApplied: penalty, paymentId: paymentId || `foreclosure_${Date.now()}`, notes: 'Paid as part of early closure' }
     );
   }
   await EMIPayment.updateMany(
@@ -110,9 +112,9 @@ export async function executeForeclosure(loanId, expectedTotal, paidBy) {
     type: 'EMI_PAYMENT',
     amount: quote.total,
     status: 'COMPLETED',
-    paymentGateway: 'SANDBOX',
-    referenceId: 'FORECLOSURE',
-    metadata: { sandbox: true, initiatedBy: paidBy, completedAt: now },
+    paymentGateway: gatewayPaid ? 'RAZORPAY' : 'SANDBOX',
+    referenceId: gatewayPaid && paymentId ? String(paymentId) : 'FORECLOSURE',
+    metadata: { sandbox: !gatewayPaid, initiatedBy: paidBy, completedAt: now },
   });
 
   await audit({ email: paidBy, role: 'customer' }, 'LOAN_FORECLOSED', { type: 'Loan', id: loanId }, { total: quote.total, fee: quote.fee });

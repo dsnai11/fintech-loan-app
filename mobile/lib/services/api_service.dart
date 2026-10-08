@@ -377,6 +377,42 @@ class ApiService {
     }
   }
 
+  // Paying early and planning
+  Future<Map<String, dynamic>> getPayOptions(String loanId) async {
+    try {
+      final response = await _dio.get('/pay/options/$loanId');
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> startOnlinePayment(String loanId, String purpose, {int? count}) async {
+    try {
+      final response = await _dio.post('/pay/start', data: {'loanId': loanId, 'purpose': purpose, if (count != null) 'count': count});
+      return Map<String, dynamic>.from(response.data['payment']);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> onlinePaymentStatus(String id) async {
+    try {
+      final response = await _dio.get('/pay/status/$id');
+      return Map<String, dynamic>.from(response.data['payment']);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<void> changeDueDate(String loanId, int day) async {
+    try {
+      await _dio.post('/pay/change-date/$loanId', data: {'day': day});
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   // Auto-debit of EMIs
   Future<Map<String, dynamic>> getMyMandates() async {
     try {

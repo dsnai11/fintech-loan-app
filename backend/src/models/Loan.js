@@ -49,6 +49,7 @@ const loanSchema = new mongoose.Schema(
     writtenOffAmount: Number,
     writeOffReason: String,
     recoveredAmount: { type: Number, default: 0 },
+    dateChanges: [mongoose.Schema.Types.Mixed], // times the customer moved the due day: { at, fromDay, toDay, shiftDays, by }
     foreclosure: {
       date: Date,
       amount: Number,

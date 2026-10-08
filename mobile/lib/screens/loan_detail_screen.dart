@@ -6,6 +6,7 @@ import '../main.dart';
 import '../services/api_service.dart';
 import '../utils/error_utils.dart';
 import '../widgets/auto_debit_card.dart';
+import 'pay_options_screen.dart';
 import '../widgets/settlement_offer_card.dart';
 
 class LoanDetailScreen extends StatefulWidget {
@@ -85,8 +86,12 @@ class _LoanDetailScreenState extends State<LoanDetailScreen> {
       final res = await context.read<ApiService>().payEmi(_loanId, n);
       if (!mounted) return;
       final paid = res['status'] == 'PAID';
+      final payUrl = res['paymentUrl']?.toString();
+      if (!paid && payUrl != null && payUrl.isNotEmpty) {
+        await launchUrl(Uri.parse(payUrl), mode: LaunchMode.externalApplication);
+      }
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(paid ? 'EMI #$n paid successfully' : 'Payment started for EMI #$n'),
+        content: Text(paid ? 'EMI #$n paid successfully' : 'Payment started for EMI #$n. Finish it on the payment page, then come back and refresh.'),
       ));
       await _fetch();
     } catch (e) {
@@ -291,6 +296,17 @@ class _LoanDetailScreenState extends State<LoanDetailScreen> {
               onPressed: _paying == null ? _coolOff : null,
               icon: const Icon(Icons.undo_rounded),
               label: const Text('Cancel this loan (cooling-off)'),
+            ),
+          ],
+          if (widget.loan['status'] == 'disbursed' && _emis.any((e) => e['status'] != 'PAID' && e['status'] != 'WAIVED')) ...[
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () async {
+                final changed = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => PayOptionsScreen(loanId: _loanId)));
+                if (changed == true) _fetch();
+              },
+              icon: const Icon(Icons.tune_rounded),
+              label: const Text('Pay early, close or change due date'),
             ),
           ],
           if (widget.loan['status'] == 'disbursed' && _emis.any((e) => e['status'] != 'PAID' && e['status'] != 'WAIVED')) ...[

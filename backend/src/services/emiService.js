@@ -209,6 +209,7 @@ export async function initiateEMIPayment(loanId, emiNumber, userId) {
       success: true,
       emiId: emi._id,
       invoiceId,
+      paymentUrl: invoiceResponse.data.short_url || null,
       amount: totalAmount,
       emiNumber,
     };
