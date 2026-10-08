@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Partner sign-in - LIFC</title>
+<style>
+* { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, "Segoe UI", Roboto, Arial, sans-serif; background: #f1f5f9; color: #0f172a; line-height: 1.5; }
+header { background: #0f172a; color: #fff; padding: 14px 18px; display: flex; align-items: center; gap: 12px; }
+header b { font-size: 16px; } header span { font-size: 12px; color: #94a3b8; }
+header button { margin-left: auto; }
+main { max-width: 980px; margin: 0 auto; padding: 18px 14px 48px; }
+.card { background: #fff; border: 1px solid #dbe2ea; border-radius: 10px; padding: 16px; margin-bottom: 14px; }
+.card h2 { margin: 0 0 8px; font-size: 15px; }
+label { display: block; font-size: 12px; font-weight: 600; color: #475569; margin: 10px 0 4px; }
+input { width: 100%; padding: 10px; border: 1px solid #c3cdd9; border-radius: 8px; font: inherit; font-size: 16px; }
+button { padding: 10px 16px; border: 1px solid #c3cdd9; background: #fff; border-radius: 8px; font: 600 14px system-ui; cursor: pointer; }
+button.primary { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+.alert { padding: 10px 14px; border-radius: 8px; margin-bottom: 12px; font-size: 14px; display: none; }
+.alert.show { display: block; background: #fdecec; color: #b91c1c; }
+.alert.ok.show { background: #e3f5ee; color: #047857; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 14px; }
+.tile { background: #fff; border: 1px solid #dbe2ea; border-radius: 10px; padding: 14px; }
+.tile .l { font-size: 12px; color: #64748b; font-weight: 600; } .tile .v { font-size: 22px; font-weight: 800; margin-top: 4px; }
+.code { font-size: 26px; font-weight: 800; letter-spacing: .08em; background: #e8eefc; color: #1d4ed8; border-radius: 8px; padding: 8px 14px; display: inline-block; }
+.scroll { overflow-x: auto; } table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #64748b; border-bottom: 1px solid #dbe2ea; white-space: nowrap; } td { padding: 8px; border-bottom: 1px solid #e5e7eb; }
+.note { font-size: 12px; color: #64748b; }
+#login { max-width: 380px; margin: 40px auto; }
+.hide { display: none; }
+</style>
+</head>
+<body>
+<header><b>LIFC Partner</b><span>Your customers and your commission</span><button id="out" class="hide" onclick="signOut()">Sign out</button></header>
+<main>
+  <div id="alert" class="alert" role="alert"></div>
+  <div id="login" class="card"><h2>Sign in</h2>
+    <label for="em">Email</label><input id="em" type="email" autocomplete="username">
+    <label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password">
+    <div style="margin-top:14px"><button class="primary" onclick="signIn()">Sign in</button></div>
+    <div class="note" style="margin-top:10px">Your password was given to you by LIFC. If you have lost it, ask your LIFC contact to reset it.</div></div>
+  <div id="pwbox" class="card hide"><h2>Choose a new password</h2><div class="note">You must change the password you were given before you continue.</div>
+    <label for="cur">Current password</label><input id="cur" type="password" autocomplete="current-password">
+    <label for="nw">New password (at least 10 characters)</label><input id="nw" type="password" autocomplete="new-password">
+    <div style="margin-top:14px"><button class="primary" onclick="changePw()">Change password</button></div></div>
+  <div id="dash" class="hide"></div>
+</main>
+<script>
+const API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.origin) + '/api/partner';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const inr = n => '₹' + (Math.round((n || 0) * 100) / 100).toLocaleString('en-IN');
+const get = () => { try { return sessionStorage.getItem('partner_token'); } catch (e) { return null; } };
+function msg(t, ok) { const a = $('alert'); a.textContent = t; a.className = 'alert show' + (ok ? ' ok' : ''); }
+async function call(path, method = 'GET', body) {
+  const r = await fetch(API + path, { method, headers: { 'Content-Type': 'application/json', ...(get() ? { Authorization: 'Bearer ' + get() } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  const d = await r.json().catch(() => ({}));
+  if (r.status === 401 && get()) { signOut(); throw new Error(d.error || 'Please sign in again.'); }
+  if (!r.ok) throw new Error(d.error || 'Something went wrong');
+  return d;
+}
+async function signIn() {
+  try {
+    const d = await call('/login', 'POST', { email: $('em').value, password: $('pw').value });
+    try { sessionStorage.setItem('partner_token', d.token); } catch (e) { /* private window */ }
+    $('pw').value = ''; $('alert').className = 'alert';
+    load();
+  } catch (e) { msg(e.message); }
+}
+function signOut() { try { sessionStorage.removeItem('partner_token'); } catch (e) {} $('login').classList.remove('hide'); $('dash').classList.add('hide'); $('pwbox').classList.add('hide'); $('out').classList.add('hide'); }
+async function changePw() {
+  try { await call('/change-password', 'POST', { current: $('cur').value, next: $('nw').value }); signOut(); msg('Password changed. Please sign in with the new one.', true); } catch (e) { msg(e.message); }
+}
+function copyCode(c) { try { navigator.clipboard.writeText(c).then(() => msg('Code copied.', true)); } catch (e) { msg('Select the code and copy it.'); } }
+async function load() {
+  if (!get()) return;
+  try {
+    const d = await call('/me');
+    $('login').classList.add('hide'); $('out').classList.remove('hide');
+    if (d.profile.mustChangePassword) { $('pwbox').classList.remove('hide'); $('dash').classList.add('hide'); return; }
+    $('pwbox').classList.add('hide'); $('dash').classList.remove('hide');
+    const c = d.counts, m = d.money;
+    $('dash').innerHTML = `<div class="card"><h2>Hello, ${esc(d.profile.name)}</h2><div>Your code: <span class="code">${esc(d.profile.code)}</span> <button onclick="copyCode('${esc(d.profile.code)}')">Copy</button></div>
+      <div class="note" style="margin-top:8px">Give this code to your customers. They type it in the box for a referral code when they sign up in the LIFC app. You earn ${d.profile.commissionPercent}% of the first loan paid out to each of them. If the customer cancels in the cooling-off period, the commission is cancelled.</div></div>
+      <div class="tiles">${[['Customers', c.customers], ['Finished set-up', c.setupDone], ['Applied', c.applied], ['Loans paid out', c.disbursed], ['Commission to be paid', inr(m.due)], ['Commission received', inr(m.paid)]].map(x => `<div class="tile"><div class="l">${x[0]}</div><div class="v">${x[1]}</div></div>`).join('')}</div>
+      <div class="card"><h2>Your customers</h2><div class="note" style="margin-bottom:8px">Names are shortened and phone numbers hidden to protect your customers' privacy.</div><div class="scroll">${d.leads.length ? `<table><thead><tr><th>Customer</th><th>Phone</th><th>Joined</th><th>Where they are</th><th>Paid out</th></tr></thead><tbody>${d.leads.map(l => `<tr><td>${esc(l.name)}</td><td>${esc(l.phone)}</td><td>${new Date(l.joined).toLocaleDateString('en-IN')}</td><td>${esc(l.stageText)}</td><td>${l.amount ? inr(l.amount) : ''}</td></tr>`).join('')}</tbody></table>` : '<div class="note">No customers yet. Share your code to get started.</div>'}</div></div>
+      <div class="card"><h2>Your commission</h2><div class="scroll">${d.commissions.length ? `<table><thead><tr><th>Date</th><th>Loan</th><th>Rate</th><th>Commission</th><th>Tax deducted</th><th>You receive</th><th>Status</th></tr></thead><tbody>${d.commissions.map(x => `<tr><td>${new Date(x.at).toLocaleDateString('en-IN')}</td><td>${inr(x.loanAmount)}</td><td>${x.percent}%</td><td>${inr(x.gross)}</td><td>${x.status === 'paid' ? inr(x.tds) : ''}</td><td>${x.status === 'paid' ? inr(x.net) : ''}</td><td>${esc(x.status === 'due' ? 'To be paid' : x.status === 'paid' ? 'Paid' + (x.reference ? ' (ref ' + x.reference + ')' : '') : 'Cancelled' + (x.voidReason ? ': ' + x.voidReason : ''))}</td></tr>`).join('')}</tbody></table>` : '<div class="note">Commission appears here once a customer\'s loan is paid out.</div>'}</div></div>`;
+  } catch (e) { msg(e.message); }
+}
+load();
+</script>
+</body>
+</html>

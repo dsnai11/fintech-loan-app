@@ -12,6 +12,7 @@ import { lockedSeconds, recordFailure, recordSuccess, lockMessage } from '../ser
 import { isStaffRole, permissionsOf, ensureRoles } from '../services/permissions.js';
 import { checkCode, attach } from '../services/referralService.js';
 import { recordDevice } from '../services/deviceService.js';
+import { isPartnerCode, findByCode, attachLead } from '../services/partnerService.js';
 
 // Checked against when the email is unknown, so a wrong email and a wrong password take the same time.
 const DUMMY_HASH = bcrypt.hashSync('not-a-real-password', 10);
@@ -49,7 +50,13 @@ router.post('/signup', async (req, res) => {
     }
 
     // An optional referral code from a friend
-    const referral = await checkCode(req.body.referralCode, { phone: String(phone), email });
+    // The same box takes a friend's code (LIFC...) or a partner's code (AGT...)
+    let partner = null;
+    if (isPartnerCode(req.body.referralCode)) {
+      partner = await findByCode(req.body.referralCode);
+      if (!partner) return res.status(400).json({ error: 'That agent code is not valid. Check it, or leave it empty.', code: 'REFERRAL_INVALID' });
+    }
+    const referral = partner ? { none: true } : await checkCode(req.body.referralCode, { phone: String(phone), email });
     if (referral.error) return res.status(400).json({ error: referral.error, code: 'REFERRAL_INVALID' });
 
     const user = new User({
@@ -69,6 +76,7 @@ router.post('/signup', async (req, res) => {
       else user.acquisition = { source: 'app', campaign: '', medium: '' };
     }
     await user.save();
+    if (partner) await attachLead(partner, user);
     if (referral.referrer) {
       try { await attach(user, referral.referrer, referral.code, req); } catch (e) { console.error('Referral link failed:', e.message); } // the account is still created
     }

@@ -201,7 +201,7 @@ export async function paymentsToIndividuals({ from, to } = {}) {
   for (const r of loy) add('On-time reward', t.loyalty, r.userId, r.cashback, r.paidAt, r.paidReference);
   try {
     const { partnerPayouts } = await import('./partnerService.js');
-    for (const p of await partnerPayouts(start, end)) add('Partner commission', t.partner, p.partnerId, p.gross, p.paidAt, p.reference);
+    for (const p of await partnerPayouts(start, end)) rows.push({ kind: 'Partner commission', date: istDate(p.paidAt), name: p.name, pan: p.pan, amount: r2(p.gross), rate: p.tdsPercent, tds: r2(p.tds), net: r2(p.net), reference: p.reference || '' });
   } catch (e) { /* partners are optional */ }
   return rows.sort((a, b) => a.date.localeCompare(b.date));
 }

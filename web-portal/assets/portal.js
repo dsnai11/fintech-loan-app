@@ -39,6 +39,7 @@
     { href: 'support.html', label: 'Messages', icon: 'chat', any: ['support.view', 'announcements.send'] },
     { href: 'callbacks.html', label: 'Call-back requests', icon: 'phone', any: ['support.view'] },
     { href: 'assistant.html', label: 'AI assistant', icon: 'bot', any: ['appsettings.edit'] },
+    { href: 'partners.html', label: 'Partners', icon: 'users', any: ['referrals.view'] },
     { href: 'rewards.html', label: 'Rewards', icon: 'gift', any: ['referrals.view'] },
     { href: 'referrals.html', label: 'Referrals', icon: 'gift', any: ['referrals.view'] },
     { group: 'Recovery' },

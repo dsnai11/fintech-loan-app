@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%A4%9D%3C/text%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Partners - LIFC Admin</title>
+<style>
+* { box-sizing: border-box; }
+.card { padding: 16px; margin-bottom: 14px; }
+.card h2 { margin: 0 0 4px; font-size: 15px; }
+.sub { font-size: 12px; color: var(--e-muted); margin-bottom: 12px; line-height: 1.5; }
+.note { font-size: 12px; color: var(--e-muted); }
+.alert { display: none; padding: 12px 16px; margin-bottom: 14px; white-space: pre-line; }
+.alert.show { display: block; }
+.warn { background: var(--e-warn-soft); color: var(--e-warn); border-radius: 8px; padding: 10px 14px; font-size: 12.5px; line-height: 1.5; margin-bottom: 14px; }
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--e-muted); border-bottom: 1px solid var(--e-border); white-space: nowrap; }
+td { padding: 8px; border-bottom: 1px solid var(--e-border); vertical-align: top; }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; align-items: end; }
+.grid input { width: 100%; }
+.tag { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 20px; background: #E0ECFF; color: #1D4ED8; }
+.tag.paid, .tag.active { background: #DCFCE7; color: #166534; } .tag.void, .tag.blocked { background: #FEE2E2; color: #991B1B; } .tag.due { background: #FEF3C7; color: #92400E; }
+.secret { font-size: 20px; font-weight: 800; letter-spacing: .06em; background: #fef3c7; padding: 8px 12px; border-radius: 8px; display: inline-block; user-select: all; }
+</style>
+<link rel="stylesheet" href="assets/portal.css">
+</head>
+<body data-shell="app" data-title="Partners" data-sub="Agents who bring customers, and the commission they earn.">
+<div class="container">
+  <div id="alert" class="alert" role="alert"></div>
+  <div class="warn"><b>Check with compliance and finance.</b> The commission percentage is a cost to the company. A partner earns it once, on a customer's first loan paid out, and it is cancelled if the customer cancels in the cooling-off period. Whether tax is deducted from a commission is for your tax adviser; set the rate on the Accounting page. Commissions are never paid automatically: finance pays each one and enters the bank reference.</div>
+  <div class="card" id="newcard"><h2>Add a partner</h2><div class="grid">
+    <div><label for="n-name">Name</label><input id="n-name"></div><div><label for="n-email">Email (their sign-in)</label><input id="n-email" type="email"></div>
+    <div><label for="n-phone">Mobile (optional)</label><input id="n-phone"></div><div><label for="n-pan">PAN (needed for tax)</label><input id="n-pan" maxlength="10"></div>
+    <div><label for="n-pct">Commission (% of the first loan, 0 to 10)</label><input id="n-pct" type="number" step="0.1" value="1"></div>
+    <div><button class="btn primary" onclick="add()">Add partner</button></div></div><div id="secret" style="margin-top:12px"></div></div>
+  <div class="card"><h2>Partners</h2><div class="scroll" id="partners"></div></div>
+  <div class="card"><h2>Commissions</h2><div class="row" style="margin-bottom:10px"><label for="flt" style="margin:0">Show</label><select id="flt" onchange="loadComm()"><option value="due">To be paid</option><option value="paid">Paid</option><option value="void">Cancelled</option><option value="">All</option></select></div><div class="scroll" id="comm"></div></div>
+</div>
+<script>
+const API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
+const token = localStorage.getItem('admin_token');
+if (!token) location.href = 'admin-config.html';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const inr = n => '₹' + (Math.round((n || 0) * 100) / 100).toLocaleString('en-IN');
+let D = null;
+function msg(text, kind) { const a = $('alert'); a.textContent = text; a.className = 'alert show ' + (kind === 'ok' ? 'ok' : 'err'); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+async function api(path, method = 'GET', body) {
+  const r = await fetch(API + path, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.errors ? d.errors.join('\n') : d.error || 'Something went wrong');
+  return d;
+}
+function draw() {
+  $('newcard').style.display = D.canManage ? '' : 'none';
+  $('partners').innerHTML = D.partners.length ? `<table><thead><tr><th>Partner</th><th>Code</th><th class="n">Commission</th><th class="n">Customers</th><th class="n">To be paid</th><th class="n">Paid</th><th>Status</th><th></th></tr></thead><tbody>${D.partners.map(p => `<tr><td>${esc(p.name)}<div class="note">${esc(p.email)}${p.phone ? ' · ' + esc(p.phone) : ''}</div><div class="note">PAN ${esc(p.panNumber || 'not on file')}</div></td><td><b>${esc(p.code)}</b></td>
+    <td class="n">${D.canManage ? `<input id="pc-${p.id}" type="number" step="0.1" value="${p.commissionPercent}" style="width:70px"> %` : p.commissionPercent + '%'}</td><td class="n">${p.customers}</td><td class="n">${inr(p.due.gross)}</td><td class="n">${inr(p.paid.gross)}</td><td><span class="tag ${esc(p.status)}">${esc(p.status)}</span></td>
+    <td>${D.canManage ? `<div class="row"><button class="btn" onclick="savePct('${p.id}')">Save %</button><button class="btn" onclick="toggle('${p.id}','${p.status === 'active' ? 'blocked' : 'active'}')">${p.status === 'active' ? 'Block' : 'Unblock'}</button><button class="btn" onclick="reset('${p.id}')">New password</button></div>` : ''}</td></tr>`).join('')}</tbody></table>` : '<div class="note">No partners yet.</div>';
+}
+function drawComm(list) {
+  $('comm').innerHTML = list.length ? `<table><thead><tr><th>When</th><th>Partner</th><th>Customer</th><th class="n">Loan</th><th class="n">Rate</th><th class="n">Commission</th><th>Pay to</th><th>Status</th><th></th></tr></thead><tbody>${list.map(c => `<tr><td>${new Date(c.at).toLocaleDateString('en-IN')}</td><td>${esc(c.partner)}<div class="note">PAN ${esc(c.pan || 'not on file')}</div></td><td>${esc(c.customer)}</td><td class="n">${inr(c.loanAmount)}</td><td class="n">${c.percent}%</td><td class="n">${inr(c.gross)}${c.status === 'paid' ? `<div class="note">tax ${inr(c.tds)}, paid ${inr(c.net)}</div>` : ''}</td><td class="note">${esc(c.account || 'no bank account saved')}</td>
+    <td><span class="tag ${esc(c.status)}">${esc(c.status)}</span>${c.reference ? `<div class="note">Ref ${esc(c.reference)}</div>` : ''}${c.voidReason ? `<div class="note">${esc(c.voidReason)}</div>` : ''}</td>
+    <td>${D.canManage && c.status === 'due' ? `<div class="row"><input id="ref-${c.id}" placeholder="Bank or UPI reference" style="width:170px"><button class="btn primary" onclick="paid('${c.id}')">Mark paid</button><button class="btn" onclick="voidIt('${c.id}')">Cancel</button></div>` : ''}</td></tr>`).join('')}</tbody></table>` : '<div class="note">Nothing here.</div>';
+}
+async function load() { try { D = await api('/admin/partners'); draw(); loadComm(); } catch (e) { msg(e.message, 'err'); } }
+async function loadComm() { try { drawComm((await api('/admin/partners/commissions' + ($('flt').value ? '?status=' + $('flt').value : ''))).commissions); } catch (e) { msg(e.message, 'err'); } }
+async function add() {
+  try {
+    const d = await api('/admin/partners', 'POST', { name: $('n-name').value, email: $('n-email').value, phone: $('n-phone').value, panNumber: $('n-pan').value, commissionPercent: Number($('n-pct').value) });
+    $('secret').innerHTML = `<div class="note">${esc(d.partner.name)} was added. Their code is <b>${esc(d.partner.code)}</b>. Give them this password now; it is shown only once, and they must change it when they first sign in at <b>/partner.html</b>:</div><div class="secret">${esc(d.temporaryPassword)}</div>`;
+    ['n-name', 'n-email', 'n-phone', 'n-pan'].forEach(i => ($(i).value = '')); load();
+  } catch (e) { msg(e.message, 'err'); }
+}
+async function savePct(id) { try { await api('/admin/partners/' + id, 'PUT', { commissionPercent: Number($('pc-' + id).value) }); msg('Saved. It applies to loans paid out from now on.', 'ok'); load(); } catch (e) { msg(e.message, 'err'); } }
+async function toggle(id, status) { try { await api('/admin/partners/' + id, 'PUT', { status }); load(); } catch (e) { msg(e.message, 'err'); } }
+async function reset(id) { try { const d = await api(`/admin/partners/${id}/reset-password`, 'POST', {}); $('secret').innerHTML = `<div class="note">New password (shown once). They must change it at their next sign-in:</div><div class="secret">${esc(d.temporaryPassword)}</div>`; window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) { msg(e.message, 'err'); } }
+async function paid(id) { try { const d = await api(`/admin/partners/commissions/${id}/paid`, 'POST', { reference: $('ref-' + id).value }); msg(`Marked paid. Commission ${inr(d.gross)}, tax ${inr(d.tds)}, paid ${inr(d.net)}.`, 'ok'); load(); } catch (e) { msg(e.message, 'err'); } }
+async function voidIt(id) { const reason = prompt('Why is this commission cancelled?'); if (!reason) return; try { await api(`/admin/partners/commissions/${id}/void`, 'POST', { reason }); load(); } catch (e) { msg(e.message, 'err'); } }
+load();
+</script>
+<script src="assets/portal.js"></script>
+</body>
+</html>

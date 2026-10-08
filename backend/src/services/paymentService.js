@@ -49,6 +49,12 @@ async function markLoanDisbursed(loanId, amount, transferId, adminEmail) {
   if (!existing) await createEMISchedule(loan._id);
   await notify(loan.userId, templates.disbursed(loan), { sms: true });
   try {
+    const { onLoanDisbursed: partnerPaid } = await import('./partnerService.js');
+    await partnerPaid(loan);
+  } catch (e) {
+    console.error('Partner commission failed:', e.message);
+  }
+  try {
     const { onLoanDisbursed } = await import('./referralService.js');
     await onLoanDisbursed(loan);
   } catch (e) {
