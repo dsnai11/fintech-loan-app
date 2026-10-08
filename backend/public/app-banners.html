@@ -39,7 +39,10 @@
 
 /* the phone preview */
 .phone { width: 320px; max-width: 100%; margin: 0 auto; border: 8px solid #111827; border-radius: 34px; background: #F4F5F7; overflow: hidden; box-shadow: 0 12px 30px rgba(0,0,0,.25); color: #111827; }
-.ph-top { padding: 16px 16px 14px; color: #fff; position: relative; overflow: hidden; }
+.ph-top { padding: 0 16px 14px; color: #fff; position: relative; overflow: hidden; }
+.sbar { display: flex; justify-content: space-between; align-items: center; height: 38px; font-size: 12px; font-weight: 700; position: relative; }
+.sbar.solid { margin: 0 -16px; padding: 0 16px; }
+.sbar i { font-style: normal; letter-spacing: 1px; font-size: 11px; }
 .ph-top .hi { font-size: 17px; font-weight: 800; position: relative; }
 .ph-top .tg { font-size: 12px; opacity: .85; position: relative; }
 .ph-top .reg { font-size: 10px; opacity: .7; position: relative; margin-top: 2px; }
@@ -88,7 +91,23 @@
     <div class="previewcol">
       <div class="note" style="text-align:center;margin-bottom:8px">Live preview (the sample customer is “Asha” with a ₹50,000 offer)</div>
       <div class="phone" id="phone"></div>
-      <label class="chk" style="justify-content:center;margin-top:10px"><input type="checkbox" id="rotate" onchange="setRotate()"> Rotate the banners like the app does</label>
+      <div style="margin-top:10px">
+        <label for="asWho" style="font-size:12px">Preview as</label>
+        <select id="asWho" class="full" onchange="cust.type=this.value;drawPhone();renderBanners()">
+          <option value="new">A new customer (no loan yet)</option>
+          <option value="repeat">A repeat customer (repaid a loan)</option>
+          <option value="has_loan" selected>A customer with a loan running</option>
+          <option value="no_loan">A customer with no loan running</option>
+        </select>
+        <label for="asPhone" style="font-size:12px;margin-top:8px;display:block">Phone</label>
+        <select id="asPhone" class="full" onchange="cust.phone=this.value;drawPhone()">
+          <option value="iphone">iPhone (the header runs behind the clock and battery)</option>
+          <option value="android">Android (a solid bar in the main colour)</option>
+        </select>
+        <label class="chk" style="margin-top:6px"><input type="checkbox" id="asOffer" onchange="cust.offer=this.checked;drawPhone();renderBanners()"> They have a credit-check offer</label>
+        <label class="chk" style="margin-top:6px"><input type="checkbox" id="rotate" onchange="setRotate()"> Rotate the banners like the app does</label>
+        <div class="note" style="margin-top:6px">The app shows each customer only the banners that are switched on, within their dates, and meant for them. The preview follows the same rules, so it matches what that customer sees.</div>
+      </div>
     </div>
   </div>
   <div class="bar"><button class="btn primary" id="save" onclick="save()">Save and publish</button><span class="note" id="saved">Customers see changes the next time their home screen loads.</span></div>
@@ -101,7 +120,7 @@ if (!token) location.href = 'admin-config.html';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-let H = null, STATS = {}, sel = 0, timer = null, ticker = null;
+let H = null, STATS = {}, sel = 0, timer = null, ticker = null, REG = '', cust = { type: 'has_loan', offer: false, phone: 'iphone' };
 
 const THEMES = { brand: 'Company colours', sunrise: 'Sunrise', ocean: 'Ocean', emerald: 'Emerald', royal: 'Royal', gold: 'Gold', midnight: 'Midnight', custom: 'My own colours' };
 const GRAD = { sunrise: ['#F97316', '#DB2777'], ocean: ['#2563EB', '#0891B2'], emerald: ['#059669', '#0D9488'], royal: ['#7C3AED', '#4338CA'], gold: ['#D97706', '#92400E'], midnight: ['#1F2937', '#0B1220'] };
@@ -141,7 +160,7 @@ function tab(t) {
 async function load() {
   try {
     const d = await api('/app-home/admin');
-    H = d.home; STATS = d.stats || {};
+    H = d.home; STATS = d.stats || {}; REG = d.registration || '';
     renderAll();
   } catch (e) { msg(e.message, 'err'); }
 }
@@ -157,12 +176,26 @@ const fill = s => String(s || '').replace(/\{\{\s*name\s*\}\}/g, 'Asha').replace
 function setPath(o, path, v) { const ks = path.split('.'); while (ks.length > 1) o = o[ks.shift()]; o[ks[0]] = v; }
 function opts(map, cur) { return Object.entries(map).map(([k, v]) => `<option value="${esc(k)}" ${k === cur ? 'selected' : ''}>${esc(Array.isArray(v) ? v[1] : v)}</option>`).join(''); }
 
+// Is this banner shown to the chosen kind of customer right now? Returns '' when yes, or the reason when not.
+function hiddenReason(b) {
+  const now = new Date();
+  if (!b.enabled) return 'Switched off';
+  if (b.startsAt && new Date(b.startsAt) > now) return 'Starts ' + new Date(b.startsAt).toLocaleString('en-IN');
+  if (b.endsAt && new Date(b.endsAt) <= now) return 'Ended';
+  const groups = { new: ['new', 'no_loan'], repeat: ['repeat', 'no_loan'], has_loan: ['has_loan'], no_loan: ['no_loan'] }[cust.type];
+  if (b.audience !== 'all' && !groups.includes(b.audience)) return 'Meant for: ' + AUDS[b.audience];
+  if (/\{\{\s*offer\s*\}\}/.test(b.title + ' ' + b.subtitle) && !cust.offer) return 'Uses {{offer}} and this customer has no offer';
+  return '';
+}
+const visibleList = () => H.banners.filter(b => !hiddenReason(b));
+
 // ── banner editor ────────────────────────────────────────────────────────
 function bannerCard(b, i) {
   const st = STATS[b.id], ctr = st && st.views ? (100 * st.clicks / st.views).toFixed(1) + '%' : '–';
   const f = (k, v) => `data-i="${i}" data-k="${k}" value="${esc(v)}"`;
   return `<div class="bn ${i === sel ? 'sel' : ''}" onclick="pin(${i})">
     <div class="bn-head"><span class="sw" style="background:${grad(b)}"></span><b>${esc(b.title || 'New banner')}</b>
+      ${hiddenReason(b) ? `<span class="pill warn" title="For the customer type chosen under the preview">Hidden: ${esc(hiddenReason(b))}</span>` : '<span class="pill approved">Showing</span>'}
       <span class="stat">${st ? `${st.views} views · ${st.clicks} taps · ${ctr} (30 days)` : 'No views yet'}</span>
       <label class="chk"><input type="checkbox" ${b.enabled ? 'checked' : ''} data-i="${i}" data-k="enabled" data-t="bool" oninput="edit(event)"> On</label>
       <span class="row"><button class="btn" onclick="move(${i},-1)" aria-label="Move up">↑</button><button class="btn" onclick="move(${i},1)" aria-label="Move down">↓</button><button class="btn" onclick="dup(${i})">Copy</button><button class="btn danger" onclick="removeB(${i})">Remove</button></span></div>
@@ -265,15 +298,22 @@ function slideHtml(b) {
 let rot = 0;
 function drawPhone() {
   if (!H) return;
-  const br = H.brand, on = H.banners.filter(b => b.enabled);
-  const cur = H.banners[sel] && H.banners[sel].enabled ? H.banners[sel] : on[0];
-  const orbs = br.heroAnimation ? '<i class="orb" style="width:90px;height:90px;right:-20px;top:-30px"></i><i class="orb" style="width:50px;height:50px;right:70px;bottom:-20px;animation-delay:-3s"></i><i class="orb" style="width:36px;height:36px;left:40%;top:6px;animation-delay:-5s"></i>' : '';
-  $('phone').innerHTML = `<div class="ph-top" style="background:linear-gradient(135deg,${esc(br.primaryColor)},${esc(br.secondaryColor)})">${orbs}
-      <div class="hi">Hi, Asha</div><div class="tg">${esc(br.tagline || 'Laxmi India Finance')}</div>${br.showRegistration ? '<div class="reg">NBFC · Reg. no. (from the Pricing page)</div>' : ''}</div>
+  const br = H.brand, vis = visibleList();
+  const picked = H.banners[sel];
+  const cur = picked && (hiddenReason(picked) === '' || picked.enabled) ? picked : vis[0];
+  const why = cur ? hiddenReason(cur) : '';
+  const orbs = br.heroAnimation ? '<i class="orb" style="width:90px;height:90px;right:-20px;top:-30px"></i><i class="orb" style="width:50px;height:50px;left:-10px;top:-10px;animation-delay:-3s"></i>' : '';
+  const regLine = br.showRegistration && REG ? `<div class="reg">${esc(H.lenderName || '')} · Reg. no. ${esc(REG)}</div>` : '';
+  const icons = '<i>▂▄▆ 5G ▮▮▮</i>';
+  const android = cust.phone === 'android';
+  const bar = android ? `<div class="sbar solid" style="background:${esc(br.primaryColor)}"><span>11:39</span>${icons}</div>` : `<div class="sbar"><span>11:39</span>${icons}</div>`;
+  $('phone').innerHTML = `<div class="ph-top" style="background:linear-gradient(to bottom right,${esc(br.primaryColor)},${esc(br.secondaryColor)})">${orbs}${bar}
+      <div class="hi" style="margin-top:8px">Hi, Asha</div><div class="tg">${esc(br.tagline || 'Laxmi India Finance')}</div>${regLine}</div>
     <div class="ph-body">
       ${br.trustStrip.filter(t => t.text).length ? `<div class="trust">${br.trustStrip.filter(t => t.text).map(t => `<span>${TRUST_EMOJI[t.icon] || ''}<br>${esc(t.text)}</span>`).join('')}</div>` : ''}
-      ${cur ? slideHtml(cur) : '<div class="fake">No banner is switched on, so customers see no banner.</div>'}
-      ${on.length > 1 ? `<div class="dots">${on.map(b => `<b class="${b === cur ? 'on' : ''}" onclick="sel=H.banners.indexOf(H.banners.find(x=>x.id==='${esc(b.id)}'));drawPhone()"></b>`).join('')}</div>` : ''}
+      ${cur ? slideHtml(cur) : '<div class="fake">No banner is showing for this kind of customer, so they see none.</div>'}
+      ${why ? `<div class="fake" style="margin-top:8px;color:#B45309;background:#FEF3C7"><b>Not shown to this customer</b>${esc(why)}. You are looking at it because you picked it.</div>` : ''}
+      ${vis.length > 1 ? `<div class="dots">${vis.map(b => `<b class="${b === cur ? 'on' : ''}" onclick="sel=${H.banners.indexOf(b)};drawPhone()"></b>`).join('')}</div>` : ''}
       <div class="fake"><b>Your offer</b>The loan card and the rest of the home screen carry on below.</div>
     </div>`;
   tick();
@@ -290,7 +330,7 @@ function setRotate() {
   clearInterval(timer);
   if (!$('rotate').checked) return;
   timer = setInterval(() => {
-    const on = H.banners.map((b, i) => b.enabled ? i : -1).filter(i => i >= 0);
+    const on = H.banners.map((b, i) => hiddenReason(b) ? -1 : i).filter(i => i >= 0);
     if (on.length < 2) return;
     sel = on[(on.indexOf(sel) + 1) % on.length]; drawPhone();
     document.querySelectorAll('#pane-banners .bn').forEach((c, j) => c.classList.toggle('sel', j === sel));

@@ -19,6 +19,7 @@
     scale: '<path d="M12 3v18M5 21h14M5 7h14"/><path d="M5 7l-3 7a3 3 0 0 0 6 0zM19 7l-3 7a3 3 0 0 0 6 0z"/>',
     chat: '<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/>',
     phoneapp: '<rect x="7" y="3" width="10" height="18" rx="2"/><path d="M11 18h2"/>',
+    plug: '<path d="M9 3v5M15 3v5M6 8h12v4a6 6 0 0 1-12 0zM12 18v3"/>',
     tick: '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l3 3 5-6"/>',
     banner: '<rect x="3" y="5" width="18" height="11" rx="2"/><path d="M7 9h6M7 12h4M8 20h8M12 16v4"/>',
     key: '<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M16 7l3 3M14 9l2 2"/>',
@@ -44,6 +45,7 @@
     { href: 'app-settings.html', label: 'Customer app', icon: 'phoneapp', any: ['appsettings.edit'] },
     { href: 'approvals.html', label: 'Approvals', icon: 'tick', any: ['changes.approve', 'pricing.edit', 'banners.edit'] },
     { href: 'app-banners.html', label: 'Offers and branding', icon: 'banner', any: ['banners.edit'] },
+    { href: 'integrations.html', label: 'Integrations', icon: 'plug', any: ['config.manage'] },
     { href: 'staff.html', label: 'Staff', icon: 'staff', any: ['staff.manage'] },
     { href: 'roles.html', label: 'Roles and permissions', icon: 'key', any: ['super'] },
     { href: 'admin-config.html', label: 'Configuration', icon: 'gear', any: ['config.manage'] }

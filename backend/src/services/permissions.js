@@ -120,6 +120,7 @@ const RULES = [
   [/^\/api\/admin\/approvals(\/|$)/, ANY, ANY], // the route itself checks who may approve
   [/^\/api\/admin\/terms(\/|$)/, 'terms.edit', 'terms.edit'],
   [/^\/api\/admin\/config(\/|$)/, 'config.manage', 'config.manage'],
+  [/^\/api\/admin\/integrations(\/|$)/, 'config.manage', 'config.manage'],
   [/^\/api\/app-config\/admin(\/|$)/, 'config.manage', 'config.manage'],
   [/^\/api\/admin\/builds(\/|$)/, 'config.manage', 'config.manage'],
   [/^\/api\/admin\/pricing(\/|$)/, 'pricing.view', 'pricing.view'], // PUT is checked by what it changes

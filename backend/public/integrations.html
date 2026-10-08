@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%94%8C%3C/text%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Integrations - LIFC Admin</title>
+<style>
+* { box-sizing: border-box; }
+.card { padding: 16px; margin-bottom: 14px; }
+.card h2 { margin: 0; font-size: 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.sub { font-size: 12.5px; color: var(--e-muted); margin: 4px 0 10px; line-height: 1.5; }
+.note { font-size: 12px; color: var(--e-muted); }
+.alert { display: none; padding: 12px 16px; margin-bottom: 14px; white-space: pre-line; }
+.alert.show { display: block; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; align-items: end; }
+.grid input, .grid select, .grid textarea { width: 100%; }
+.state { padding: 10px 12px; border-radius: 8px; font-size: 13px; line-height: 1.5; margin-bottom: 12px; }
+.state.live { background: var(--e-ok-soft, #DCFCE7); color: var(--e-ok, #166534); }
+.state.test, .state.off, .state.device { background: var(--e-primary-soft); color: var(--e-primary); }
+.state.unavailable, .state.misconfigured { background: var(--e-warn-soft); color: var(--e-warn); }
+.tag { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 20px; }
+.tag.live { background: #DCFCE7; color: #166534; }
+.tag.test, .tag.off, .tag.device { background: #E0ECFF; color: #1D4ED8; }
+.tag.unavailable, .tag.misconfigured { background: #FEF3C7; color: #92400E; }
+.env code { background: var(--e-surface-2); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+.env { line-height: 2; }
+.set { font-size: 11px; color: var(--e-muted); font-weight: 500; }
+</style>
+<link rel="stylesheet" href="assets/portal.css">
+</head>
+<body data-shell="app" data-title="Integrations" data-sub="Which outside services are live and which are still in test mode, and the settings that switch them over.">
+<div class="container">
+  <div id="alert" class="alert" role="alert"></div>
+  <div class="card"><h2>How switching over works</h2>
+    <div class="sub">Everything runs in test mode until you add a real provider. The moment a provider is fully set up here, every new request goes to it and the test mode stops being used for that service. If a real provider is set up but fails, customers get "no result" for that request; the app never falls back to made-up data. In production with no provider, the feature says it is not available. Secrets are never shown again after saving.</div>
+    <div id="prod" class="note"></div>
+  </div>
+  <div id="list"></div>
+</div>
+<script>
+const API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
+const token = localStorage.getItem('admin_token');
+if (!token) location.href = 'admin-config.html';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const WORDS = { live: 'Live', test: 'Test mode', off: 'Not set up', device: 'On the phone', unavailable: 'Not available', misconfigured: 'Needs attention' };
+
+function msg(text, kind) {
+  const a = $('alert'); a.textContent = text; a.className = 'alert show ' + (kind === 'ok' ? 'ok' : 'err');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+async function api(path, method = 'GET', body) {
+  const r = await fetch(API + path, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.errors ? d.errors.join('\n') : d.error || 'Something went wrong');
+  return d;
+}
+
+function fieldHtml(i, f) {
+  const id = `f-${i.id}-${f.key}`;
+  let input;
+  if (f.options) input = `<select id="${id}">${f.options.map(o => `<option value="${esc(o)}" ${o === f.value ? 'selected' : ''}>${esc(o || '(none — test mode)')}</option>`).join('')}</select>`;
+  else if (f.long) input = `<textarea id="${id}" rows="3" placeholder="${f.set ? '' : 'default'}">${esc(f.value)}</textarea>`;
+  else input = `<input id="${id}" type="${f.secret ? 'password' : 'text'}" autocomplete="off" value="${esc(f.value)}" placeholder="${f.secret ? (f.set ? 'saved — type to replace' : 'not set') : ''}">`;
+  return `<div style="${f.long ? 'grid-column: 1 / -1' : ''}"><label for="${id}">${esc(f.label)} ${f.secret ? `<span class="set">${f.set ? '· saved' : '· not set'}</span>` : ''}</label>${input}${f.hint ? `<div class="note">${esc(f.hint)}</div>` : ''}</div>`;
+}
+
+function card(i) {
+  const s = i.status;
+  const miss = s.missing && s.missing.length ? ` Missing: ${s.missing.map(esc).join(', ')}.` : '';
+  return `<div class="card"><h2>${esc(i.label)} <span class="tag ${s.mode}">${WORDS[s.mode] || s.mode}${s.provider ? ' · ' + esc(s.provider) : ''}</span></h2>
+    <div class="sub">${esc(i.purpose)}</div>
+    ${s.note || miss ? `<div class="state ${s.mode}">${esc(s.note || '')}${miss}</div>` : ''}
+    ${i.envOnly ? `<div class="env note">Set these in Railway (Variables), not here: ${i.envOnly.map(k => `<code>${esc(k)}</code>`).join(' ')}</div>` : ''}
+    ${i.fields.length ? `<div class="grid">${i.fields.map(f => fieldHtml(i, f)).join('')}</div><div style="margin-top:12px"><button class="btn primary" onclick="save('${i.id}')">Save ${esc(i.label)} settings</button></div>` : ''}
+  </div>`;
+}
+
+let D = null;
+async function load() {
+  try {
+    D = await api('/admin/integrations');
+    $('prod').textContent = D.productionMode ? 'Production mode is ON: real money moves and test modes are disabled.' : 'Production mode is OFF (PAYMENT_MODE is not PRODUCTION): payouts and collections are simulated. Switch it in Railway when the payment keys are in.';
+    $('list').innerHTML = D.integrations.map(card).join('');
+  } catch (e) { msg(e.message, 'err'); }
+}
+async function save(id) {
+  const i = D.integrations.find(x => x.id === id);
+  const values = {};
+  for (const f of i.fields) values[f.key] = $(`f-${id}-${f.key}`).value;
+  try {
+    const d = await api('/admin/integrations', 'PUT', { values });
+    D = d; msg(d.message, 'ok');
+    $('list').innerHTML = D.integrations.map(card).join('');
+  } catch (e) { msg(e.message, 'err'); }
+}
+load();
+</script>
+<script src="assets/portal.js"></script>
+</body>
+</html>

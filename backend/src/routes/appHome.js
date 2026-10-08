@@ -4,6 +4,7 @@ import BannerStat from '../models/BannerStat.js';
 import { authMiddleware, adminMiddleware } from '../middleware/auth.js';
 import { audit } from '../services/auditService.js';
 import { approvalRequired, propose } from '../services/changeApprovals.js';
+import { getPolicy } from '../services/pricingPolicy.js';
 import { getHome, saveHome, validateHome, homeFor } from '../services/homeContent.js';
 
 // The home-screen branding and offer banners: what the app reads, and where staff change it.
@@ -41,7 +42,8 @@ async function statsFor(days = 30) {
 
 router.get('/admin', adminMiddleware, async (req, res) => {
   try {
-    res.json({ home: getHome(), stats: await statsFor(), statsDays: 30 });
+    const inst = getPolicy().institution || {};
+    res.json({ home: getHome(), stats: await statsFor(), statsDays: 30, registration: inst.registrationNumber || '', lenderName: inst.lenderName || '' });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
