@@ -74,6 +74,14 @@ jobs:
         channel: 'stable'
         cache: true
 
+    - name: Leave the Firebase push plugin out of the iPhone build
+      run: |
+        # It cannot share an iPhone build with the face-detection library yet, and an unsigned iPhone build cannot get pushes.
+        cd mobile
+        sed -i '' '/^  firebase_core:/d;/^  firebase_messaging:/d' pubspec.yaml
+        cp lib/services/push_service_stub.dart lib/services/push_service.dart
+        grep -c firebase pubspec.yaml || true
+
     - name: Get dependencies
       run: cd mobile && flutter pub get
 
@@ -85,18 +93,6 @@ jobs:
         # The selfie step uses the camera, and iOS stops the app without a reason to show the customer.
         /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'LIFC uses the camera to take your selfie and check that it is really you.'" ios/Runner/Info.plist
         /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string 'LIFC needs access to photos only if you choose to upload a document.'" ios/Runner/Info.plist || true
-        # The Firebase push plugin needs iOS 13 or newer (flutter create defaults to 12)
-        python3 - <<'PYEOF'
-        import re
-        def edit(path, fn):
-            s = open(path).read()
-            t = fn(s)
-            assert t != s, 'nothing changed in ' + path
-            open(path, 'w').write(t)
-        edit('ios/Podfile', lambda s: re.sub(r"#?\s*platform :ios, '[0-9.]+'", "platform :ios, '13.0'", s, count=1))
-        edit('ios/Runner.xcodeproj/project.pbxproj', lambda s: re.sub(r'IPHONEOS_DEPLOYMENT_TARGET = [0-9.]+;', 'IPHONEOS_DEPLOYMENT_TARGET = 13.0;', s))
-        edit('ios/Flutter/AppFrameworkInfo.plist', lambda s: re.sub(r'(<key>MinimumOSVersion</key>\s*<string>)[0-9.]+(</string>)', r'\g<1>13.0\g<2>', s))
-        PYEOF
 
     - name: Build iOS (no codesign)
       run: |
