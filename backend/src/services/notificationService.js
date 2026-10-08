@@ -212,6 +212,16 @@ export function startScheduler() {
       console.error('Reminder job failed:', e.message);
     }
   };
+  const nudges = async () => {
+    try {
+      const { runNudges } = await import('./nudgeService.js');
+      await runNudges();
+    } catch (e) {
+      console.error('Nudge job failed:', e.message);
+    }
+  };
+  setTimeout(nudges, 120 * 1000);
+  setInterval(nudges, 30 * 60 * 1000);
   setTimeout(reminders, 90 * 1000);
   setInterval(reminders, 30 * 60 * 1000);
   setTimeout(autoDebit, 60 * 1000);

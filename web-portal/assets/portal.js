@@ -53,6 +53,7 @@
     { href: 'charges.html', label: 'Charges', icon: 'tag', any: ['pricing.view'] },
     { href: 'app-settings.html', label: 'Customer app', icon: 'phoneapp', any: ['appsettings.edit'] },
     { href: 'approvals.html', label: 'Approvals', icon: 'tick', any: ['changes.approve', 'pricing.edit', 'banners.edit'] },
+    { href: 'nudges.html', label: 'Nudges', icon: 'chat', any: ['banners.edit'] },
     { href: 'offers.html', label: 'Offers tab', icon: 'tag', any: ['banners.edit'] },
     { href: 'app-banners.html', label: 'Offers and branding', icon: 'banner', any: ['banners.edit'] },
     { href: 'integrations.html', label: 'Integrations', icon: 'plug', any: ['config.manage'] },

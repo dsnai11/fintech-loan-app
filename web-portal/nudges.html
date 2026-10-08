@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%91%8B%3C/text%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nudges - LIFC Admin</title>
+<style>
+* { box-sizing: border-box; }
+.card { padding: 16px; margin-bottom: 14px; }
+.card h2 { margin: 0 0 4px; font-size: 15px; }
+.sub { font-size: 12px; color: var(--e-muted); margin-bottom: 12px; line-height: 1.5; }
+.note { font-size: 12px; color: var(--e-muted); }
+.alert { display: none; padding: 12px 16px; margin-bottom: 14px; white-space: pre-line; }
+.alert.show { display: block; }
+.warn { background: var(--e-warn-soft); color: var(--e-warn); border-radius: 8px; padding: 10px 14px; font-size: 12.5px; line-height: 1.5; margin-bottom: 14px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; align-items: end; }
+.grid input, .grid textarea { width: 100%; }
+.seg { border: 1px solid var(--e-border); border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+.seg h3 { margin: 0; font-size: 14px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.stats { display: flex; gap: 16px; flex-wrap: wrap; margin: 8px 0 12px; font-size: 12.5px; }
+.stats b { font-size: 16px; display: block; font-variant-numeric: tabular-nums; }
+.stats span { color: var(--e-muted); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.chk { display: flex; gap: 6px; align-items: center; font-size: 13px; }
+textarea { width: 100%; }
+</style>
+<link rel="stylesheet" href="assets/portal.css">
+</head>
+<body data-shell="app" data-title="Nudges" data-sub="Gentle messages to customers who stopped part-way: unfinished set-up, unused offers, approved loans not yet accepted.">
+<div class="container">
+  <div id="alert" class="alert" role="alert"></div>
+  <div class="warn"><b>How they behave.</b> Nudges follow the customer's "Offers and news" setting in the app, never go out in quiet hours, keep a gap between messages, have a weekly limit, and stop after a set number per reason. Customers behind on payments, with an open AML alert or a defaulted loan get none. SMS is off by default: a promotional SMS needs a template approved under the telecom (DLT) rules.</div>
+  <div id="main"></div>
+</div>
+<script>
+const API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
+const token = localStorage.getItem('admin_token');
+if (!token) location.href = 'admin-config.html';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const TIMING = { setup_abandoned: ['afterDays', 'Days after sign-up'], eligibility_no_apply: ['afterDays', 'Days after the offer was made'], offer_expiring: ['daysBefore', 'Days before it expires'], approved_not_accepted: ['afterDays', 'Days after approval'], winback: ['afterDays', 'Days after the loan closed'], inactive: ['afterDays', 'Days since the app was last opened'] };
+const HINT = { setup_abandoned: '{name}', eligibility_no_apply: '{name}, {amount}', offer_expiring: '{name}, {amount}, {days}', approved_not_accepted: '{name}, {amount}', winback: '{name}', inactive: '{name}' };
+let D = null;
+
+function msg(text, kind) {
+  const a = $('alert'); a.textContent = text; a.className = 'alert show ' + (kind === 'ok' ? 'ok' : 'err');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+async function api(path, method = 'GET', body) {
+  const r = await fetch(API + path, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.errors ? d.errors.join('\n') : d.error || 'Something went wrong');
+  return d;
+}
+const num = (id, label, v) => `<div><label for="${id}">${label}</label><input id="${id}" type="number" value="${v ?? ''}"></div>`;
+function draw() {
+  const S = D.settings;
+  $('main').innerHTML = `
+  <div class="card"><h2>Settings</h2><div class="row" style="margin-bottom:12px"><label class="chk"><input type="checkbox" id="on" ${S.enabled ? 'checked' : ''}> <b>Nudges are on</b></label></div>
+    <div class="grid">${num('qs', 'Quiet hours start (hour, 0-23, India time)', S.quietStart)}${num('qe', 'Quiet hours end (hour)', S.quietEnd)}${num('gap', 'Days between any two nudges', S.minGapDays)}${num('wk', 'Most nudges to one customer in a week', S.weeklyCap)}</div>
+    <div class="note" style="margin-top:8px">${D.total30} nudges sent in the last 30 days.</div></div>
+  ${D.segments.map(r => {
+    const s = S.segments[r.key], t = TIMING[r.key];
+    return `<div class="seg"><h3><label class="chk"><input type="checkbox" id="${r.key}-on" ${s.enabled ? 'checked' : ''}> ${esc(r.label)}</label></h3><div class="note">${esc(r.hint)}</div>
+      <div class="stats"><div><b>${r.audience}</b><span>in this group now</span></div><div><b>${r.sent30}</b><span>sent, last 30 days</span></div><div><b>${r.customers30}</b><span>customers reached</span></div><div><b>${r.applied7}</b><span>applied within a week of a nudge</span></div></div>
+      <div class="grid">${num(r.key + '-t', t[1], s[t[0]])}${num(r.key + '-r', 'Days between repeats', s.repeatEveryDays)}${num(r.key + '-m', 'Most messages to one customer', s.maxSends)}<label class="chk"><input type="checkbox" id="${r.key}-sms" ${s.sms ? 'checked' : ''}> Also SMS</label></div>
+      <label for="${r.key}-title" style="margin-top:10px">Title</label><input id="${r.key}-title" value="${esc(s.title)}" style="width:100%">
+      <label for="${r.key}-msg" style="margin-top:8px">Message (you can use ${esc(HINT[r.key])})</label><textarea id="${r.key}-msg" rows="2">${esc(s.message)}</textarea></div>`;
+  }).join('')}
+  <div class="row"><button class="btn primary" onclick="save()">Save</button><button class="btn" onclick="runNow()">Send due nudges now</button></div>`;
+}
+function collect() {
+  const n = id => Number($(id).value);
+  const segments = {};
+  D.segments.forEach(r => {
+    const t = TIMING[r.key][0];
+    segments[r.key] = { enabled: $(r.key + '-on').checked, [t]: n(r.key + '-t'), repeatEveryDays: n(r.key + '-r'), maxSends: n(r.key + '-m'), sms: $(r.key + '-sms').checked, title: $(r.key + '-title').value, message: $(r.key + '-msg').value };
+  });
+  return { enabled: $('on').checked, quietStart: n('qs'), quietEnd: n('qe'), minGapDays: n('gap'), weeklyCap: n('wk'), segments };
+}
+async function load() { try { D = await api('/admin/nudges'); draw(); } catch (e) { msg(e.message, 'err'); } }
+async function save() { try { const r = await api('/admin/nudges/settings', 'PUT', collect()); msg(r.message, 'ok'); load(); } catch (e) { msg(e.message, 'err'); } }
+async function runNow() { try { const r = await api('/admin/nudges/run', 'POST', {}); msg(r.message, 'ok'); load(); } catch (e) { msg(e.message, 'err'); } }
+load();
+</script>
+<script src="assets/portal.js"></script>
+</body>
+</html>
