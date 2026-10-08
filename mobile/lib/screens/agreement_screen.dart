@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart' hide Text;
 import '../widgets/tr_text.dart';
+import 'dart:async';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../main.dart';
 import '../services/api_service.dart';
 import '../utils/error_utils.dart';
@@ -19,6 +21,11 @@ class _AgreementScreenState extends State<AgreementScreen> {
   bool _saving = false;
   bool _agree = false;
   String? _error;
+  final _codeCtrl = TextEditingController();
+  bool _codeSent = false;
+  String? _sandboxCode;
+  String? _esignSession;
+  Timer? _poll;
 
   String get _loanId => widget.loan['_id'].toString();
 
@@ -26,6 +33,77 @@ class _AgreementScreenState extends State<AgreementScreen> {
   void initState() {
     super.initState();
     _fetch();
+  }
+
+  @override
+  void dispose() {
+    _poll?.cancel();
+    _codeCtrl.dispose();
+    super.dispose();
+  }
+
+  String get _method => (_data?['signing']?['method'] ?? 'click').toString();
+
+  Future<void> _openPdf() async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final url = await context.read<ApiService>().getAgreementPdfUrl(_loanId);
+      final ok = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      if (!ok) messenger.showSnackBar(const SnackBar(content: Text('Could not open the PDF')));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(friendlyError(e))));
+    }
+  }
+
+  Future<void> _sendCode() async {
+    setState(() => _saving = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final r = await context.read<ApiService>().sendAgreementCode(_loanId);
+      if (!mounted) return;
+      setState(() { _codeSent = true; _sandboxCode = r['sandboxOtp']?.toString(); });
+      messenger.showSnackBar(SnackBar(content: Text('We sent a code to ${r['phone']}')));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(friendlyError(e))));
+    }
+    if (mounted) setState(() => _saving = false);
+  }
+
+  Future<void> _esign() async {
+    final hash = _data?['hash']?.toString();
+    if (hash == null) return;
+    setState(() => _saving = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final r = await context.read<ApiService>().startEsign(_loanId, hash);
+      _esignSession = r['sessionId'].toString();
+      final ok = await launchUrl(Uri.parse(r['url'].toString()), mode: LaunchMode.externalApplication);
+      if (!ok) messenger.showSnackBar(const SnackBar(content: Text('Could not open the signing page')));
+      _poll?.cancel();
+      _poll = Timer.periodic(const Duration(seconds: 3), (_) => _checkEsign());
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(friendlyError(e))));
+    }
+    if (mounted) setState(() => _saving = false);
+  }
+
+  Future<void> _checkEsign() async {
+    final id = _esignSession;
+    if (id == null) return;
+    try {
+      final r = await context.read<ApiService>().esignStatus(id);
+      final st = r['status'];
+      if (st == 'completed') {
+        _poll?.cancel();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Agreement signed. Your loan will be disbursed soon.')));
+        Navigator.of(context).pop(true);
+      } else if (st == 'failed' || st == 'expired') {
+        _poll?.cancel();
+        _esignSession = null;
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Signing was not completed. You can try again.')));
+      }
+    } catch (_) {}
   }
 
   Future<void> _fetch() async {
@@ -43,7 +121,7 @@ class _AgreementScreenState extends State<AgreementScreen> {
     if (hash == null) return;
     setState(() => _saving = true);
     try {
-      await context.read<ApiService>().acceptAgreement(_loanId, hash);
+      await context.read<ApiService>().acceptAgreement(_loanId, hash, code: _method == 'otp' ? _codeCtrl.text.trim() : null);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Agreement accepted. Your loan will be disbursed soon.')),
@@ -99,9 +177,16 @@ class _AgreementScreenState extends State<AgreementScreen> {
                         width: double.infinity,
                         color: const Color(0xFFD1FAE5),
                         padding: const EdgeInsets.all(12),
-                        child: Text('You accepted this agreement on ${_fmtDate(accepted['at'])}.',
-                            style: const TextStyle(color: Color(0xFF065F46), fontWeight: FontWeight.w600)),
+                        child: Row(children: [
+                          Expanded(
+                            child: Text('You signed this agreement on ${_fmtDate(accepted['at'])}.',
+                                style: const TextStyle(color: Color(0xFF065F46), fontWeight: FontWeight.w600)),
+                          ),
+                          TextButton(onPressed: _openPdf, child: const Text('PDF')),
+                        ]),
                       ),
+                    if (accepted == null)
+                      Align(alignment: Alignment.centerRight, child: TextButton.icon(onPressed: _openPdf, icon: const Icon(Icons.picture_as_pdf_outlined, size: 18), label: const Text('Download PDF'))),
                     Expanded(
                       child: Container(
                         margin: const EdgeInsets.all(16),
@@ -131,24 +216,63 @@ class _AgreementScreenState extends State<AgreementScreen> {
                                 title: const Text('I have read and agree to this loan agreement',
                                     style: TextStyle(fontSize: 13)),
                               ),
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton(
-                                  onPressed: (_agree && !_saving) ? _accept : null,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: kNavy,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(vertical: 14),
+                              if (_method == 'otp') ...[
+                                if (!_codeSent)
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: ElevatedButton(
+                                      onPressed: (_agree && !_saving) ? _sendCode : null,
+                                      style: ElevatedButton.styleFrom(backgroundColor: kNavy, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 14)),
+                                      child: const Text('Send me a code to sign'),
+                                    ),
+                                  )
+                                else ...[
+                                  TextField(
+                                    controller: _codeCtrl,
+                                    keyboardType: TextInputType.number,
+                                    maxLength: 6,
+                                    onChanged: (_) => setState(() {}),
+                                    decoration: InputDecoration(labelText: 'Code from the SMS', helperText: _sandboxCode != null ? 'Test mode: the code is $_sandboxCode' : null, counterText: ''),
                                   ),
-                                  child: _saving
-                                      ? const SizedBox(
-                                          width: 20,
-                                          height: 20,
-                                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                        )
-                                      : const Text('Accept agreement'),
+                                  Row(children: [
+                                    Expanded(
+                                      child: ElevatedButton(
+                                        onPressed: (_agree && !_saving && _codeCtrl.text.trim().length == 6) ? _accept : null,
+                                        style: ElevatedButton.styleFrom(backgroundColor: kNavy, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 14)),
+                                        child: _saving ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Sign agreement'),
+                                      ),
+                                    ),
+                                    TextButton(onPressed: _saving ? null : _sendCode, child: const Text('Resend')),
+                                  ]),
+                                ],
+                              ] else if (_method == 'aadhaar')
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton(
+                                    onPressed: (_agree && !_saving && _data?['signing']?['available'] != false) ? _esign : null,
+                                    style: ElevatedButton.styleFrom(backgroundColor: kNavy, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 14)),
+                                    child: Text(_data?['signing']?['available'] == false ? 'Aadhaar eSign is not available right now' : _esignSession != null ? 'Waiting for you to finish signing...' : 'Sign with Aadhaar eSign'),
+                                  ),
+                                )
+                              else
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton(
+                                    onPressed: (_agree && !_saving) ? _accept : null,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: kNavy,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(vertical: 14),
+                                    ),
+                                    child: _saving
+                                        ? const SizedBox(
+                                            width: 20,
+                                            height: 20,
+                                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                          )
+                                        : const Text('Accept agreement'),
+                                  ),
                                 ),
-                              ),
                             ],
                           ),
                         ),

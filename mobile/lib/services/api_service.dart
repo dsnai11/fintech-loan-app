@@ -572,13 +572,51 @@ class ApiService {
     }
   }
 
-  Future<Map<String, dynamic>> acceptAgreement(String loanId, String hash) async {
+  Future<Map<String, dynamic>> acceptAgreement(String loanId, String hash, {String? code}) async {
     try {
       final response = await _dio.post(
         '/compliance/agreement/$loanId/accept',
-        data: {'confirmed': true, 'hash': hash},
+        data: {'confirmed': true, 'hash': hash, if (code != null) 'code': code},
       );
       return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  // Signing with a code sent by SMS
+  Future<Map<String, dynamic>> sendAgreementCode(String loanId) async {
+    try {
+      final response = await _dio.post('/compliance/agreement/$loanId/code');
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  // Signing with Aadhaar eSign
+  Future<Map<String, dynamic>> startEsign(String loanId, String hash) async {
+    try {
+      final response = await _dio.post('/esign/start/$loanId', data: {'hash': hash});
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> esignStatus(String sessionId) async {
+    try {
+      final response = await _dio.get('/esign/status/$sessionId');
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<String> getAgreementPdfUrl(String loanId) async {
+    try {
+      final response = await _dio.post('/esign/pdf-link/$loanId');
+      return baseUrl.replaceFirst(RegExp(r'/api$'), '') + response.data['path'].toString();
     } on DioException catch (e) {
       throw _handleError(e);
     }

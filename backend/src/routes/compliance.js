@@ -10,6 +10,7 @@ import DataRequest from '../models/DataRequest.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { audit, clientIp } from '../services/auditService.js';
 import { buildAgreement } from '../services/agreementService.js';
+import { acceptByClick, acceptByCode, sendSigningCode, describeSigning } from '../services/signingService.js';
 
 const router = express.Router();
 router.use(authMiddleware);
@@ -39,7 +40,8 @@ router.get('/agreement/:loanId', async (req, res) => {
       version: agreement.version,
       text: accepted ? accepted.text : agreement.text,
       hash: accepted ? accepted.hash : agreement.hash,
-      accepted: accepted ? { at: accepted.acceptedAt } : null,
+      accepted: accepted ? { at: accepted.acceptedAt, method: accepted.method || 'click' } : null,
+      signing: describeSigning(user),
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -54,30 +56,26 @@ router.post('/agreement/:loanId/accept', async (req, res) => {
     const existing = await AgreementAcceptance.findOne({ loanId: loan._id });
     if (existing) return res.json({ message: 'Agreement already accepted', alreadyAccepted: true, acceptedAt: existing.acceptedAt });
 
-    if (loan.status !== 'approved') return bad(res, 400, 'Only an approved loan can be accepted');
-    if (req.body?.confirmed !== true) return bad(res, 400, 'Please confirm that you have read and agree');
-
     const user = await User.findById(req.user.userId);
-    const agreement = buildAgreement(loan, user);
-    if (req.body?.hash !== agreement.hash) return bad(res, 409, 'The agreement has changed. Please read it again.');
+    // The way of signing is the company's choice: a tick, a code sent by SMS, or Aadhaar eSign (which has its own screens)
+    const r = req.body?.code !== undefined ? await acceptByCode(loan, user, req.body, req) : await acceptByClick(loan, user, req.body || {}, req);
+    if (!r.ok) return res.status(r.status).json({ error: r.error, ...(r.code ? { code: r.code, method: r.method } : {}), ...(r.attemptsLeft !== undefined ? { attemptsLeft: r.attemptsLeft } : {}) });
+    res.json(r.already ? { message: 'Agreement already accepted', alreadyAccepted: true, acceptedAt: r.doc?.acceptedAt } : { message: 'Agreement accepted', acceptedAt: r.doc.acceptedAt, method: r.doc.method });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 
-    let doc;
-    try {
-      doc = await AgreementAcceptance.create({
-        loanId: loan._id,
-        userId: user._id,
-        version: agreement.version,
-        hash: agreement.hash,
-        text: agreement.text,
-        ip: clientIp(req),
-        userAgent: String(req.headers['user-agent'] || '').slice(0, 300),
-      });
-    } catch (e) {
-      if (e.code === 11000) return res.json({ message: 'Agreement already accepted', alreadyAccepted: true });
-      throw e;
-    }
-    await audit(req.user, 'AGREEMENT_ACCEPTED', { type: 'Loan', id: loan._id }, { version: agreement.version, hash: agreement.hash }, req);
-    res.json({ message: 'Agreement accepted', acceptedAt: doc.acceptedAt });
+// Sends the signing code to the phone on the account
+router.post('/agreement/:loanId/code', async (req, res) => {
+  try {
+    const loan = await ownedLoan(req, res);
+    if (!loan) return;
+    const user = await User.findById(req.user.userId);
+    const r = await sendSigningCode(loan, user);
+    if (!r.ok) return res.status(r.status).json({ error: r.error });
+    const { ok, ...body } = r;
+    res.json(body);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

@@ -4,6 +4,7 @@ import { bureauConfigured, providerName as bureauProvider, missingSettings as bu
 import { aiConfigured, providerName as assistantProvider, missingProviderSettings as assistantMissing } from './assistantService.js';
 import { pushConfigured, providerName as pushProvider, missingSettings as pushMissing } from './pushService.js';
 import { availability as mandateAvailability } from './mandateService.js';
+import { signingMethod, esignMode, providerName as esignProvider, PROVIDERS as ESIGNS } from './signingService.js';
 import { modeNow as aaMode, providerName as aaProvider, PROVIDERS as AAS } from './aaService.js';
 import { modeNow as digilockerMode, providerName as digilockerProvider, PROVIDERS as DIGILOCKERS } from './digilockerService.js';
 
@@ -127,6 +128,23 @@ export const INTEGRATIONS = [
       const m = aaMode();
       if (m === 'aa') return { mode: 'live', provider: p };
       return m === 'sandbox' ? { mode: 'test', note: 'A stand-in consent page and made-up statements are used. Results are marked as test data.' } : { mode: 'unavailable', note: 'No provider is set up, so the income check says it is not available.' };
+    },
+  },
+  {
+    id: 'signing', label: 'Signing the loan agreement', purpose: 'How a customer signs. A tick-box is the simplest; a code sent by SMS is stronger; Aadhaar eSign is the strongest and needs a signing provider.',
+    fields: [
+      field('AGREEMENT_SIGNING', 'Way of signing', { options: ['click', 'otp', 'aadhaar'], hint: 'click = tick-box. otp = tick-box plus a code sent to the customer phone. aadhaar = Aadhaar eSign.' }),
+      field('ESIGN_PROVIDER', 'Aadhaar eSign provider', { options: ['', ...Object.keys(ESIGNS)], hint: 'The provider adapter is installed once you have an account (Digio, Leegality, Signzy, Protean). Only used when the way of signing is aadhaar.' }),
+    ],
+    status: () => {
+      const m = signingMethod();
+      if (m === 'click') return { mode: 'live', provider: 'tick-box', note: 'Customers tick "I agree". Consider switching to a code or Aadhaar eSign before going live; ask your legal team which your loan documents need.' };
+      if (m === 'otp') return { mode: 'live', provider: 'sms code', note: 'Customers enter a code sent to their phone. Needs the SMS provider to be live.' };
+      const p = esignProvider();
+      if (p && !ESIGNS[p]) return { mode: 'misconfigured', provider: p, note: `No adapter for "${p}" is installed yet, so ${production() ? 'customers cannot sign' : 'the test page is used'}. Ask for it to be added.` };
+      const e = esignMode();
+      if (e === 'esign') return { mode: 'live', provider: p };
+      return e === 'sandbox' ? { mode: 'test', note: 'A stand-in Aadhaar eSign page is used. The signature is marked as a test.' } : { mode: 'unavailable', note: 'Aadhaar eSign is chosen but no provider is set up, so customers cannot sign. Choose another way or add a provider.' };
     },
   },
   {
