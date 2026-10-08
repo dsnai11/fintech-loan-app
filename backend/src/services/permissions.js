@@ -130,6 +130,7 @@ const RULES = [
   [/^\/api\/admin\/customers\/[^/]+\/selfie(\/|$)/, 'kyc.view', 'kyc.view'],
   [/^\/api\/admin\/customers(\/|$)/, 'customers.view', 'customers.view'],
   [/^\/api\/admin\/reports(\/|$)/, 'reports.view', 'reports.view'],
+  [/^\/api\/admin\/dashboard(\/|$)/, 'reports.view', 'reports.view'], // saving targets is checked in the route
   [/^\/api\/admin\/collections\/[^/]+\/(letter|claim|release)(\/|$)/, 'collections.act', 'collections.act'],
   [/^\/api\/admin\/collections\/(run-escalations|[^/]+\/(default|write-off|recovery|assign))(\/|$)/, 'collections.view', 'collections.manage'],
   [/^\/api\/admin\/collections(\/|$)/, 'collections.view', 'collections.act'],
