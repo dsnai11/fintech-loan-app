@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../services/api_service.dart';
 import '../widgets/tr_text.dart' show tr;
 import 'offers_screen.dart';
+import 'notifications_screen.dart';
+import '../services/notification_watcher.dart';
 import 'home_screen.dart';
 import 'loan_history_screen.dart';
 import 'profile_screen.dart';
@@ -26,6 +28,42 @@ class _MainShellState extends State<MainShell> {
   void initState() {
     super.initState();
     Future.microtask(_refreshOffers);
+    NotificationWatcher.instance.start(context.read<ApiService>(), _banner);
+  }
+
+  @override
+  void dispose() {
+    NotificationWatcher.instance.stop();
+    super.dispose();
+  }
+
+  // A new notification arrived while the app is open: show it at the bottom, with a way to open it
+  void _banner(Map<String, dynamic> n, int count) {
+    if (!mounted) return;
+    final isOffer = n['type'] == 'OFFER';
+    if (isOffer) _refreshOffers(); // so the Offers tab shows its dot
+    final title = '${n['title'] ?? ''}';
+    final more = count > 1 ? '  (+${count - 1} more)' : '';
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(SnackBar(
+      behavior: SnackBarBehavior.floating,
+      duration: const Duration(seconds: 7),
+      backgroundColor: const Color(0xFF111827),
+      content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('$title$more', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, color: Colors.white)),
+        if ('${n['message'] ?? ''}'.isNotEmpty) Text('${n['message']}', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70, fontSize: 12.5)),
+      ]),
+      action: SnackBarAction(
+        label: tr('View'),
+        textColor: const Color(0xFFFFB4B4),
+        onPressed: () {
+          final data = n['data'];
+          final offerId = (isOffer && data is Map) ? '${data['offerId'] ?? ''}' : '';
+          Navigator.of(context).push(MaterialPageRoute(builder: (_) => isOffer ? OffersScreen(openOfferId: offerId, onOpenTab: _open) : const NotificationsScreen()));
+        },
+      ),
+    ));
   }
 
   Future<void> _refreshOffers() async {

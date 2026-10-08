@@ -182,6 +182,7 @@ const HINDI_ONLY = [
   ['Before we begin', 'शुरू करने से पहले'],
   ['A few things worth knowing', 'कुछ जानने लायक बातें'],
   ['Not now, sign out', 'अभी नहीं, साइन आउट करें'],
+  ['View', 'देखें'],
   ['No offers right now', 'अभी कोई ऑफ़र नहीं'],
   ['Check back soon. We will tell you when there is something new.', 'जल्द ही फिर देखें। कुछ नया आने पर हम आपको बताएँगे।'],
   ['View offer', 'ऑफ़र देखें'],

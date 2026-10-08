@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../main.dart';
 import '../services/api_service.dart';
 import '../utils/error_utils.dart';
+import '../services/notification_watcher.dart';
 
 class NotificationBell extends StatefulWidget {
   const NotificationBell({Key? key}) : super(key: key);
@@ -19,13 +20,27 @@ class _NotificationBellState extends State<NotificationBell> {
   @override
   void initState() {
     super.initState();
+    _unread = NotificationWatcher.instance.unread.value;
+    NotificationWatcher.instance.unread.addListener(_follow);
     _refresh();
+  }
+
+  void _follow() {
+    if (mounted) setState(() => _unread = NotificationWatcher.instance.unread.value);
+  }
+
+  @override
+  void dispose() {
+    NotificationWatcher.instance.unread.removeListener(_follow);
+    super.dispose();
   }
 
   Future<void> _refresh() async {
     try {
       final data = await context.read<ApiService>().getNotifications();
-      if (mounted) setState(() => _unread = (data['unread'] as num?)?.toInt() ?? 0);
+      final n = (data['unread'] as num?)?.toInt() ?? 0;
+      NotificationWatcher.instance.setUnread(n);
+      if (mounted) setState(() => _unread = n);
     } catch (_) {}
   }
 
