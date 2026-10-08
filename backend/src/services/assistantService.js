@@ -48,6 +48,7 @@ export const DEFAULTS = {
   greeting: 'Hi! I am the LIFC AI assistant. I can help with questions about applying, paying EMIs, your loan and the app. I can make mistakes, and I cannot make loan decisions. Tap "Talk to a person" any time to reach our team.',
   handoverText: 'I am not able to help with that myself, so I have passed your message to our team. They will reply here and you will get a notification.',
   maxTurns: 8, // answers the assistant gives in one conversation before a person takes over
+  outsideFaq: 'general', // a question that is not in the FAQ list: 'general' = the AI answers general questions in its own words; 'handover' = it goes to a person
   useCustomerFacts: true, // lets it see the customer's own loan, next instalment and set-up (never PAN, Aadhaar, bank or contact details)
   kb: DEFAULT_KB,
 };
@@ -81,6 +82,7 @@ export function validateSettings(input) {
   if (!Number.isInteger(turns) || turns < 1 || turns > 30) errors.push('Answers before a person takes over must be a whole number from 1 to 30');
   else out.maxTurns = turns;
   out.useCustomerFacts = r.useCustomerFacts !== false;
+  out.outsideFaq = r.outsideFaq === 'handover' ? 'handover' : 'general';
   const list = Array.isArray(r.kb) ? r.kb : [];
   if (list.length > 80) errors.push('Keep the FAQ list to 80 entries or fewer');
   out.kb = [];
@@ -195,10 +197,18 @@ const LANGUAGE_NAMES = { en: 'English', hi: 'Hindi', mr: 'Marathi', gu: 'Gujarat
 
 function buildSystem(settings, user) {
   const lender = getPolicy().institution?.lenderName || 'the company';
+  const general = settings.outsideFaq !== 'handover';
+  const sourceRules = general
+    ? [
+        `1. About ${lender}, its loans, charges, limits, approvals, timelines, policies, contact details or the customer's own account: use ONLY the KNOWLEDGE and CUSTOMER FACTS below. If it is not there, say you do not have that information, and set handover to true if the customer needs it.`,
+        '1b. For general questions that do not depend on this company (for example what an EMI or a credit score is, how interest works in general, how to spot fraud, budgeting basics, how to use a phone feature), you may answer from your general knowledge in simple words, and say it is general information.',
+        '1c. If the question has nothing to do with money, loans or the app, say politely that you can only help with loans, money basics and the app.',
+      ]
+    : ['1. Answer ONLY from the KNOWLEDGE and CUSTOMER FACTS below. If the answer is not there, or you are not sure, do not guess: set handover to true.'];
   return [
     `You are ${settings.name}, the AI assistant of ${lender}, a lending company, inside its mobile loan app. You chat with customers.`,
     'Rules you must follow:',
-    '1. Answer ONLY from the KNOWLEDGE and CUSTOMER FACTS below. If the answer is not there, or you are not sure, do not guess: set handover to true.',
+    ...sourceRules,
     '2. Never promise or hint that a loan will be approved, and never state interest rates, charges, limits or dates that are not in the facts. Tell the customer the app shows every charge before they accept.',
     '3. Never give financial, legal or tax advice. Never ask for passwords, OTPs, PAN, Aadhaar, card or bank account numbers, and tell people not to share them.',
     '4. Complaints, disputes, fraud, harassment, hardship, bereavement, refunds, or any upset customer: set handover to true.',
@@ -266,10 +276,12 @@ export async function runAssistant(threadId) {
       const last = thread.messages[thread.messages.length - 1];
       if (!last || last.from !== 'customer') return; // already answered
 
+      const tapped = last.meta?.faqId ? settings.kb.find(e => e.id === last.meta.faqId) : null; // the customer tapped one of the listed questions
       const user = await User.findById(thread.userId).select('firstName language creditScore offer kycStatus phoneVerified dateOfBirth gender address employment selfie bankAccount kycDigilocker');
       if (!user) return;
       let result;
       if ((thread.bot?.turns || 0) >= settings.maxTurns) result = { reply: settings.handoverText, handover: true, mode: 'rules', reason: 'The assistant reached its limit for one conversation' };
+      else if (tapped) result = { reply: tapped.answer, handover: false, mode: 'faq' };
       else result = await respond({ user, history: thread.messages.slice(0, -1).slice(-10).map(m => ({ from: m.from, text: m.text })), question: last.text, settings });
 
       thread.messages.push({ from: 'bot', senderName: settings.name, text: result.reply, meta: { mode: result.mode, handover: result.handover } });

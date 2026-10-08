@@ -30,7 +30,8 @@ router.get('/thread', async (req, res) => {
 // Whether the assistant is on, and what it says first
 router.get('/assistant', (req, res) => {
   const s = assistantSettings();
-  res.json({ enabled: s.enabled, name: s.name, greeting: s.greeting });
+  // The questions customers can tap. Only the questions are sent; the answers come back in the conversation.
+  res.json({ enabled: s.enabled, name: s.name, greeting: s.greeting, faqs: s.enabled ? s.kb.map(e => ({ id: e.id, question: e.question })) : [] });
 });
 
 // "Talk to a person": the assistant steps back and the conversation shows up in the staff inbox as waiting
@@ -124,7 +125,8 @@ router.post('/messages', async (req, res) => {
     if (!thread) thread = new SupportThread({ userId: user._id, subject: text.slice(0, 80) });
     if (thread.messages.length >= MAX_MESSAGES_PER_THREAD) return res.status(409).json({ error: 'This conversation is full. Please wait for support to close it.' });
 
-    thread.messages.push({ from: 'customer', senderName: `${user.firstName} ${user.lastName}`.trim(), senderEmail: user.email, text });
+    const faqId = typeof req.body?.faqId === 'string' && assistantSettings().kb.some(e => e.id === req.body.faqId) ? req.body.faqId : null;
+    thread.messages.push({ from: 'customer', senderName: `${user.firstName} ${user.lastName}`.trim(), senderEmail: user.email, text, ...(faqId ? { meta: { faqId } } : {}) });
     thread.lastFrom = 'customer';
     thread.lastMessageAt = new Date();
     thread.unreadForStaff += 1;

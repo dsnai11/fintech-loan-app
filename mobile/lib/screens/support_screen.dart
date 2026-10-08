@@ -91,13 +91,16 @@ class _SupportScreenState extends State<SupportScreen> {
     });
   }
 
-  Future<void> _send() async {
-    final text = _controller.text.trim();
+  List<Map<String, dynamic>> get _faqs => ((_assistant?['faqs'] as List?) ?? []).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+
+  // `faq` is set when the customer tapped one of the listed questions
+  Future<void> _send({Map<String, dynamic>? faq}) async {
+    final text = faq != null ? '${faq['question']}' : _controller.text.trim();
     if (text.isEmpty || _sending) return;
     setState(() => _sending = true);
     try {
-      await context.read<ApiService>().sendSupportMessage(text);
-      _controller.clear();
+      await context.read<ApiService>().sendSupportMessage(text, faqId: faq == null ? null : '${faq['id']}');
+      if (faq == null) _controller.clear();
       if (_assistantOn && _botActive) _waitingSince = DateTime.now();
       await _load();
     } catch (e) {
@@ -174,6 +177,23 @@ class _SupportScreenState extends State<SupportScreen> {
                       if (!_staffJoined) TextButton(onPressed: _resume, child: const Text('Ask the assistant instead')),
                     ]),
                   ),
+                if (_assistantOn && _botActive && _messages.isNotEmpty && _faqs.isNotEmpty)
+                  Container(
+                    color: Colors.white,
+                    height: 46,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+                      itemCount: _faqs.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 8),
+                      itemBuilder: (_, i) => ActionChip(
+                        label: Text('${_faqs[i]['question']}', style: const TextStyle(fontSize: 12)),
+                        backgroundColor: const Color(0xFFFFF1F2),
+                        side: const BorderSide(color: Color(0xFFFECDD3)),
+                        onPressed: _sending ? null : () => _send(faq: _faqs[i]),
+                      ),
+                    ),
+                  ),
                 if (_assistantOn && _botActive && _messages.isNotEmpty)
                   Container(
                     color: Colors.white,
@@ -203,7 +223,7 @@ class _SupportScreenState extends State<SupportScreen> {
                         ),
                         const SizedBox(width: 8),
                         IconButton.filled(
-                          onPressed: _sending ? null : _send,
+                          onPressed: _sending ? null : () => _send(),
                           style: IconButton.styleFrom(backgroundColor: kNavy),
                           icon: _sending
                               ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
@@ -225,7 +245,7 @@ class _SupportScreenState extends State<SupportScreen> {
     }
     if (_messages.isEmpty) {
       if (_assistantOn) {
-        return Center(
+        return SingleChildScrollView(
           child: Padding(
             padding: const EdgeInsets.all(28),
             child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -238,7 +258,17 @@ class _SupportScreenState extends State<SupportScreen> {
               Text('${_assistant!['name'] ?? 'LIFC Assistant'}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF111827))),
               const SizedBox(height: 8),
               Text('${_assistant!['greeting'] ?? ''}', textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFF6B7280), height: 1.5)),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
+              for (final f in _faqs)
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: OutlinedButton(
+                    onPressed: _sending ? null : () => _send(faq: f),
+                    style: OutlinedButton.styleFrom(foregroundColor: kNavy, side: const BorderSide(color: Color(0xFFFECDD3)), padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12), alignment: Alignment.centerLeft, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                    child: Text('${f['question']}', style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
+                  ),
+                ),
               TextButton.icon(onPressed: _askForPerson, icon: const Icon(Icons.support_agent_rounded, size: 18), label: const Text('Talk to a person')),
             ]),
           ),

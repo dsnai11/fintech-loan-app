@@ -44,6 +44,9 @@
       <div><label for="s-name">Its name</label><input id="s-name" maxlength="40"></div>
       <div><label for="s-turns">Answers before a person takes over</label><input type="number" id="s-turns" min="1" max="30"></div>
     </div>
+    <label for="s-outside" style="margin-top:12px">When a customer asks something that is not in the FAQ list</label>
+    <select id="s-outside" class="full"><option value="general">The AI answers general questions in its own words (what an EMI is, how a credit score works, how to spot fraud). For anything about the company or the customer's account that is not in the FAQ list, it says it does not know and passes it to your team</option><option value="handover">Pass it to my team (the AI only repeats the FAQ list)</option></select>
+    <div class="note" style="margin-top:4px">Needs an AI provider on the Integrations page. Without one, anything outside the FAQ list goes to your team either way. Customers always see the FAQ questions as buttons they can tap.</div>
     <label for="s-greet" style="margin-top:12px">What it says first (must make clear it is an AI)</label><textarea id="s-greet" rows="3" maxlength="500" class="full"></textarea>
     <label for="s-hand" style="margin-top:12px">What it says when it passes the customer to your team</label><textarea id="s-hand" rows="2" maxlength="300" class="full"></textarea>
     <label class="chk" style="margin-top:12px"><input type="checkbox" id="s-facts"> Let it use the customer's own loan facts (first name, loans, next instalment and whether it is overdue, current offer, what is left of the account set-up). Never PAN, Aadhaar, bank account, phone or email.</label>
@@ -94,7 +97,7 @@ async function load() {
   } catch (e) { msg(e.message, 'err'); }
 }
 function fill() {
-  $('s-on').checked = S.enabled; $('s-name').value = S.name; $('s-turns').value = S.maxTurns; $('s-greet').value = S.greeting; $('s-hand').value = S.handoverText; $('s-facts').checked = S.useCustomerFacts;
+  $('s-on').checked = S.enabled; $('s-name').value = S.name; $('s-turns').value = S.maxTurns; $('s-greet').value = S.greeting; $('s-hand').value = S.handoverText; $('s-facts').checked = S.useCustomerFacts; $('s-outside').value = S.outsideFaq || 'general';
   drawFaqs();
 }
 function drawFaqs() {
@@ -107,7 +110,7 @@ function addFaq() { S.kb.push({ id: '', question: '', answer: '', keywords: [] }
 function removeFaq(i) { if (!confirm('Remove this question?')) return; S.kb.splice(i, 1); drawFaqs(); }
 
 async function save() {
-  const body = { enabled: $('s-on').checked, name: $('s-name').value, maxTurns: Number($('s-turns').value), greeting: $('s-greet').value, handoverText: $('s-hand').value, useCustomerFacts: $('s-facts').checked, kb: S.kb };
+  const body = { enabled: $('s-on').checked, name: $('s-name').value, maxTurns: Number($('s-turns').value), greeting: $('s-greet').value, handoverText: $('s-hand').value, useCustomerFacts: $('s-facts').checked, outsideFaq: $('s-outside').value, kb: S.kb };
   if (body.enabled && !S.enabled && !confirm('Customers will start getting automatic answers on the Messages tab. Switch the assistant on?')) return;
   $('save').disabled = true;
   try { const d = await api('/admin/assistant', 'PUT', body); S = d.settings; fill(); msg(d.message, 'ok'); $('saved').textContent = 'Saved ' + new Date().toLocaleTimeString('en-IN'); }

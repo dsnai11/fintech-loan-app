@@ -357,9 +357,9 @@ class ApiService {
     }
   }
 
-  Future<void> sendSupportMessage(String text) async {
+  Future<void> sendSupportMessage(String text, {String? faqId}) async {
     try {
-      await _dio.post('/support/messages', data: {'text': text});
+      await _dio.post('/support/messages', data: {'text': text, if (faqId != null) 'faqId': faqId});
     } on DioException catch (e) {
       throw _handleError(e);
     }
