@@ -8,6 +8,8 @@ import { screenLoan } from '../services/amlService.js';
 import { getPolicy, computeQuote, checkRequest, quoteProblem } from '../services/pricingPolicy.js';
 import { contextFor } from '../services/chargeContext.js';
 import { policyFor } from '../services/appSettings.js';
+import { topUp } from '../services/topupService.js';
+import { incomeBasis } from '../services/aaService.js';
 import { termsRequiredFor } from '../services/terms.js';
 import { decideLoan } from '../services/decisionEngine.js';
 import { setupStatus } from '../services/onboardingService.js';
@@ -175,8 +177,19 @@ router.post('/apply', authMiddleware, async (req, res) => {
     // The most this customer can borrow: the product limit, and their own offer after the credit check.
     const { cap, offer } = await offerCap(user, getPolicy());
     if (offer && offer.status === 'DECLINED') return res.status(403).json({ error: offer.reason || 'We are not able to offer you a loan at this time.', code: 'NOT_ELIGIBLE' });
-    const problem = checkRequest(policy, request, Math.min(await maxAmountFor(req.user.userId, policy), cap));
-    if (problem) return res.status(400).json({ error: offer ? `${problem}. Your offer is up to Rs ${offer.amount.toLocaleString('en-IN')}.` : problem, code: 'ABOVE_LIMIT' });
+    // With a loan already running, the customer can borrow only what is left of their limit (a top-up), and only if they pay on time
+    const limit = Math.min(await maxAmountFor(req.user.userId, policy), cap);
+    const tu = await topUp(req.user.userId, limit);
+    if (tu.hasLiveLoan && !tu.eligible) return res.status(403).json({ error: tu.reason, code: 'TOPUP_NOT_AVAILABLE' });
+    let allowed = tu.hasLiveLoan ? tu.maxAmount : limit;
+    // A salary advance is limited to a share of monthly income
+    if (policy.maxIncomePercent) {
+      const inc = incomeBasis(user);
+      if (!(inc.amount > 0)) return res.status(400).json({ error: 'Add your monthly income, or share your bank statements, to use this.', code: 'INCOME_NEEDED' });
+      allowed = Math.min(allowed, Math.floor((inc.amount * policy.maxIncomePercent) / 100 / 100) * 100);
+    }
+    const problem = checkRequest(policy, request, allowed);
+    if (problem) return res.status(400).json({ error: tu.hasLiveLoan ? `${problem}. You still owe Rs ${tu.outstanding.toLocaleString('en-IN')} on your current loan, which counts against your limit.` : offer ? `${problem}. Your offer is up to Rs ${offer.amount.toLocaleString('en-IN')}.` : problem, code: 'ABOVE_LIMIT' });
 
     // The customer's state decides which state charges apply; the add-ons are the ones they ticked.
     const ctx = contextFor(user, { state: req.body.personalDetails?.state, pincode: req.body.personalDetails?.pincode, optional: req.body.optionalCharges });
@@ -278,7 +291,9 @@ router.get('/my-offer', authMiddleware, async (req, res) => {
   try {
     const user = await User.findById(req.user.userId).select('offer');
     const policy = getPolicy();
-    res.json({ offer: publicOffer(activeOffer(user)), minAmount: policy.minAmount, maxAmount: policy.maxAmount });
+    const offer = activeOffer(user);
+    const tu = await topUp(req.user.userId, offer && offer.status !== 'DECLINED' ? offer.amount : policy.maxAmount);
+    res.json({ offer: publicOffer(offer), minAmount: policy.minAmount, maxAmount: policy.maxAmount, topUp: tu.hasLiveLoan ? tu : null });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

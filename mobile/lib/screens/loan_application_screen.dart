@@ -61,6 +61,8 @@ class _LoanApplicationScreenState extends State<LoanApplicationScreen> {
     });
   }
 
+  String? _topUpNote;
+
   Future<void> _loadPricing() async {
     try {
       final p = await context.read<ApiService>().getPricing(product: SelectedProduct.key);
@@ -77,6 +79,16 @@ class _LoanApplicationScreenState extends State<LoanApplicationScreen> {
       if (mounted && offer['eligible'] == true) setState(() => _maxAmount = asNum(offer['maxAmount']).toDouble());
       // The customer's own offer from the credit check is the most they can ask for.
       final mine = await context.read<ApiService>().getMyOffer();
+      final top = mine['topUp'];
+      if (mounted && top is Map) {
+        setState(() {
+          _topUpNote = top['eligible'] == true
+              ? 'You still owe ${formatMoney(asNum(top['outstanding']))} on your current loan, so you can borrow up to ${formatMoney(asNum(top['maxAmount']))} more.'
+              : (top['reason'] ?? '').toString();
+          if (top['eligible'] == true) _maxAmount = min(_maxAmount, asNum(top['maxAmount']).toDouble());
+          if (_loanAmount > _maxAmount) _loanAmount = _maxAmount;
+        });
+      }
       if (mounted && mine['offer'] is Map) {
         final a = asNum((mine['offer'] as Map)['amount']).toDouble();
         if (a >= _minAmount) {
@@ -244,6 +256,15 @@ class _LoanApplicationScreenState extends State<LoanApplicationScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    if (_topUpNote != null && _topUpNote!.isNotEmpty) ...[
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(color: const Color(0xFFFFFBEB), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFFCD34D))),
+                        child: Text(_topUpNote!, style: const TextStyle(fontSize: 13, height: 1.4, color: Color(0xFF92400E))),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                     // ── Loan Amount Slider ──
                     Container(
                       padding: const EdgeInsets.all(20),

@@ -47,6 +47,7 @@ const NUMERIC = {
   processingFeePercent: [0, 20, false],
   minTenureMonths: [1, 60, true],
   maxTenureMonths: [1, 60, true],
+  maxIncomePercent: [1, 100, true], // the most a customer may borrow, as a share of their monthly income (a salary advance)
 };
 
 // The pricing policy as it applies to one product. Returns null for an unknown or switched-off product.

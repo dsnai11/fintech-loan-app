@@ -175,6 +175,15 @@ export async function finishWithProvider(session, req = null) {
   }
 }
 
+// The monthly income to rely on, and where it came from
+export function incomeBasis(user) {
+  const c = user?.incomeCheck;
+  const fresh = c && c.at && Date.now() - new Date(c.at).getTime() <= 90 * DAY;
+  if (fresh && c.estimatedMonthlyIncome > 0) return { amount: c.estimatedMonthlyIncome, source: 'bank statements' };
+  const declared = user?.employment?.monthlyIncome || 0;
+  return declared > 0 ? { amount: declared, source: 'declared' } : { amount: 0, source: 'none' };
+}
+
 export async function withdraw(user, req = null) {
   if (!user.incomeCheck) return false;
   user.incomeCheck = undefined;

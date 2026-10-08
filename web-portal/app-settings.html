@@ -65,7 +65,7 @@ const FEATURES = [
   ['eligibilityCheck', 'Eligibility check', 'Show the eligibility check tile on the home screen.'],
   ['support', 'Messages to support', 'Let customers send you messages from the app. Switch off if nobody is answering.'],
 ];
-const NUM = [['minAmount', 'Smallest loan (Rs)'], ['maxAmount', 'Largest loan (Rs)'], ['annualRatePercent', 'Interest rate (% a year)'], ['processingFeePercent', 'Processing fee (%)'], ['minTenureMonths', 'Shortest tenure (months)'], ['maxTenureMonths', 'Longest tenure (months)']];
+const NUM = [['minAmount', 'Smallest loan (Rs)'], ['maxAmount', 'Largest loan (Rs)'], ['annualRatePercent', 'Interest rate (% a year)'], ['processingFeePercent', 'Processing fee (%)'], ['minTenureMonths', 'Shortest tenure (months)'], ['maxTenureMonths', 'Longest tenure (months)'], ['maxIncomePercent', 'Most of monthly income they can borrow (%) - for a salary advance']];
 
 function msg(text, kind) {
   const a = $('alert'); a.textContent = text; a.className = 'alert show ' + (kind === 'ok' ? 'ok' : 'err');
@@ -115,6 +115,7 @@ function render() {
       </div><div class="sub" style="margin:8px 0 0">Uses the standard pricing exactly as set on the Pricing page.</div></div>
     <div id="products">${S.products.map(prodCard).join('')}</div>
     <button class="btn" onclick="addProduct()">Add a product</button>
+    <button class="btn" onclick="addSalaryAdvance()">Add a salary advance</button>
   </div>
 
   <div class="card"><h2>Notice on the home screen</h2>
@@ -147,6 +148,14 @@ function preview() {
   $('b-preview').innerHTML = on && text ? `<div class="preview ${esc($('b-level').value)}">${esc(text)}</div>` : '';
 }
 function addProduct() { S = collect(); S.products.push({ key: '', name: '', description: '', enabled: true, overrides: { plans: {} } }); render(); }
+function addSalaryAdvance() {
+  S = collect();
+  if (S.products.some(p => p.key === 'salary_advance')) { msg('A salary advance product is already there.', 'err'); return; }
+  const off = {}; PLANS.forEach(([k]) => (off[k] = false));
+  S.products.push({ key: 'salary_advance', name: 'Salary Advance', description: 'A small amount until payday, repaid in one month.', enabled: true, overrides: { minAmount: 1000, maxAmount: 15000, minTenureMonths: 1, maxTenureMonths: 1, maxIncomePercent: 40, plans: off } });
+  render();
+  msg('Added with starting values: Rs 1,000 to 15,000, one month, up to 40% of monthly income. These are only a starting point. Have your credit head set the real numbers, check the interest and fee, then press Save.', 'ok');
+}
 function removeProduct(i) { S = collect(); S.products.splice(i, 1); render(); }
 
 function collect() {
