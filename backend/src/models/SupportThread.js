@@ -3,10 +3,12 @@ import mongoose from 'mongoose';
 // One conversation between a customer and the company. Messages are kept inside the thread.
 const messageSchema = new mongoose.Schema(
   {
-    from: { type: String, enum: ['customer', 'staff'], required: true },
+    from: { type: String, enum: ['customer', 'staff', 'bot'], required: true },
     senderName: { type: String, default: '' },
     senderEmail: { type: String, default: '' },
     text: { type: String, required: true, maxlength: 2000 },
+    meta: mongoose.Schema.Types.Mixed, // for the assistant: how the answer was made, and whether it handed over
+    feedback: { type: String, enum: ['up', 'down'] }, // the customer's thumbs on an assistant answer
   },
   { timestamps: { createdAt: true, updatedAt: false } }
 );
@@ -18,7 +20,14 @@ const threadSchema = new mongoose.Schema(
     subject: { type: String, default: '', maxlength: 120 },
     status: { type: String, enum: ['open', 'closed'], default: 'open', index: true },
     assignedTo: { type: String, default: '' },
-    lastFrom: { type: String, enum: ['customer', 'staff'], default: 'customer' },
+    lastFrom: { type: String, enum: ['customer', 'staff', 'bot'], default: 'customer' },
+    // The AI assistant: still answering (active), how many answers it has given, and when and why it passed to a person
+    bot: {
+      active: { type: Boolean, default: true },
+      turns: { type: Number, default: 0 },
+      handedOverAt: Date,
+      handoverReason: String,
+    },
     lastMessageAt: { type: Date, default: Date.now, index: true },
     unreadForStaff: { type: Number, default: 0 },
     unreadForCustomer: { type: Number, default: 0 },

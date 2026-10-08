@@ -365,6 +365,32 @@ class ApiService {
     }
   }
 
+  // The AI assistant on the Messages tab: whether it is on and what it says first, "Talk to a person", and thumbs on an answer
+  Future<Map<String, dynamic>> getAssistantInfo() async {
+    try {
+      final response = await _dio.get('/support/assistant');
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<void> requestPerson() async {
+    try {
+      await _dio.post('/support/handover');
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<void> rateAssistantAnswer(String messageId, String value) async {
+    try {
+      await _dio.post('/support/messages/$messageId/feedback', data: {'value': value});
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   // `product` is the home-screen choice inside the loan flow; elsewhere the main product is meant.
   Future<Map<String, dynamic>> getPricing({String product = 'personal'}) async {
     try {

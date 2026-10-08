@@ -24,6 +24,9 @@ const row = t => ({
   lastMessageAt: t.lastMessageAt,
   unread: t.unreadForStaff,
   preview: (t.messages[t.messages.length - 1]?.text || '').slice(0, 120),
+  botActive: t.bot?.active !== false,
+  handoverReason: t.bot?.handoverReason || null,
+  botTurns: t.bot?.turns || 0,
 });
 
 router.get('/', async (req, res) => {
@@ -61,7 +64,7 @@ router.get('/:id', async (req, res) => {
     const t = await load(req, res);
     if (!t) return;
     if (t.unreadForStaff) { t.unreadForStaff = 0; await t.save(); }
-    res.json({ ...row(t), unread: 0, messages: t.messages.map(m => ({ id: String(m._id), from: m.from, name: m.senderName, text: m.text, at: m.createdAt })) });
+    res.json({ ...row(t), unread: 0, messages: t.messages.map(m => ({ id: String(m._id), from: m.from, name: m.from === 'bot' ? `${m.senderName || 'Assistant'} (AI)` : m.senderName, feedback: m.feedback || null, text: m.text, at: m.createdAt })) });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -77,6 +80,7 @@ async function addStaffMessage(t, req, text) {
   t.lastFrom = 'staff';
   t.lastMessageAt = new Date();
   t.unreadForCustomer += 1;
+  t.bot.active = false; // once a person has joined in, the assistant stays out of it
   if (!t.assignedTo) t.assignedTo = req.user.email;
   await t.save();
   await notify(t.userId._id || t.userId, { type: 'SUPPORT_REPLY', title: 'Message from LIFC support', message: text.slice(0, 200) }, { email: true });

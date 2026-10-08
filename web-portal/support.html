@@ -29,6 +29,8 @@
 .m small { display: block; font-size: 11px; opacity: .7; margin-top: 3px; }
 .m.customer { align-self: flex-start; background: var(--e-surface-2); border: 1px solid var(--e-border); }
 .m.staff { align-self: flex-end; background: var(--e-primary); color: #fff; }
+.m.bot { align-self: flex-end; background: #F3E8FF; color: #581C87; border: 1px solid #E9D5FF; }
+.tagai { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px; background: #F3E8FF; color: #581C87; margin-left: 6px; }
 .reply { display: flex; gap: 8px; margin-top: 8px; }
 .reply textarea { flex: 1; min-height: 64px; resize: vertical; width: 100%; }
 .head { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
@@ -116,7 +118,7 @@ async function loadList() {
     $('filters').innerHTML = VIEWS.map(([k, label]) => `<button class="chip ${k === view ? 'on' : ''}" onclick="setView('${k}')">${esc(label)}${k === 'waiting' && counts.waiting ? ' (' + counts.waiting + ')' : ''}</button>`).join('');
     $('list').innerHTML = d.threads.map(t => `<div class="row ${current && current.id === t.id ? 'on' : ''}" onclick="openThread('${esc(t.id)}')">
       <b><span>${esc(t.customer?.name || 'Customer')}</span>${t.unread ? `<span class="dot">${t.unread}</span>` : ''}</b>
-      <div class="pv">${esc((t.lastFrom === 'staff' ? 'You: ' : '') + t.preview)}</div>
+      <div class="pv">${esc((t.lastFrom === 'staff' ? 'You: ' : t.lastFrom === 'bot' ? 'AI: ' : '') + t.preview)}</div>
       <div class="meta">${when(t.lastMessageAt)} · ${t.assignedTo ? esc(t.assignedTo) : 'unassigned'}${t.status === 'closed' ? ' · closed' : ''}</div></div>`).join('') || '<div class="empty">Nothing here.</div>';
   } catch (e) { msg(e.message, 'err'); }
 }
@@ -134,7 +136,7 @@ function renderThread() {
   const t = current;
   $('thread').innerHTML = `
     <div class="head"><div><h2>${esc(t.customer?.name || 'Customer')}</h2>
-      <div class="sub" style="margin:2px 0 0">${esc(t.customer?.phone || '')} · ${esc(t.customer?.email || '')} · ${t.status}${t.assignedTo ? ' · ' + esc(t.assignedTo) : ''}</div></div>
+      <div class="sub" style="margin:2px 0 0">${esc(t.customer?.phone || '')} · ${esc(t.customer?.email || '')} · ${t.status}${t.assignedTo ? ' · ' + esc(t.assignedTo) : ''}${t.botActive && t.botTurns ? '<span class="tagai">AI is answering</span>' : ''}${!t.botActive && t.handoverReason ? '<span class="tagai">AI handed over: ' + esc(t.handoverReason) + '</span>' : ''}</div></div>
       <div class="acts">
         <a class="btn" href="customers.html" title="Find this customer's loans" onclick="localStorage.setItem('find_customer', ${JSON.stringify(esc(t.customer?.email || ''))})">Customer page</a>
         ${t.status === 'open' ? '<button class="btn" onclick="act(\'close\')">Close</button>' : '<button class="btn" onclick="act(\'reopen\')">Reopen</button>'}

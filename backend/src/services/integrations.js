@@ -1,6 +1,7 @@
 import { getConfig } from './configService.js';
 import { smsConfigured } from './smsService.js';
 import { bureauConfigured, providerName as bureauProvider, missingSettings as bureauMissing, PROVIDERS as BUREAUS } from './bureauService.js';
+import { aiConfigured, providerName as assistantProvider, missingProviderSettings as assistantMissing } from './assistantService.js';
 import { pushConfigured, providerName as pushProvider, missingSettings as pushMissing } from './pushService.js';
 import { modeNow as digilockerMode, providerName as digilockerProvider, PROVIDERS as DIGILOCKERS } from './digilockerService.js';
 
@@ -38,6 +39,21 @@ export const INTEGRATIONS = [
       field('EMAIL_PASSWORD', 'Password or app password', { secret: true }),
     ],
     status: () => (getConfig('EMAIL_USER') && getConfig('EMAIL_PASSWORD') ? { mode: 'live', provider: getConfig('EMAIL_SERVICE') || 'gmail' } : { mode: 'off', note: 'No email account is set up. Emails are skipped; customers still get in-app notifications.' }),
+  },
+  {
+    id: 'assistant', label: 'AI assistant (chat)', purpose: 'Writes the assistant\'s answers on the Messages tab. Without it, the assistant answers only by matching the FAQ list.',
+    fields: [
+      field('ASSISTANT_PROVIDER', 'Provider', { options: ['', 'anthropic'], hint: 'Anthropic (Claude). Leave empty to answer from the FAQ list only.' }),
+      field('ASSISTANT_API_KEY', 'API key', { secret: true }),
+      field('ASSISTANT_MODEL', 'Model (leave empty for the default, claude-haiku-5-5)'),
+    ],
+    status: () => {
+      const p = assistantProvider();
+      if (p && p !== 'anthropic') return { mode: 'misconfigured', provider: p, note: `"${p}" is not an assistant provider here. Choose anthropic.` };
+      if (p && assistantMissing().length) return { mode: 'misconfigured', provider: p, missing: assistantMissing(), note: 'Fill in the missing settings. Until then the assistant answers from the FAQ list only.' };
+      if (aiConfigured()) return { mode: 'live', provider: p, note: 'The customer\'s message, their first name and a few facts about their loan are sent to the provider to write each answer. Never their PAN, Aadhaar, bank account, phone or email. Mention this in your privacy notice.' };
+      return { mode: 'test', note: 'No AI provider yet. The assistant answers only by matching the FAQ list, and hands over when nothing matches.' };
+    },
   },
   {
     id: 'push', label: 'Push notifications (Firebase)', purpose: 'Sends loan, EMI and offer alerts to customers\' phones, even when the app is closed.',

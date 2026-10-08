@@ -4,6 +4,7 @@ import User from '../models/User.js';
 import SupportThread from '../models/SupportThread.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { getSettings } from '../services/appSettings.js';
+import { getSettings as assistantSettings, runAssistant, handOver } from '../services/assistantService.js';
 
 // The customer's side of the conversation with the company.
 const router = express.Router();
@@ -12,8 +13,8 @@ router.use(authMiddleware);
 const MAX_MESSAGES_PER_THREAD = 500;
 const MAX_PER_HOUR = 20;
 
-const viewMessage = m => ({ id: String(m._id), from: m.from, name: m.from === 'staff' ? m.senderName || 'LIFC support' : 'You', text: m.text, at: m.createdAt });
-const viewThread = t => ({ id: String(t._id), subject: t.subject, status: t.status, lastMessageAt: t.lastMessageAt, messages: t.messages.map(viewMessage) });
+const viewMessage = m => ({ id: String(m._id), from: m.from, name: m.from === 'staff' ? m.senderName || 'LIFC support' : m.from === 'bot' ? m.senderName || 'LIFC Assistant' : 'You', ai: m.from === 'bot', feedback: m.feedback || null, text: m.text, at: m.createdAt });
+const viewThread = t => ({ id: String(t._id), subject: t.subject, status: t.status, lastMessageAt: t.lastMessageAt, botActive: t.bot?.active !== false, messages: t.messages.map(viewMessage) });
 
 router.get('/thread', async (req, res) => {
   try {
@@ -21,6 +22,47 @@ router.get('/thread', async (req, res) => {
     if (!thread) return res.json({ thread: null });
     if (thread.unreadForCustomer) { thread.unreadForCustomer = 0; await thread.save(); }
     res.json({ thread: viewThread(thread) });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Whether the assistant is on, and what it says first
+router.get('/assistant', (req, res) => {
+  const s = assistantSettings();
+  res.json({ enabled: s.enabled, name: s.name, greeting: s.greeting });
+});
+
+// "Talk to a person": the assistant steps back and the conversation shows up in the staff inbox as waiting
+router.post('/handover', async (req, res) => {
+  try {
+    if (!getSettings().features.support) return res.status(403).json({ error: 'Messaging is switched off for now. Please use the support email or phone number instead.' });
+    const user = await User.findById(req.user.userId).select('firstName lastName email');
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    let thread = await SupportThread.findOne({ userId: user._id, status: 'open' }).sort({ lastMessageAt: -1 });
+    if (!thread) thread = new SupportThread({ userId: user._id, subject: 'Asked to talk to a person' });
+    if (thread.bot?.active === false && thread.lastFrom === 'customer') return res.json({ thread: viewThread(thread) }); // already waiting for staff
+    if (thread.messages.length >= MAX_MESSAGES_PER_THREAD) return res.status(409).json({ error: 'This conversation is full. Please wait for support to close it.' });
+    thread.messages.push({ from: 'customer', senderName: `${user.firstName} ${user.lastName}`.trim(), senderEmail: user.email, text: 'Please connect me to a person.' });
+    await handOver(thread);
+    res.status(201).json({ thread: viewThread(thread) });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Thumbs up or down on an assistant answer
+router.post('/messages/:id/feedback', async (req, res) => {
+  try {
+    const value = req.body?.value;
+    if (!['up', 'down'].includes(value) || !mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Choose thumbs up or thumbs down' });
+    const thread = await SupportThread.findOne({ userId: req.user.userId, 'messages._id': req.params.id });
+    const m = thread?.messages.id(req.params.id);
+    if (!m) return res.status(404).json({ error: 'Message not found' });
+    if (m.from !== 'bot') return res.status(400).json({ error: 'You can only rate the assistant\'s answers' });
+    m.feedback = value;
+    await thread.save();
+    res.json({ feedback: value });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -63,6 +105,8 @@ router.post('/messages', async (req, res) => {
     thread.unreadForStaff += 1;
     await thread.save();
     res.status(201).json({ thread: viewThread(thread) });
+    // The assistant answers in the background; the app picks the answer up when it next checks
+    if (thread.bot?.active !== false) runAssistant(thread._id).catch(() => {});
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

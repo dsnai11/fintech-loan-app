@@ -120,6 +120,7 @@ const RULES = [
   [/^\/api\/app-settings\/admin(\/|$)/, 'appsettings.edit', 'appsettings.edit'],
   [/^\/api\/app-home\/admin(\/|$)/, 'banners.edit', 'banners.edit'],
   [/^\/api\/admin\/offers(\/|$)/, 'banners.edit', 'banners.edit'],
+  [/^\/api\/admin\/assistant(\/|$)/, 'appsettings.edit', 'appsettings.edit'],
   [/^\/api\/admin\/approvals(\/|$)/, ANY, ANY], // the route itself checks who may approve
   [/^\/api\/admin\/terms(\/|$)/, 'terms.edit', 'terms.edit'],
   [/^\/api\/admin\/config(\/|$)/, 'config.manage', 'config.manage'],

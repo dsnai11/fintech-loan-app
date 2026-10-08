@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%A4%96%3C/text%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI assistant - LIFC Admin</title>
+<style>
+* { box-sizing: border-box; }
+.card { padding: 16px; margin-bottom: 14px; }
+.card h2 { margin: 0 0 4px; font-size: 15px; }
+.sub { font-size: 12px; color: var(--e-muted); margin-bottom: 12px; line-height: 1.5; }
+.note { font-size: 12px; color: var(--e-muted); }
+.alert { display: none; padding: 12px 16px; margin-bottom: 14px; white-space: pre-line; }
+.alert.show { display: block; }
+.warnbox { background: var(--e-warn-soft); color: var(--e-warn); border-radius: 8px; padding: 10px 14px; font-size: 12.5px; line-height: 1.5; margin-bottom: 14px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; align-items: end; }
+.grid input, .grid textarea, .full { width: 100%; }
+.state { padding: 10px 12px; border-radius: 8px; font-size: 13px; line-height: 1.5; margin-bottom: 12px; }
+.state.ai { background: #DCFCE7; color: #166534; } .state.faq { background: var(--e-primary-soft); color: var(--e-primary); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 14px; }
+.tile { background: var(--e-surface); border: 1px solid var(--e-border); border-radius: 12px; padding: 12px; }
+.tile .l { font-size: 12px; color: var(--e-muted); font-weight: 600; } .tile .v { font-size: 22px; font-weight: 800; margin-top: 4px; }
+.faq { border: 1px solid var(--e-border); border-radius: 10px; padding: 12px; margin-bottom: 10px; background: var(--e-surface-2); }
+.faq .row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.faq input, .faq textarea { width: 100%; }
+.chk { display: flex; gap: 8px; align-items: center; margin: 0; font-weight: 500; }
+.bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; position: sticky; bottom: 0; background: var(--e-bg); padding: 12px 0; z-index: 3; }
+.bubble { border-radius: 12px; padding: 10px 12px; font-size: 13.5px; line-height: 1.5; background: var(--e-surface-2); border: 1px solid var(--e-border); margin-top: 10px; white-space: pre-wrap; }
+.bubble.hand { background: var(--e-warn-soft); color: var(--e-warn); }
+</style>
+<link rel="stylesheet" href="assets/portal.css">
+</head>
+<body data-shell="app" data-title="AI assistant" data-sub="The assistant that answers customers on the Messages tab, and hands over to your team when it should.">
+<div class="container">
+  <div id="alert" class="alert" role="alert"></div>
+  <div class="warnbox"><b>Before you switch it on:</b> the assistant only answers from the FAQ list below (and, if you allow it, a few facts about the customer's own loan). Make sure every answer there is true and approved by your compliance team. It always says it is an AI, it cannot decide or promise anything about a loan, and customers can reach your team at any time with "Talk to a person". If you connect an AI provider, say so in your privacy notice: the customer's message and a few loan facts are sent to that provider.</div>
+  <div id="status"></div>
+  <div class="tiles" id="tiles"></div>
+
+  <div class="card"><h2>Behaviour</h2><div class="sub">What customers see and when it steps back.</div>
+    <label class="chk" style="margin-bottom:12px"><input type="checkbox" id="s-on"> <b>The assistant is on</b> <span class="note">(when off, customers' messages go straight to your team)</span></label>
+    <div class="grid">
+      <div><label for="s-name">Its name</label><input id="s-name" maxlength="40"></div>
+      <div><label for="s-turns">Answers before a person takes over</label><input type="number" id="s-turns" min="1" max="30"></div>
+    </div>
+    <label for="s-greet" style="margin-top:12px">What it says first (must make clear it is an AI)</label><textarea id="s-greet" rows="3" maxlength="500" class="full"></textarea>
+    <label for="s-hand" style="margin-top:12px">What it says when it passes the customer to your team</label><textarea id="s-hand" rows="2" maxlength="300" class="full"></textarea>
+    <label class="chk" style="margin-top:12px"><input type="checkbox" id="s-facts"> Let it use the customer's own loan facts (first name, loans, next instalment and whether it is overdue, current offer, what is left of the account set-up). Never PAN, Aadhaar, bank account, phone or email.</label>
+  </div>
+
+  <div class="card"><h2>FAQ list</h2><div class="sub">The only source of company information the assistant uses. <b>Keywords</b> help it match a question when no AI provider is connected: separate them with commas, and include words customers actually type (also in Hindi, if you wish). Keep answers short and factual. Do not put interest rates or charges here unless they are fixed and approved.</div>
+    <div id="faqs"></div>
+    <button class="btn" onclick="addFaq()">Add a question</button>
+  </div>
+
+  <div class="card"><h2>Try it</h2><div class="sub">Ask it something the way a customer would. Nothing is saved, and no real customer's details are used. This tries the settings that are saved, so save first after changing the FAQ.</div>
+    <div class="grid"><div style="grid-column: 1 / -1"><input id="t-q" class="full" placeholder="For example: how do I pay my EMI?" onkeydown="if(event.key==='Enter')tryIt()"></div></div>
+    <div style="margin-top:10px"><button class="btn primary" onclick="tryIt()">Ask</button></div>
+    <div id="t-out"></div>
+  </div>
+
+  <div class="bar"><button class="btn primary" id="save" onclick="save()">Save</button><span class="note" id="saved"></span></div>
+</div>
+<script>
+const API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
+const token = localStorage.getItem('admin_token');
+if (!token) location.href = 'admin-config.html';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+let S = null;
+
+function msg(text, kind) {
+  const a = $('alert'); a.textContent = text; a.className = 'alert show ' + (kind === 'ok' ? 'ok' : 'err');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+async function api(path, method = 'GET', body) {
+  const r = await fetch(API + path, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.errors ? d.errors.join('\n') : d.error || 'Something went wrong');
+  return d;
+}
+
+async function load() {
+  try {
+    const d = await api('/admin/assistant');
+    S = d.settings;
+    const ai = d.status.mode === 'ai';
+    $('status').innerHTML = `<div class="state ${ai ? 'ai' : 'faq'}">${ai ? '<b>AI provider connected.</b> The assistant writes natural answers, using only your FAQ list and the customer\'s own facts, and hands over when it is unsure.' : '<b>FAQ mode.</b> No AI provider is connected, so the assistant answers only when a question matches your FAQ list, and hands over otherwise. To connect an AI provider, open <a href="integrations.html">Integrations</a> and fill in "AI assistant (chat)".'}</div>`;
+    const t = d.stats;
+    $('tiles').innerHTML = [['Conversations (30 days)', t.conversations], ['Answers given', t.answers], ['Handed to your team', `${t.handedOver} (${t.handoverShare}%)`], ['Thumbs up', t.thumbsUp], ['Thumbs down', t.thumbsDown]].map(([l, v]) => `<div class="tile"><div class="l">${l}</div><div class="v">${v}</div></div>`).join('');
+    fill();
+  } catch (e) { msg(e.message, 'err'); }
+}
+function fill() {
+  $('s-on').checked = S.enabled; $('s-name').value = S.name; $('s-turns').value = S.maxTurns; $('s-greet').value = S.greeting; $('s-hand').value = S.handoverText; $('s-facts').checked = S.useCustomerFacts;
+  drawFaqs();
+}
+function drawFaqs() {
+  $('faqs').innerHTML = S.kb.map((e, i) => `<div class="faq"><div class="row"><input data-i="${i}" data-k="question" value="${esc(e.question)}" maxlength="150" placeholder="The question" oninput="edit(event)"><button class="btn danger" onclick="removeFaq(${i})">Remove</button></div>
+    <textarea data-i="${i}" data-k="answer" rows="3" maxlength="800" placeholder="The answer" oninput="edit(event)">${esc(e.answer)}</textarea>
+    <input data-i="${i}" data-k="keywords" value="${esc((e.keywords || []).join(', '))}" placeholder="Keywords, separated by commas" style="margin-top:8px" oninput="edit(event)"></div>`).join('') || '<div class="note">No questions yet.</div>';
+}
+function edit(e) { const el = e.target, i = +el.dataset.i, k = el.dataset.k; S.kb[i][k] = k === 'keywords' ? el.value.split(',').map(x => x.trim()).filter(Boolean) : el.value; }
+function addFaq() { S.kb.push({ id: '', question: '', answer: '', keywords: [] }); drawFaqs(); window.scrollTo({ top: document.body.scrollHeight }); }
+function removeFaq(i) { if (!confirm('Remove this question?')) return; S.kb.splice(i, 1); drawFaqs(); }
+
+async function save() {
+  const body = { enabled: $('s-on').checked, name: $('s-name').value, maxTurns: Number($('s-turns').value), greeting: $('s-greet').value, handoverText: $('s-hand').value, useCustomerFacts: $('s-facts').checked, kb: S.kb };
+  if (body.enabled && !S.enabled && !confirm('Customers will start getting automatic answers on the Messages tab. Switch the assistant on?')) return;
+  $('save').disabled = true;
+  try { const d = await api('/admin/assistant', 'PUT', body); S = d.settings; fill(); msg(d.message, 'ok'); $('saved').textContent = 'Saved ' + new Date().toLocaleTimeString('en-IN'); }
+  catch (e) { msg(e.message, 'err'); }
+  $('save').disabled = false;
+}
+async function tryIt() {
+  const q = $('t-q').value.trim();
+  if (!q) return;
+  $('t-out').innerHTML = '<div class="note" style="margin-top:10px">Thinking...</div>';
+  try {
+    const d = await api('/admin/assistant/test', 'POST', { question: q });
+    $('t-out').innerHTML = `<div class="bubble ${d.handover ? 'hand' : ''}">${esc(d.reply)}</div><div class="note" style="margin-top:6px">${d.handover ? 'It would hand this to your team' + (d.reason ? ': ' + esc(d.reason) : '') : 'It answered'} · made by ${d.mode === 'ai' ? 'the AI provider' : d.mode === 'faq' ? 'matching your FAQ list' : 'a fixed rule'}</div>`;
+  } catch (e) { $('t-out').innerHTML = `<div class="state faq" style="margin-top:10px">${esc(e.message)}</div>`; }
+}
+load();
+</script>
+<script src="assets/portal.js"></script>
+</body>
+</html>
