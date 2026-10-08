@@ -229,6 +229,7 @@ export async function markEMIPaid(emi, paymentId, amountPaid) {
   });
 
   await notify(emi.userId, templates.emiPaid(emi, paid), { sms: true });
+  try { await (await import('./rewardsService.js')).afterPayment(emi.userId); } catch (e) { console.error('Rewards failed:', e.message); }
 
   const unpaid = await EMIPayment.countDocuments({ loanId: emi.loanId, status: { $ne: 'PAID' } });
   if (unpaid === 0) {

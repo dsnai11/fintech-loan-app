@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%8F%85%3C/text%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rewards - LIFC Admin</title>
+<style>
+* { box-sizing: border-box; }
+.card { padding: 16px; margin-bottom: 14px; }
+.card h2 { margin: 0 0 4px; font-size: 15px; }
+.sub { font-size: 12px; color: var(--e-muted); margin-bottom: 12px; line-height: 1.5; }
+.note { font-size: 12px; color: var(--e-muted); }
+.alert { display: none; padding: 12px 16px; margin-bottom: 14px; white-space: pre-line; }
+.alert.show { display: block; }
+.warn { background: var(--e-warn-soft); color: var(--e-warn); border-radius: 8px; padding: 10px 14px; font-size: 12.5px; line-height: 1.5; margin-bottom: 14px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 14px; }
+.tile { background: var(--e-surface); border: 1px solid var(--e-border); border-radius: 12px; padding: 14px; }
+.tile .l { font-size: 12px; color: var(--e-muted); font-weight: 600; }
+.tile .v { font-size: 22px; font-weight: 800; margin-top: 4px; }
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--e-muted); border-bottom: 1px solid var(--e-border); white-space: nowrap; }
+td { padding: 8px; border-bottom: 1px solid var(--e-border); vertical-align: top; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; align-items: end; }
+.tag { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 20px; background: #E0ECFF; color: #1D4ED8; }
+.tag.paid { background: #DCFCE7; color: #166534; }
+.tag.due { background: #FEF3C7; color: #92400E; }
+.ms { border: 1px solid var(--e-border); border-radius: 10px; padding: 10px; margin-bottom: 8px; }
+</style>
+<link rel="stylesheet" href="assets/portal.css">
+</head>
+<body data-shell="app" data-title="Rewards" data-sub="Badges and optional cash rewards for customers who pay their EMIs on time.">
+<div class="container">
+  <div id="alert" class="alert" role="alert"></div>
+  <div class="warn"><b>Check before you switch it on.</b> A badge costs nothing. A cash reward is a cost to the company and may be taxable for the customer: confirm the amounts with finance and your accountant. Cash rewards are never paid automatically: finance sends each one to the bank account shown and enters the reference.</div>
+  <div class="tiles" id="tiles"></div>
+  <div class="card"><h2>Rules</h2><div class="sub">A streak is how many EMIs in a row were paid on the due date, or within the grace days. A late payment, or an EMI that is overdue now, ends the streak.</div><div id="rules"></div></div>
+  <div class="card"><h2>Rewards given</h2><div class="scroll" id="awards"></div></div>
+</div>
+<script>
+const API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
+const token = localStorage.getItem('admin_token');
+if (!token) location.href = 'admin-config.html';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const inr = n => '₹' + Math.round(n || 0).toLocaleString('en-IN');
+let D = null, P = null;
+function msg(text, kind) { const a = $('alert'); a.textContent = text; a.className = 'alert show ' + (kind === 'ok' ? 'ok' : 'err'); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+async function api(path, method = 'GET', body) {
+  const r = await fetch(API + path, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.errors ? d.errors.join('\n') : d.error || 'Something went wrong');
+  return d;
+}
+function msRow(m, i) {
+  const dis = D.canManage ? '' : 'disabled';
+  return `<div class="ms"><div class="grid"><div><label for="m-s-${i}">After this many EMIs in a row</label><input id="m-s-${i}" type="number" value="${m.streak}" ${dis}></div><div><label for="m-t-${i}">Badge name</label><input id="m-t-${i}" value="${esc(m.title)}" maxlength="40" ${dis}></div><div><label for="m-c-${i}">Cash reward (Rs, 0 = badge only)</label><input id="m-c-${i}" type="number" value="${m.cashback}" ${dis}></div>${D.canManage ? `<div><button class="btn" onclick="removeMs(${i})">Remove</button></div>` : ''}</div></div>`;
+}
+function collect() {
+  return { enabled: $('on').checked, graceDays: Number($('grace').value), milestones: P.milestones.map((_, i) => ({ streak: Number($('m-s-' + i).value), title: $('m-t-' + i).value, cashback: Number($('m-c-' + i).value) })) };
+}
+function addMs() { P = collect(); P.milestones.push({ streak: 24, title: 'Platinum payer', cashback: 0 }); draw(); }
+function removeMs(i) { P = collect(); P.milestones.splice(i, 1); draw(); }
+function draw() {
+  const t = D.totals, dis = D.canManage ? '' : 'disabled';
+  $('tiles').innerHTML = [['Status', P.enabled ? 'On' : 'Off'], ['Rewards given', t.earned], ['Cash to pay', t.due + ' · ' + inr(t.dueAmount)], ['Cash paid', inr(t.paidAmount)]].map(x => `<div class="tile"><div class="l">${x[0]}</div><div class="v">${x[1]}</div></div>`).join('');
+  $('rules').innerHTML = `<label class="row" style="margin-bottom:10px"><input type="checkbox" id="on" ${P.enabled ? 'checked' : ''} ${dis}> <b>Rewards are on</b></label>
+    <div class="grid" style="margin-bottom:12px"><div><label for="grace">Grace days after the due date that still count as on time</label><input id="grace" type="number" value="${P.graceDays}" ${dis}></div></div>
+    ${P.milestones.map(msRow).join('')}
+    ${D.canManage ? '<div class="row"><button class="btn" onclick="addMs()">Add a milestone</button><button class="btn primary" onclick="save()">Save</button></div>' : '<div class="note">Your role can look but not change these.</div>'}`;
+  $('awards').innerHTML = D.awards.length ? `<table><thead><tr><th>When</th><th>Customer</th><th>Badge</th><th>Cash</th><th>Bank account</th><th>Status</th><th></th></tr></thead><tbody>${D.awards.map(a => `<tr><td>${new Date(a.at).toLocaleDateString('en-IN')}</td><td>${esc(a.customer)}<div class="note">${esc(a.phone)}</div></td><td>${esc(a.title)} <span class="note">(${a.streak} EMIs)</span></td><td>${a.cashback ? inr(a.cashback) : '-'}</td><td class="note">${esc(a.account)}</td><td><span class="tag ${esc(a.status)}">${esc(a.status === 'earned' ? 'badge' : a.status)}</span>${a.paidReference ? `<div class="note">Ref ${esc(a.paidReference)}</div>` : ''}</td>
+    <td>${D.canManage && a.status === 'due' ? `<div class="row"><input id="ref-${a.id}" placeholder="Bank or UPI reference" style="width:170px"><button class="btn primary" onclick="paid('${a.id}')">Mark paid</button></div>` : ''}</td></tr>`).join('')}</tbody></table>` : '<div class="note">None yet.</div>';
+}
+async function load() { try { D = await api('/admin/rewards'); P = D.program; draw(); } catch (e) { msg(e.message, 'err'); } }
+async function save() { try { const r = await api('/admin/rewards/settings', 'PUT', collect()); msg(r.message, 'ok'); load(); } catch (e) { msg(e.message, 'err'); } }
+async function paid(id) { try { await api(`/admin/rewards/awards/${id}/paid`, 'POST', { reference: $('ref-' + id).value }); msg('Marked paid.', 'ok'); load(); } catch (e) { msg(e.message, 'err'); } }
+load();
+</script>
+<script src="assets/portal.js"></script>
+</body>
+</html>

@@ -1,4 +1,6 @@
 import 'income_check_screen.dart';
+import 'credit_score_screen.dart';
+import 'rewards_screen.dart';
 import 'account_setup_card.dart';
 import 'package:flutter/material.dart' hide Text;
 import '../widgets/tr_text.dart';
@@ -288,6 +290,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           AccountSetupCard(profile: _profile ?? const {}, onChanged: _fetchProfile),
           const SizedBox(height: 12),
 
+          const RewardsRow(),
+          const CreditScoreRow(),
           const IncomeCheckRow(),
           const ReferEarnRow(),
           const NotificationSettingsRow(),

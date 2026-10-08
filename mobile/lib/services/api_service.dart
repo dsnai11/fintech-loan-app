@@ -413,6 +413,35 @@ class ApiService {
     }
   }
 
+  // Rewards for paying on time
+  Future<Map<String, dynamic>> getRewards() async {
+    try {
+      final response = await _dio.get('/rewards/me');
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  // Credit score
+  Future<Map<String, dynamic>> getCreditScore() async {
+    try {
+      final response = await _dio.get('/credit-score');
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> refreshCreditScore({bool consent = false}) async {
+    try {
+      final response = await _dio.post('/credit-score/refresh', data: {'consent': consent});
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   // Auto-debit of EMIs
   Future<Map<String, dynamic>> getMyMandates() async {
     try {

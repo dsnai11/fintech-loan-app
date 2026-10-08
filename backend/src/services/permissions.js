@@ -142,6 +142,7 @@ const RULES = [
   [/^\/api\/admin\/regulatory\/export(\/|$)/, 'audit.view', 'audit.view'],
   [/^\/api\/admin\/regulatory(\/|$)/, 'reports.view', 'reports.view'], // saving the rules is checked in the route
   [/^\/api\/admin\/online-payments(\/|$)/, 'collections.view', 'collections.view'], // resolving is checked in the route
+  [/^\/api\/admin\/rewards(\/|$)/, 'referrals.view', 'referrals.view'], // changes are checked in the route
   [/^\/api\/admin\/nudges(\/|$)/, 'banners.edit', 'banners.edit'],
   [/^\/api\/admin\/reminders(\/|$)/, 'collections.view', 'collections.view'], // changes are checked in the route
   [/^\/api\/admin\/mandates(\/|$)/, 'collections.view', 'collections.view'], // changes are checked in the route

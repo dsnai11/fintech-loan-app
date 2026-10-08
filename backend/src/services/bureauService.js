@@ -97,6 +97,9 @@ export async function checkCredit(user, { force = false } = {}) {
     }
     if (result.score) {
       await User.updateOne({ _id: user._id }, { creditScore: result.score, creditScoreAt: new Date(), creditScoreSource: result.source, ...(result.report ? { bureauReport: { ...result.report, at: new Date() } } : {}) });
+      user.creditScore = result.score;
+      user.creditScoreAt = new Date();
+      user.creditScoreSource = result.source;
     }
     return { ...result, cached: false };
   } catch (e) {

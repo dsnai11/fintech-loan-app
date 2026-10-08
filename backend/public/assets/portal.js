@@ -38,6 +38,7 @@
     { group: 'Customer care' },
     { href: 'support.html', label: 'Messages', icon: 'chat', any: ['support.view', 'announcements.send'] },
     { href: 'assistant.html', label: 'AI assistant', icon: 'bot', any: ['appsettings.edit'] },
+    { href: 'rewards.html', label: 'Rewards', icon: 'gift', any: ['referrals.view'] },
     { href: 'referrals.html', label: 'Referrals', icon: 'gift', any: ['referrals.view'] },
     { group: 'Recovery' },
     { href: 'collections.html', label: 'Collections', icon: 'phone', any: ['collections.view'] },

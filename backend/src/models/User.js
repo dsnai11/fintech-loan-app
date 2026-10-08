@@ -47,6 +47,7 @@ const userSchema = new mongoose.Schema(
     phoneVerifiedAt: Date,
     // Credit check and the loan offer worked out from it (see services/offerService.js)
     creditScoreAt: Date,
+    creditScoreHistory: [mongoose.Schema.Types.Mixed], // up to 12 earlier checks: { at, score, source }
     creditScoreSource: String,
     bureauConsentAt: Date,
     // The selfie taken at sign-up and its blink check (the photos themselves live in KycMedia)

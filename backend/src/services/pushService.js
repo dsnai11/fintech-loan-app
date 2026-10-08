@@ -27,6 +27,7 @@ const TYPE_TO_CATEGORY = {
   ANNOUNCEMENT: 'offers',
   OFFER: 'offers',
   NUDGE: 'offers',
+  REWARD: 'offers',
   REFERRAL_REWARD: 'offers',
 };
 export const categoryOf = type => TYPE_TO_CATEGORY[type] || 'loan';
