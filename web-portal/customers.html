@@ -123,6 +123,7 @@ async function openCustomer(id) {
       ${canMsg ? `<div class="card"><h2>Send a message</h2><div class="muted" style="margin-bottom:8px">${esc(c.name)} sees it in the app and gets a notification. Replies come to the Messages inbox.</div><div class="row"><input type="text" id="dm" maxlength="2000" placeholder="Write a message"><button class="btn primary" onclick="sendMessage('${esc(c.id)}')">Send</button></div></div>` : ''}
       <div class="card"><h2>Summary</h2><div class="kv">
         <div><b>Loans</b>${s.totalLoans}</div><div><b>Active</b>${s.activeLoans}</div><div><b>Total borrowed</b>${inr(s.totalBorrowed)}</div><div><b>Open AML alerts</b>${s.openAlerts}</div></div></div>
+      ${setupCard(c)}
       <div class="card"><h2>Loans</h2>${table(['Amount', 'Tenure', 'EMI', 'Status', 'Applied', 'Paid out', ''], d.loans.map(l =>
         [inr(l.amount), l.tenure + ' mo', inr(l.emi), pill(l.status), date(l.appliedAt), date(l.disbursedAt),
           ['disbursed', 'closed'].includes(l.status) ? `<a class="link" onclick="openDoc('${esc(l.id)}','statement')">Statement</a>` : ''
@@ -132,6 +133,7 @@ async function openCustomer(id) {
         [date(n.at), esc(n.type), esc(n.text), n.promiseDate ? date(n.promiseDate) + (n.promiseAmount ? ' / ' + inr(n.promiseAmount) : '') : '', esc(n.by)]))}</div>
       <div class="card"><h2>Data requests</h2>${table(['Type', 'Status', 'Raised'], d.dataRequests.map(q => [esc(q.type), pill(q.status), date(q.at)]))}</div>`;
     $('detail').scrollIntoView({ behavior: 'smooth' });
+    if (c.selfie && (!window.PortalShell || PortalShell.can('kyc.view'))) loadSelfie(c.id);
   } catch (err) { fail(err.message); }
 }
 
@@ -150,6 +152,50 @@ async function sendMessage(userId) {
 // open straight from the Messages inbox
 const pre = (() => { try { const v = localStorage.getItem('find_customer'); localStorage.removeItem('find_customer'); return v; } catch (e) { return null; } })();
 if (pre) { document.addEventListener('DOMContentLoaded', () => { $('q').value = pre; search(new Event('submit')); }); }
+
+// Identity (DigiLocker), personal details, the selfie and the bank account, for the KYC review
+const FLAGS = { name_differs: 'Name differs from the account', date_of_birth_differs: 'Date of birth differs', pan_differs: 'PAN differs from the account', pan_on_another_account: 'PAN is on another account', same_aadhaar_on_another_account: 'Same Aadhaar on another account', no_date_of_birth: 'No date of birth returned', same_photo_on_another_account: 'Same photo on another account' };
+const yn = v => (v === true ? 'Matches' : v === false ? 'Does not match' : 'Not compared');
+function setupCard(c) {
+  const d = c.digilocker, s = c.selfie, a = c.address, e = c.employment;
+  const steps = c.setup || {};
+  const decide = !window.PortalShell || PortalShell.can('kyc.decide');
+  const flagList = list => (list || []).map(f => `<div class="muted">! ${esc(FLAGS[f] || f)}</div>`).join('');
+  return `<div class="card"><h2>Account set-up ${steps.complete ? pill('approved') : '<span class="pill warn">not finished</span>'}</h2>
+    <div class="kv" style="margin-bottom:14px">
+      <div><b>Identity (DigiLocker)</b>${d ? `${pill(d.status === 'verified' ? 'approved' : 'pending')} ${d.mode === 'sandbox' ? '<span class="muted">test mode</span>' : ''}<div class="muted">Name: ${yn(d.nameMatch)} · Date of birth: ${yn(d.dobMatch)}${d.aadhaarLast4 ? ' · Aadhaar ends ' + esc(d.aadhaarLast4) : ''}</div>${flagList(d.flags)}` : '<span class="muted">Not done</span>'}</div>
+      <div><b>Personal details</b>${steps.profile ? `${esc(c.gender)}, born ${date(c.dateOfBirth)}<div class="muted">${a ? esc([a.street, a.city, a.state, a.zipCode].filter(Boolean).join(', ')) : ''}</div><div class="muted">${e ? esc(e.status || '') + (e.company ? ', ' + esc(e.company) : '') + (e.monthlyIncome ? ', ' + inr(e.monthlyIncome) + ' a month' : '') : ''}</div>` : '<span class="muted">Not done</span>'}</div>
+      <div><b>Bank account</b>${c.bankAccount ? esc(c.bankAccount.holder + ', ' + c.bankAccount.number + ', ' + c.bankAccount.ifsc) : '<span class="muted">Not done</span>'}</div>
+    </div>
+    <b style="font-size:11px;color:var(--muted);text-transform:uppercase">Photo and blink check</b>
+    ${s ? `<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;margin-top:8px">
+        <div><img id="selfie-before" alt="Photo before the blinks" style="width:150px;height:200px;object-fit:cover;border-radius:10px;background:#e5e7eb"><div class="muted">Before</div></div>
+        <div><img id="selfie-after" alt="Photo after the blinks" style="width:150px;height:200px;object-fit:cover;border-radius:10px;background:#e5e7eb"><div class="muted">After two blinks</div></div>
+        <div style="flex:1;min-width:220px">${pill(s.status === 'passed' ? 'approved' : s.status === 'rejected' ? 'rejected' : 'pending')} <span class="muted">taken ${date(s.capturedAt)} · ${s.blinks} blinks seen by the phone</span>${flagList(s.flag ? [s.flag] : [])}
+          ${s.reviewedBy ? `<div class="muted">Reviewed by ${esc(s.reviewedBy)}${s.reviewNote ? ': ' + esc(s.reviewNote) : ''}</div>` : ''}
+          <div class="muted" style="margin-top:6px">Compare the two photos with the person on the Aadhaar record. The blink check runs on the phone, so look at the photos too.</div>
+          ${decide ? `<div style="margin-top:10px;display:flex;gap:8px"><button class="btn primary" onclick="selfieDecision('${esc(c.id)}','accept')">Accept photo</button><button class="btn" onclick="selfieDecision('${esc(c.id)}','reject')">Ask them to retake</button></div>` : ''}
+        </div></div>` : '<div class="muted" style="margin-top:6px">No photo yet</div>'}</div>`;
+}
+async function loadSelfie(id) {
+  for (const frame of ['before', 'after']) {
+    try {
+      const r = await fetch(API + `/admin/customers/${encodeURIComponent(id)}/selfie?frame=${frame}`, { headers: { Authorization: 'Bearer ' + token } });
+      if (r.ok && $('selfie-' + frame)) $('selfie-' + frame).src = URL.createObjectURL(await r.blob());
+    } catch (e) { /* the image stays grey */ }
+  }
+}
+async function selfieDecision(id, decision) {
+  let note = '';
+  if (decision === 'reject') { note = prompt('Why should they retake it? The customer will see this.') || ''; if (!note.trim()) return; }
+  else note = prompt('Note (optional):') || '';
+  try {
+    const r = await fetch(API + `/admin/customers/${encodeURIComponent(id)}/selfie-decision`, { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify({ decision, note }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) return fail(d.error || 'Could not save');
+    openCustomer(id);
+  } catch (err) { fail(err.message); }
+}
 
 // cells are already escaped or built from escaped parts above
 function table(heads, rows) {
