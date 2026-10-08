@@ -161,6 +161,7 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Scaffold(
         backgroundColor: kBg,
         body: SafeArea(
+          top: false,
           bottom: false,
           child: RefreshIndicator(
             color: kNavy,
@@ -242,24 +243,25 @@ class _HomeScreenState extends State<HomeScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [kNavy, Color(0xFF9B1B30)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(22),
-        boxShadow: [BoxShadow(color: kNavy.withOpacity(0.25), blurRadius: 18, offset: const Offset(0, 8))],
+        border: Border.all(color: const Color(0xFFF1D5D9)),
+        boxShadow: [BoxShadow(color: kNavy.withOpacity(0.10), blurRadius: 18, offset: const Offset(0, 6))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(hasOffer ? 'YOUR OFFER' : (_repeatMax != null ? 'WELCOME BACK. YOUR LIMIT' : 'PERSONAL LOAN UP TO'), style: const TextStyle(color: Colors.white70, fontSize: 11.5, fontWeight: FontWeight.w700, letterSpacing: 1)),
+          Text(hasOffer ? 'YOUR OFFER' : (_repeatMax != null ? 'WELCOME BACK. YOUR LIMIT' : 'PERSONAL LOAN UP TO'), style: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 11.5, fontWeight: FontWeight.w800, letterSpacing: 1)),
+          const SizedBox(height: 6),
+          Text(max == 0 ? '₹ —' : formatMoney(max), style: const TextStyle(fontSize: 38, fontWeight: FontWeight.w900, height: 1.05, color: kNavy)),
           const SizedBox(height: 8),
-          Text(max == 0 ? '₹ —' : formatMoney(max), style: const TextStyle(color: Colors.white, fontSize: 38, fontWeight: FontWeight.w900, height: 1.05)),
-          const SizedBox(height: 8),
-          Text('$repay. Every charge is shown before you accept.', style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4)),
+          Text('$repay. Every charge is shown before you accept.', style: const TextStyle(color: Color(0xFF6B7280), fontSize: 13, height: 1.4)),
           const SizedBox(height: 18),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () => _apply('personal', 'Personal Loan'),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: kNavy, padding: const EdgeInsets.symmetric(vertical: 15), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+              style: ElevatedButton.styleFrom(backgroundColor: kNavy, foregroundColor: Colors.white, elevation: 0, padding: const EdgeInsets.symmetric(vertical: 15), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
               child: Text(_loan != null && (_loan!['status'] == 'disbursed' || _loan!['status'] == 'defaulted') ? 'Apply for another loan' : (hasOffer ? 'Get your loan' : 'Check your offer'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
             ),
           ),

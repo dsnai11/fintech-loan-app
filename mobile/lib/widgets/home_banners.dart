@@ -107,7 +107,7 @@ class _BrandHeaderState extends State<BrandHeader> with SingleTickerProviderStat
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
+              padding: EdgeInsets.fromLTRB(20, MediaQuery.of(context).padding.top + 12, 20, 18),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -165,10 +165,9 @@ class _OrbPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final p = Paint()..color = Colors.white.withOpacity(0.09);
-    canvas.drawCircle(Offset(size.width - 20 - 14 * t, -10 + 10 * t), 54, p);
-    canvas.drawCircle(Offset(size.width * 0.62 + 10 * t, size.height - 6 - 8 * t), 30, p);
-    canvas.drawCircle(Offset(size.width * 0.36 - 8 * t, 6 + 6 * t), 20, p);
+    final p = Paint()..color = Colors.white.withOpacity(0.07);
+    canvas.drawCircle(Offset(size.width - 30 - 14 * t, 20 + 10 * t), 70, p);
+    canvas.drawCircle(Offset(30 + 12 * t, 8 - 6 * t), 34, p);
   }
 
   @override
