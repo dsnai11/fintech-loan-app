@@ -59,8 +59,7 @@ async function api(path, method = 'GET', body) {
   const r = await fetch(API + path, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
   if (r.status === 401) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
   const d = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(d.errors ? d.errors.join('
-') : d.error || 'Something went wrong');
+  if (!r.ok) throw new Error(d.errors ? d.errors.join(String.fromCharCode(10)) : d.error || 'Something went wrong');
   return d;
 }
 const FIELDS = [['minAmount', 'Smallest advance (₹)'], ['maxAmount', 'Largest advance (₹)'], ['maxIncomePercent', 'Most, as % of monthly income'], ['feePercent', 'Fee (% of the amount, before GST)'], ['minDaysToPayday', 'Fewest days before payday'], ['repayDaysAfterSalary', 'Due this many days after payday']];
