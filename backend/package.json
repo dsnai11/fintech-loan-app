@@ -8,6 +8,7 @@
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
     "test": "node test/run.mjs",
+    "loadtest": "node scripts/loadtest.mjs",
     "sync-portal": "node scripts/sync-portal.mjs"
   },
   "dependencies": {

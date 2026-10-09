@@ -1,3 +1,4 @@
+import { mapLimit } from './concurrency.js';
 import Loan from '../models/Loan.js';
 import EMIPayment from '../models/EMIPayment.js';
 import CollectionNote from '../models/CollectionNote.js';
@@ -28,16 +29,14 @@ export function stageFor(days) {
 
 // Loans in collection = disbursed/defaulted loans with at least one unpaid EMI past its due date.
 export async function buildQueue({ now = new Date(), loanId } = {}) {
-  const loanFilter = { status: { $in: ['disbursed', 'defaulted'] } };
-  if (loanId) loanFilter._id = loanId;
-  const loans = await Loan.find(loanFilter).populate('userId', 'firstName lastName email phone address.state');
+  // Start from the unpaid EMIs past their due date (indexed), then load only those loans. Looking at every running
+  // loan first would read the whole book on every page view.
+  const emiFilter = { status: { $in: ['PENDING', 'OVERDUE', 'FAILED'] }, dueDate: { $lt: now } };
+  if (loanId) emiFilter.loanId = loanId;
+  const emis = await EMIPayment.find(emiFilter).sort({ emiNumber: 1 });
+  if (!emis.length) return [];
+  const loans = await Loan.find({ _id: { $in: [...new Set(emis.map(e => String(e.loanId)))] }, status: { $in: ['disbursed', 'defaulted'] } }).populate('userId', 'firstName lastName email phone address.state');
   if (!loans.length) return [];
-
-  const emis = await EMIPayment.find({
-    loanId: { $in: loans.map(l => l._id) },
-    status: { $in: ['PENDING', 'OVERDUE', 'FAILED'] },
-    dueDate: { $lt: now },
-  }).sort({ emiNumber: 1 });
 
   const byLoan = new Map();
   for (const e of emis) {
@@ -61,6 +60,8 @@ export async function buildQueue({ now = new Date(), loanId } = {}) {
     const overdue = byLoan.get(k);
     if (!overdue) continue;
     const daysOverdue = Math.floor((now - overdue[0].dueDate) / DAY);
+    const stage = loan.status === 'defaulted' ? 'DEFAULTED' : stageFor(daysOverdue);
+    if (!stage) continue; // due earlier today: not a day late yet, so no case
     const rows = overdue.map(e => ({ emi: e, penalty: penaltyFor(e, now) }));
     const amountDue = rows.reduce((a, r) => a + r.emi.amount + r.penalty, 0);
     const p = lastPromise.get(k);
@@ -77,7 +78,7 @@ export async function buildQueue({ now = new Date(), loanId } = {}) {
       overdueEmis: overdue.length,
       amountDue,
       daysOverdue,
-      stage: loan.status === 'defaulted' ? 'DEFAULTED' : stageFor(daysOverdue),
+      stage,
       lastAction: n ? { type: n.type, at: n.createdAt, by: n.createdBy } : null,
       promise: p
         ? { date: p.promiseDate, amount: p.promiseAmount, broken: !!p.promiseDate && p.promiseDate < new Date(now.getFullYear(), now.getMonth(), now.getDate()) }
@@ -100,8 +101,8 @@ export async function runEscalations(now = new Date()) {
   const queue = await buildQueue({ now });
   let escalated = 0;
 
-  for (const item of queue) {
-    if (item.status !== 'disbursed' || !item.stage || item.stage === item.loan.collectionStage) continue;
+  const toMove = queue.filter(item => item.status === 'disbursed' && item.stage && item.stage !== item.loan.collectionStage);
+  await mapLimit(toMove, 10, async item => {
     await Loan.updateOne({ _id: item.loan._id }, { collectionStage: item.stage, collectionStageSince: now });
     await CollectionNote.create({
       loanId: item.loan._id,
@@ -119,7 +120,7 @@ export async function runEscalations(now = new Date()) {
       );
     }
     escalated++;
-  }
+  });
 
   // Customers who caught up: clear the stage so a later miss escalates afresh.
   const inQueue = new Set(queue.map(q => q.loanId));

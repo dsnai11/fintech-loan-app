@@ -1,6 +1,7 @@
 import express from 'express';
 import { adminMiddleware } from '../middleware/auth.js';
 import { audit } from '../services/auditService.js';
+import { cached, dropCached } from '../services/concurrency.js';
 import { can } from '../services/permissions.js';
 import { dashboard, saveTargets, getTargets } from '../services/dashboardService.js';
 
@@ -11,7 +12,8 @@ router.use(adminMiddleware);
 router.get('/', async (req, res) => {
   try {
     res.setHeader('Cache-Control', 'no-store');
-    res.json({ ...(await dashboard(Number(req.query.days) || 30)), canEditTargets: can(req.user.role, 'controls.edit') });
+    const days = Number(req.query.days) || 30;
+    res.json({ ...(await cached(`dashboard:${days}`, 60000, () => dashboard(days))), canEditTargets: can(req.user.role, 'controls.edit') });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -22,6 +24,7 @@ router.put('/targets', async (req, res) => {
     if (!can(req.user.role, 'controls.edit')) return res.status(403).json({ error: 'Your role cannot change targets.', code: 'NOT_PERMITTED', needs: 'controls.edit' });
     const before = getTargets();
     const r = await saveTargets(req.body, req.user.email);
+    dropCached('dashboard');
     if (!r.ok) return res.status(400).json({ error: r.error });
     await audit(req.user, 'DASHBOARD_TARGETS_UPDATED', { type: 'Config', id: 'LEADERSHIP_TARGETS' }, { before, after: r.targets }, req);
     res.json({ targets: r.targets });

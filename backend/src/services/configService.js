@@ -3,11 +3,11 @@ import Config from '../models/Config.js';
 // In-memory cache so every request doesn't hit MongoDB
 const cache = {};
 
-export async function loadAllConfig() {
+export async function loadAllConfig(quiet = false) {
   try {
     const docs = await Config.find({});
     docs.forEach(d => { cache[d.key] = d.value; });
-    console.log(`Config loaded: ${docs.length} keys`);
+    if (!quiet) console.log(`Config loaded: ${docs.length} keys`);
   } catch (e) {
     console.error('Config load error:', e.message);
   }

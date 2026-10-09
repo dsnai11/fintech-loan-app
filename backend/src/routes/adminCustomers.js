@@ -34,8 +34,14 @@ router.get('/', async (req, res) => {
   try {
     const q = String(req.query.q || '').trim().slice(0, 60);
     if (q.length < 2) return res.status(400).json({ error: 'Type at least 2 characters of a name, email, phone or PAN' });
-    const re = new RegExp(escRe(q), 'i');
-    const users = await User.find({ $or: [{ firstName: re }, { lastName: re }, { email: re }, { phone: re }, { panNumber: re }] })
+    // Each kind of search uses the field's index: a phone, an email or PAN starting with what was typed, or a name
+    // starting with it. Searching inside every field of 50,000 customers would read all of them.
+    const lead = new RegExp('^' + escRe(q), 'i');
+    const where = /^\d{3,}$/.test(q) ? { phone: new RegExp('^' + escRe(q)) }
+      : q.includes('@') ? { email: new RegExp('^' + escRe(q.toLowerCase())) }
+      : /^[A-Za-z]{5}\d{4}[A-Za-z]$/.test(q) ? { panNumber: q.toUpperCase() }
+      : { $or: [{ firstName: lead }, { lastName: lead }, { email: new RegExp('^' + escRe(q.toLowerCase())) }] };
+    const users = await User.find(where).maxTimeMS(5000)
       .select('firstName lastName email phone kycStatus status createdAt').sort({ createdAt: -1 }).limit(25);
     res.json({ customers: users.map(card) });
   } catch (e) {

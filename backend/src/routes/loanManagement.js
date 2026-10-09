@@ -33,11 +33,13 @@ router.get('/', adminMiddleware, async (req, res) => {
       amount: loan.loanAmount,
     }));
 
-    const total = await Loan.countDocuments(filter);
-    const approved = await Loan.countDocuments({ status: 'approved' });
-    const rejected = await Loan.countDocuments({ status: 'rejected' });
-    const underReview = await Loan.countDocuments({ status: 'submitted' }); // submitted = under review
-    const disbursed = await Loan.countDocuments({ status: 'disbursed' });
+    // The total and the status counts come from one grouped read, instead of five separate counts per page view
+    const byStatus = Object.fromEntries((await Loan.aggregate([{ $group: { _id: '$status', n: { $sum: 1 } } }])).map(r => [r._id, r.n]));
+    const total = status ? (byStatus[status] || 0) : Object.values(byStatus).reduce((a, n) => a + n, 0);
+    const approved = byStatus.approved || 0;
+    const rejected = byStatus.rejected || 0;
+    const underReview = byStatus.submitted || 0; // submitted = under review
+    const disbursed = byStatus.disbursed || 0;
 
     res.json({
       loans: transformedLoans,

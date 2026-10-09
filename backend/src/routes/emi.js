@@ -229,13 +229,19 @@ router.get('/admin/analytics', adminMiddleware, async (req, res) => {
 
 router.get('/admin/overdue', adminMiddleware, async (req, res) => {
   try {
-    const overdueEmis = await EMIPayment.find({ status: 'OVERDUE' })
-      .populate('userId', 'firstName lastName email phone')
-      .populate('loanId', 'loanAmount status')
-      .sort({ daysOverdue: -1 });
+    const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 200));
+    const [total, overdueEmis] = await Promise.all([
+      EMIPayment.countDocuments({ status: 'OVERDUE' }),
+      EMIPayment.find({ status: 'OVERDUE' })
+        .sort({ daysOverdue: -1 })
+        .limit(limit)
+        .populate('userId', 'firstName lastName email phone')
+        .populate('loanId', 'loanAmount status'),
+    ]);
 
     res.json({
-      total: overdueEmis.length,
+      total,
+      shown: overdueEmis.length,
       emis: overdueEmis.map(emi => ({
         emiId: emi._id,
         loanId: String(emi.loanId?._id || emi.loanId),

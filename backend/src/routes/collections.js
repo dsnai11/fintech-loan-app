@@ -9,9 +9,15 @@ import { notify } from '../services/notificationService.js';
 import { audit } from '../services/auditService.js';
 import User from '../models/User.js';
 import { can } from '../services/permissions.js';
+import { cached, dropCached } from '../services/concurrency.js';
 
 const router = express.Router();
 router.use(adminMiddleware);
+// The queue is worked out from every overdue EMI. Staff pages share one answer for 20 seconds; any change clears it.
+router.use((req, res, next) => {
+  if (req.method !== 'GET') res.on('finish', () => dropCached('queue'));
+  next();
+});
 
 const publicItem = ({ loan, rows, ...rest }) => ({ ...rest, assignedTo: loan?.assignedTo || null });
 const isManager = req => can(req.user.role, 'collections.manage');
@@ -34,7 +40,7 @@ router.get('/queue', async (req, res) => {
   try {
     const { stage } = req.query;
     if (stage && ![...STAGES, 'DEFAULTED'].includes(stage)) return bad(res, 400, 'Unknown stage');
-    const all = await buildQueue();
+    const all = await cached('queue', 20000, () => buildQueue());
     const stats = {};
     for (const s of [...STAGES, 'DEFAULTED']) stats[s] = { label: STAGE_LABEL[s], cases: 0, amount: 0 };
     for (const i of all) {

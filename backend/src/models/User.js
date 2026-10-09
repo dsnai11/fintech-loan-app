@@ -87,6 +87,13 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Staff lists, search and the dashboard
+userSchema.index({ createdAt: -1 });
+userSchema.index({ firstName: 1 });
+userSchema.index({ lastName: 1 });
+userSchema.index({ role: 1 });
+userSchema.index({ kycStatus: 1, createdAt: -1 });
+
 userSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next();
   if (!this.isNew) this.passwordChangedAt = new Date();

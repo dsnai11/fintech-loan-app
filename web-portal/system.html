@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%E2%9A%99%3C/text%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>System health - LIFC Admin</title>
+<style>
+* { box-sizing: border-box; }
+.card { padding: 16px; margin-bottom: 14px; }
+.card h2 { margin: 0 0 4px; font-size: 15px; }
+.sub { font-size: 12px; color: var(--e-muted); margin-bottom: 12px; line-height: 1.5; }
+.note { font-size: 12px; color: var(--e-muted); }
+.alert { display: none; padding: 12px 16px; margin-bottom: 14px; white-space: pre-line; }
+.alert.show { display: block; }
+.warn { background: var(--e-warn-soft); color: var(--e-warn); border-radius: 8px; padding: 10px 14px; font-size: 12.5px; line-height: 1.5; margin-bottom: 14px; }
+.state { padding: 10px 12px; border-radius: 8px; font-size: 13px; margin-bottom: 14px; background: var(--e-primary-soft); color: var(--e-primary); }
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--e-muted); border-bottom: 1px solid var(--e-border); white-space: nowrap; }
+td { padding: 8px; border-bottom: 1px solid var(--e-border); vertical-align: top; }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+.xkind { display: grid; grid-template-columns: minmax(180px, 1fr) auto; gap: 10px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--e-border); }
+.seg { display: inline-flex; border: 1px solid var(--e-border-strong); border-radius: 8px; overflow: hidden; }
+.seg label { margin: 0; padding: 8px 14px; cursor: pointer; font-size: 13px; font-weight: 600; background: var(--e-surface); }
+.seg input { display: none; }
+.seg input:checked + span { color: #fff; }
+.seg label:has(input:checked) { background: var(--e-primary); color: #fff; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; align-items: end; }
+.grid input[type=number] { width: 100%; }
+.tag { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 20px; background: #E0ECFF; color: #1D4ED8; }
+.tag.processed { background: #DCFCE7; color: #166534; } .tag.failed, .tag.reversed { background: #FEE2E2; color: #991B1B; } .tag.processing { background: #FEF3C7; color: #92400E; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.bars { display:flex; align-items:flex-end; gap:2px; height:70px; margin:8px 0 4px; } .bars div { flex:1; background:var(--e-primary); min-width:2px; border-radius:2px 2px 0 0; } .bars div.bad { background:#DC2626; }
+.stat { display:flex; gap:22px; flex-wrap:wrap; margin-bottom:6px; } .stat b { display:block; font-size:20px; } .stat span { font-size:12px; color:var(--e-muted); }
+.dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:6px; background:#16A34A; } .dot.bad { background:#DC2626; }
+</style>
+<link rel="stylesheet" href="assets/portal.css">
+</head>
+<body data-shell="app" data-title="System health" data-sub="Is the platform up, how busy it is, whether the background jobs are running, and who is told when something breaks.">
+<div class="container">
+  <div id="alert" class="alert" role="alert"></div>
+  <div id="notreach" class="warn" style="display:none"><b>Alerts cannot reach anyone yet.</b> Add an email address or a chat web address below, then press "Send a test alert". Until then, problems only show on this page.</div>
+  <div class="card"><h2>Right now</h2><div class="stat" id="now"></div></div>
+  <div class="card"><h2>Open alerts</h2><div class="scroll" id="open"></div></div>
+  <div class="card"><h2>Traffic, last 60 minutes</h2><div class="sub" id="trafficSub"></div><div class="bars" id="bars"></div><div class="note">One bar per minute. Red marks a minute with server errors.</div></div>
+  <div class="card"><h2>Background jobs</h2><div class="sub">Each job takes a lock before it runs, so it runs once even when there are several servers.</div><div class="scroll" id="jobs"></div></div>
+  <div class="card"><h2>Security settings check</h2><div class="sub" id="secSub"></div><div class="scroll" id="sec"></div></div>
+  <div class="card"><h2>Who is told</h2><div class="sub">Email addresses (separated by commas) and an optional chat web address (Slack and most chat tools give you one). The same problem is repeated at most this often.</div>
+    <div class="grid"><div><label for="n-emails">Email addresses</label><input id="n-emails" type="text"></div><div><label for="n-hook">Chat web address (https://...)</label><input id="n-hook" type="text"></div><div><label for="n-rep">Repeat every (minutes)</label><input id="n-rep" type="number"></div></div>
+    <div class="row" style="margin-top:12px" id="notifyActions"></div></div>
+  <div class="card"><h2>Recent alerts</h2><div class="scroll" id="recent"></div></div>
+</div>
+<script>
+const API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
+const token = localStorage.getItem('admin_token');
+if (!token) location.href = 'admin-config.html';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const when = d => d ? new Date(d).toLocaleString('en-IN') : 'never';
+let D = null;
+function msg(text, kind) { const a = $('alert'); a.textContent = text; a.className = 'alert show ' + (kind === 'ok' ? 'ok' : 'err'); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+async function api(path, method = 'GET', body) {
+  const r = await fetch(API + path, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || 'Something went wrong');
+  return d;
+}
+const table = (rows, cols) => rows.length ? `<table><thead><tr>${cols.map(c => `<th>${c[0]}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr>${cols.map(c => `<td>${c[1](r)}</td>`).join('')}</tr>`).join('')}</tbody></table>` : '<div class="note">None.</div>';
+const alertCols = [['Problem', a => `<b>${esc(a.title)}</b><div class="note">${esc(a.detail || '')}</div>`], ['Level', a => `<span class="tag ${a.severity === 'critical' ? 'failed' : 'processing'}">${esc(a.severity)}</span>`], ['Since', a => when(a.firstAt)], ['Last seen', a => when(a.lastAt)], ['Times', a => a.count], ['Told by', a => esc((a.notified || []).join(', ') || 'nobody')]];
+function draw() {
+  const t = D.traffic, ok = D.database.ok && !D.alerts.open.length;
+  $('notreach').style.display = D.notify.reachable ? 'none' : 'block';
+  $('now').innerHTML = `<div><b><span class="dot ${ok ? '' : 'bad'}"></span>${ok ? 'All well' : 'Needs attention'}</b><span>${D.alerts.open.length} open alert(s)</span></div><div><b>${D.database.ok ? D.database.ms + ' ms' : 'Down'}</b><span>Database answer time</span></div><div><b>${t.requests.toLocaleString('en-IN')}</b><span>Requests, last hour</span></div><div><b>${t.errors5xx}</b><span>Server errors</span></div><div><b>${t.p95Ms ? 'under ' + t.p95Ms + ' ms' : '-'}</b><span>19 in 20 requests finish within</span></div><div><b>${D.process.processes}</b><span>Server process(es) set; ${t.hosts} seen</span></div><div><b>${D.process.memoryMb} MB</b><span>Memory (this server)</span></div>`;
+  $('open').innerHTML = table(D.alerts.open, alertCols);
+  const max = Math.max(1, ...t.series.map(s => s.n));
+  $('bars').innerHTML = t.series.map(s => `<div class="${s.e5 ? 'bad' : ''}" style="height:${Math.max(3, Math.round((s.n / max) * 100))}%" title="${new Date(s.t).toLocaleTimeString('en-IN')}: ${s.n} requests, ${s.e5} errors"></div>`).join('');
+  $('trafficSub').textContent = `${t.requests.toLocaleString('en-IN')} requests, average ${t.avgMs} ms, ${t.errors5xx} server errors, ${t.errors4xx} refused or invalid requests.`;
+  $('jobs').innerHTML = table(D.jobs, [['Job', j => esc(j.label)], ['Runs every', j => j.everyMinutes + ' min'], ['Last finished', j => when(j.lastFinishedAt)], ['Took', j => j.lastDurationMs == null ? '-' : (j.lastDurationMs / 1000).toFixed(1) + ' s'], ['Runs / failures', j => `${j.runs} / ${j.failures}`], ['Last error', j => esc(j.lastError || '')]]);
+  const bad = D.security.checks.filter(c => !c.ok);
+  $('secSub').textContent = bad.length ? `${bad.length} setting(s) to fix. This check catches common mistakes; it does not replace a security test by an outside specialist.` : 'Every setting checked is in order. This does not replace a security test by an outside specialist.';
+  $('sec').innerHTML = table(D.security.checks, [['Check', c => esc(c.label)], ['Result', c => `<span class="tag ${c.ok ? 'processed' : c.severity === 'critical' ? 'failed' : 'processing'}">${c.ok ? 'ok' : c.severity === 'critical' ? 'fix now' : 'should fix'}</span>`], ['What to do', c => esc(c.fix)]]);
+  $('recent').innerHTML = table(D.alerts.recent, [...alertCols.slice(0, 2), ['State', a => esc(a.status)], alertCols[3]]);
+  $('n-emails').value = D.notify.emails.join(', ');
+  $('n-hook').value = D.notify.webhook;
+  $('n-rep').value = D.notify.repeatMinutes;
+  ['n-emails', 'n-hook', 'n-rep'].forEach(i => ($(i).disabled = !D.canEdit));
+  $('notifyActions').innerHTML = D.canEdit ? '<button class="btn primary" onclick="saveNotify()">Save</button><button class="btn" onclick="testAlert()">Send a test alert</button>' : '<span class="note">Your role can look but not change these.</span>';
+}
+async function load() { try { D = await api('/admin/system'); draw(); } catch (e) { msg(e.message, 'err'); } }
+async function saveNotify() { try { await api('/admin/system/notify', 'PUT', { emails: $('n-emails').value, webhook: $('n-hook').value, repeatMinutes: Number($('n-rep').value) }); msg('Saved.', 'ok'); load(); } catch (e) { msg(e.message, 'err'); } }
+async function testAlert() { try { const r = await api('/admin/system/test-alert', 'POST', {}); msg(r.message, r.notified.length ? 'ok' : 'err'); } catch (e) { msg(e.message, 'err'); } }
+load();
+setInterval(load, 30000);
+</script>
+<script src="assets/portal.js"></script>
+</body>
+</html>

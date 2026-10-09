@@ -5,6 +5,7 @@ import Loan from '../models/Loan.js';
 import EMIPayment from '../models/EMIPayment.js';
 import { getConfig } from './configService.js';
 import { pushToUser } from './pushService.js';
+import { mapLimit } from './concurrency.js';
 
 let transporter;
 function getTransporter() {
@@ -136,8 +137,9 @@ export async function sendEmiReminders() {
 
   const writtenOff = await Loan.find({ status: 'written_off' }).distinct('_id');
   const soon = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
-  const upcoming = await EMIPayment.find({ status: 'PENDING', loanId: { $nin: writtenOff }, dueDate: { $lte: soon }, 'metadata.reminderSent': { $ne: true } });
-  for (const emi of upcoming) {
+  // Up to 20 customers are told at the same time. One at a time, 10,000 reminders on a due date would take hours.
+  const upcoming = await EMIPayment.find({ status: 'PENDING', loanId: { $nin: writtenOff }, dueDate: { $lte: soon }, 'metadata.reminderSent': { $ne: true } }).lean();
+  await mapLimit(upcoming, 20, async emi => {
     await notify(
       emi.userId,
       {
@@ -149,10 +151,10 @@ export async function sendEmiReminders() {
       { email: true, sms: true }
     );
     await EMIPayment.updateOne({ _id: emi._id }, { 'metadata.reminderSent': true });
-  }
+  });
 
-  const overdue = await EMIPayment.find({ status: 'OVERDUE', loanId: { $nin: writtenOff }, 'metadata.notificationSent': { $ne: true } });
-  for (const emi of overdue) {
+  const overdue = await EMIPayment.find({ status: 'OVERDUE', loanId: { $nin: writtenOff }, 'metadata.notificationSent': { $ne: true } }).lean();
+  await mapLimit(overdue, 20, async emi => {
     await notify(
       emi.userId,
       {
@@ -164,88 +166,13 @@ export async function sendEmiReminders() {
       { email: true, sms: true }
     );
     await EMIPayment.updateOne({ _id: emi._id }, { 'metadata.notificationSent': true });
-  }
+  });
   return { reminders: upcoming.length, overdueNotices: overdue.length };
 }
 
+// The jobs themselves, their timing and their locks are in scheduler.js
 export function startScheduler() {
-  const run = async () => {
-    try {
-      await sendEmiReminders();
-      const { runEscalations } = await import('./collectionsService.js');
-      await runEscalations();
-      const { settleReferrals } = await import('./referralService.js');
-      await settleReferrals();
-      const { sendDueOfferNotifications } = await import('./promoOffers.js');
-      await sendDueOfferNotifications();
-    } catch (e) {
-      console.error('Reminder/collections job failed:', e.message);
-    }
-  };
-  setTimeout(run, 30 * 1000);
-  setInterval(run, 6 * 60 * 60 * 1000);
-  // Offers that start later are announced within a few minutes of going live
-  const offers = async () => {
-    try {
-      const { sendDueOfferNotifications } = await import('./promoOffers.js');
-      await sendDueOfferNotifications();
-    } catch (e) {
-      console.error('Offer notification job failed:', e.message);
-    }
-  };
-  setInterval(offers, 5 * 60 * 1000);
-  // Auto-debit: tell customers a day ahead, collect on the due date, retry failures
-  const autoDebit = async () => {
-    try {
-      const { runAutoDebits } = await import('./mandateService.js');
-      await runAutoDebits();
-    } catch (e) {
-      console.error('Auto-debit job failed:', e.message);
-    }
-  };
-  const reminders = async () => {
-    try {
-      const { runReminders, expireOffers } = await import('./collectionsAutomation.js');
-      await runReminders();
-      await expireOffers();
-    } catch (e) {
-      console.error('Reminder job failed:', e.message);
-    }
-  };
-  const nudges = async () => {
-    try {
-      const { runNudges } = await import('./nudgeService.js');
-      await runNudges();
-    } catch (e) {
-      console.error('Nudge job failed:', e.message);
-    }
-  };
-  const sla = async () => {
-    try {
-      const { escalate } = await import('./slaService.js');
-      await escalate();
-    } catch (e) {
-      console.error('Service-target job failed:', e.message);
-    }
-  };
-  const payouts = async () => {
-    try {
-      const { runAutoPayouts } = await import('./payoutService.js');
-      await runAutoPayouts();
-    } catch (e) {
-      console.error('Automatic payout job failed:', e.message);
-    }
-  };
-  setTimeout(payouts, 180 * 1000);
-  setInterval(payouts, 5 * 60 * 1000);
-  setTimeout(sla, 150 * 1000);
-  setInterval(sla, 15 * 60 * 1000);
-  setTimeout(nudges, 120 * 1000);
-  setInterval(nudges, 30 * 60 * 1000);
-  setTimeout(reminders, 90 * 1000);
-  setInterval(reminders, 30 * 60 * 1000);
-  setTimeout(autoDebit, 60 * 1000);
-  setInterval(autoDebit, 30 * 60 * 1000);
+  import('./scheduler.js').then(m => m.startJobs()).catch(e => console.error('Scheduler could not start:', e.message));
 }
 
 export default { notify, templates, sendEmiReminders, startScheduler };

@@ -74,5 +74,10 @@ emiPaymentSchema.index({ userId: 1 });
 emiPaymentSchema.index({ status: 1 });
 emiPaymentSchema.index({ dueDate: 1 });
 emiPaymentSchema.index({ loanId: 1, emiNumber: 1 });
+// The daily jobs and the collections queue look for unpaid EMIs by status and due date
+emiPaymentSchema.index({ status: 1, dueDate: 1 });
+emiPaymentSchema.index({ userId: 1, status: 1 });
+emiPaymentSchema.index({ status: 1, daysOverdue: -1 });
+emiPaymentSchema.index({ paidDate: 1 });
 
 export default mongoose.model('EMIPayment', emiPaymentSchema);

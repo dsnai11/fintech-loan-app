@@ -117,26 +117,14 @@ export async function getEMISchedule(loanId) {
 export async function checkAndMarkOverdue() {
   try {
     const now = new Date();
-    const overdueEmis = await EMIPayment.find({
-      status: 'PENDING',
-      dueDate: { $lt: now },
-    });
-
-    for (const emi of overdueEmis) {
-      const daysOverdue = Math.floor((now - emi.dueDate) / (1000 * 60 * 60 * 24));
-
-      await EMIPayment.findByIdAndUpdate(emi._id, {
-        status: 'OVERDUE',
-        daysOverdue,
-      });
-
-      // Late fee comes from the pricing policy
-      const penalty = lateFeeFor(getPolicy(), emi.amount, Math.ceil(daysOverdue / 30));
-
-      await EMIPayment.findByIdAndUpdate(emi._id, {
-        penaltyApplied: penalty,
-        penaltyReason: `${daysOverdue} days overdue`,
-      });
+    // Done in batches of 1,000 with one write each, not one write per EMI: on a busy due date thousands turn overdue at once.
+    const overdueEmis = await EMIPayment.find({ status: 'PENDING', dueDate: { $lt: now } }).select('_id amount dueDate').lean();
+    const policy = getPolicy();
+    for (let i = 0; i < overdueEmis.length; i += 1000) {
+      await EMIPayment.bulkWrite(overdueEmis.slice(i, i + 1000).map(emi => {
+        const daysOverdue = Math.floor((now - emi.dueDate) / (1000 * 60 * 60 * 24));
+        return { updateOne: { filter: { _id: emi._id, status: 'PENDING' }, update: { $set: { status: 'OVERDUE', daysOverdue, penaltyApplied: lateFeeFor(policy, emi.amount, Math.ceil(daysOverdue / 30)), penaltyReason: `${daysOverdue} days overdue` } } } };
+      }));
     }
 
     console.log(`✅ Marked ${overdueEmis.length} EMIs as overdue`);

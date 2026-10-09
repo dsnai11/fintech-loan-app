@@ -81,6 +81,14 @@ const loanSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Every customer screen and staff list filters or sorts on these
+loanSchema.index({ userId: 1, createdAt: -1 });
+loanSchema.index({ status: 1, createdAt: -1 });
+loanSchema.index({ status: 1, disbursementDate: -1 });
+loanSchema.index({ productKey: 1, status: 1 });
+loanSchema.index({ assignedTo: 1 });
+loanSchema.index({ createdAt: -1 });
+
 loanSchema.methods.calculateEMI = function () {
   const P = this.loanAmount;
   const R = this.interestRate / 12 / 100;

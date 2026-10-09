@@ -50,6 +50,7 @@
     { group: 'Risk and reporting' },
     { href: 'compliance.html', label: 'Compliance', icon: 'shield', any: ['kyc.view', 'aml.view', 'audit.view', 'requests.process'] },
     { href: 'colending.html', label: 'Co-lending', icon: 'loans', any: ['reports.view'] },
+    { href: 'system.html', label: 'System health', icon: 'shield', any: ['reports.view'] },
     { href: 'payday.html', label: 'Payday advances', icon: 'wallet', any: ['reports.view'] },
     { href: 'automation.html', label: 'Automatic or manual', icon: 'gear', any: ['reports.view'] },
     { href: 'accounting.html', label: 'Accounting', icon: 'chart', any: ['reports.view'] },
