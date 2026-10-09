@@ -206,12 +206,19 @@ class _PinSetupState extends State<PinSetup> {
       setState(() { _first = null; _pin = ''; _error = 'The two PINs did not match. Start again.'; });
       return;
     }
-    final messenger = ScaffoldMessenger.of(context);
-    final nav = Navigator.of(context);
-    await AppLock.instance.setPin(v);
-    if (!widget.forced && mounted) {
+    // When the company requires a PIN this screen sits above the app's navigator (in LockGate), so there is no
+    // Navigator to look up here; saving the PIN is what removes it.
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final nav = widget.forced ? null : Navigator.of(context);
+    try {
+      await AppLock.instance.setPin(v);
+    } catch (_) {
+      if (mounted) setState(() { _first = null; _pin = ''; _error = 'We could not save your PIN. Please try again.'; });
+      return;
+    }
+    if (nav != null && mounted) {
       nav.pop(true);
-      messenger.showSnackBar(const SnackBar(content: Text('PIN set. The app will ask for it when you come back to it.')));
+      messenger?.showSnackBar(const SnackBar(content: Text('PIN set. The app will ask for it when you come back to it.')));
     }
   }
 
