@@ -50,6 +50,7 @@ const loanSchema = new mongoose.Schema(
     writeOffReason: String,
     recoveredAmount: { type: Number, default: 0 },
     colending: mongoose.Schema.Types.Mixed, // the partner bank funding part of this loan: { partnerId, partnerName, partnerShare, nbfcShare, partnerRate, funding }
+    payday: mongoose.Schema.Types.Mixed, // payday advance: { salaryDay, dueDate, days, fee }
     dateChanges: [mongoose.Schema.Types.Mixed], // times the customer moved the due day: { at, fromDay, toDay, shiftDays, by }
     foreclosure: {
       date: Date,

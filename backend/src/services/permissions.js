@@ -144,6 +144,7 @@ const RULES = [
   [/^\/api\/admin\/sla(\/|$)/, 'reports.view', 'reports.view'], // the targets are changed in the route
   [/^\/api\/admin\/colending(\/|$)/, 'reports.view', 'reports.view'], // changes are checked in the route
   [/^\/api\/admin\/partners(\/|$)/, 'referrals.view', 'referrals.view'], // changes are checked in the route
+  [/^\/api\/admin\/payday(\/|$)/, 'reports.view', 'reports.view'], // changes are checked in the route
   [/^\/api\/admin\/automation(\/|$)/, 'reports.view', 'reports.view'], // changes are checked in the route
   [/^\/api\/admin\/portfolio(\/|$)/, 'reports.view', 'reports.view'],
   [/^\/api\/admin\/accounting(\/|$)/, 'reports.view', 'reports.view'], // the settings are checked in the route

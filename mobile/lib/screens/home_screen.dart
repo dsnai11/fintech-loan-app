@@ -20,6 +20,7 @@ import 'agreement_screen.dart';
 import 'onboarding_flow.dart';
 import 'account_setup_flow.dart';
 import 'referral_screen.dart';
+import 'payday_screen.dart';
 import 'app_actions.dart';
 import '../services/push_service.dart';
 
@@ -41,6 +42,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Map<String, dynamic>? _setup; // what is still to do in the account set-up
   Map<String, dynamic>? _home; // branding and offer banners from the web portal
   Map<String, dynamic>? _referral; // the refer-and-earn programme, when it is on
+  Map<String, dynamic>? _payday; // the payday advance, when it is on
   Map<String, dynamic>? _loan; // the loan that matters right now, if any
   List<Map<String, dynamic>> _emis = [];
 
@@ -53,13 +55,20 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _refresh() async {
-    await Future.wait([_loadPricing(), _loadPhoneStatus(), _loadLoan(), _loadHome(), _loadReferral()]);
+    await Future.wait([_loadPricing(), _loadPhoneStatus(), _loadLoan(), _loadHome(), _loadReferral(), _loadPayday()]);
   }
 
   Future<void> _loadReferral() async {
     try {
       final r = await context.read<ApiService>().getReferral();
       if (mounted) setState(() => _referral = r['enabled'] == true ? r : null);
+    } catch (_) {}
+  }
+
+  Future<void> _loadPayday() async {
+    try {
+      final r = await context.read<ApiService>().getPaydayStatus();
+      if (mounted) setState(() => _payday = r['enabled'] == true ? r : null);
     } catch (_) {}
   }
 
@@ -190,6 +199,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       if (_loan != null) ...[_loanCard(_loan!), const SizedBox(height: 18)],
+                      if (_payday != null) ...[PaydayCard(status: _payday!), const SizedBox(height: 18)],
                       if (_referral != null) ...[_referralCard(_referral!), const SizedBox(height: 18)],
                       _shortcuts(settings),
                       const SizedBox(height: 22),

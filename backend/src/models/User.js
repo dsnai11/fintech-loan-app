@@ -33,6 +33,7 @@ const userSchema = new mongoose.Schema(
       company: String,
       designation: String,
       monthlyIncome: Number,
+      salaryDay: { type: Number, min: 1, max: 31 }, // the day of the month the salary arrives (payday advance)
       yearsOfExperience: Number,
     },
     bankAccount: {

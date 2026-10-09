@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%E2%9A%99%3C/text%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Payday advances - LIFC Admin</title>
+<style>
+* { box-sizing: border-box; }
+.card { padding: 16px; margin-bottom: 14px; }
+.card h2 { margin: 0 0 4px; font-size: 15px; }
+.sub { font-size: 12px; color: var(--e-muted); margin-bottom: 12px; line-height: 1.5; }
+.note { font-size: 12px; color: var(--e-muted); }
+.alert { display: none; padding: 12px 16px; margin-bottom: 14px; white-space: pre-line; }
+.alert.show { display: block; }
+.warn { background: var(--e-warn-soft); color: var(--e-warn); border-radius: 8px; padding: 10px 14px; font-size: 12.5px; line-height: 1.5; margin-bottom: 14px; }
+.state { padding: 10px 12px; border-radius: 8px; font-size: 13px; margin-bottom: 14px; background: var(--e-primary-soft); color: var(--e-primary); }
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--e-muted); border-bottom: 1px solid var(--e-border); white-space: nowrap; }
+td { padding: 8px; border-bottom: 1px solid var(--e-border); vertical-align: top; }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+.xkind { display: grid; grid-template-columns: minmax(180px, 1fr) auto; gap: 10px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--e-border); }
+.seg { display: inline-flex; border: 1px solid var(--e-border-strong); border-radius: 8px; overflow: hidden; }
+.seg label { margin: 0; padding: 8px 14px; cursor: pointer; font-size: 13px; font-weight: 600; background: var(--e-surface); }
+.seg input { display: none; }
+.seg input:checked + span { color: #fff; }
+.seg label:has(input:checked) { background: var(--e-primary); color: #fff; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; align-items: end; }
+.grid input[type=number] { width: 100%; }
+.tag { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 20px; background: #E0ECFF; color: #1D4ED8; }
+.tag.processed { background: #DCFCE7; color: #166534; } .tag.failed, .tag.reversed { background: #FEE2E2; color: #991B1B; } .tag.processing { background: #FEF3C7; color: #92400E; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+</style>
+<link rel="stylesheet" href="assets/portal.css">
+</head>
+<body data-shell="app" data-title="Payday advances" data-sub="Small advances against salary, repaid in one go on the customer's payday.">
+<div class="container">
+  <div id="alert" class="alert" role="alert"></div>
+  <div class="warn"><b>Compliance and finance must confirm before this is switched on:</b> the fee, the yearly cost shown to customers, the late fee (set in Pricing), the wording of the Key Fact Statement, and that this product is within your licence and board-approved credit policy. The numbers below are placeholders you can change.</div>
+  <div class="card"><h2>The rules</h2><div class="sub">Customers see the payday advance in the app only while it is on. The cost is one flat fee, taken from the money they receive, plus GST. The cost per year is worked out for each customer and shown before they apply.</div>
+    <div class="grid" id="rules"></div><div style="margin-top:12px" class="row" id="actions"></div></div>
+  <div class="card"><h2>Overdue</h2><div class="sub">Advances not paid by the payday. The usual collections reminders and late fee apply.</div><div class="scroll" id="overdue"></div></div>
+  <div class="card"><h2>Due today</h2><div class="scroll" id="today"></div></div>
+  <div class="card"><h2>Due in the next 7 days</h2><div class="scroll" id="week"></div></div>
+  <div class="card"><h2>How it is going</h2><div class="sub" id="totals"></div><div class="scroll" id="recent"></div></div>
+</div>
+<script>
+const API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
+const token = localStorage.getItem('admin_token');
+if (!token) location.href = 'admin-config.html';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const inr = n => '₹' + Math.round(n || 0).toLocaleString('en-IN');
+const fmt = d => d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+let D = null;
+function msg(text, kind) { const a = $('alert'); a.textContent = text; a.className = 'alert show ' + (kind === 'ok' ? 'ok' : 'err'); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+async function api(path, method = 'GET', body) {
+  const r = await fetch(API + path, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.errors ? d.errors.join('
+') : d.error || 'Something went wrong');
+  return d;
+}
+const FIELDS = [['minAmount', 'Smallest advance (₹)'], ['maxAmount', 'Largest advance (₹)'], ['maxIncomePercent', 'Most, as % of monthly income'], ['feePercent', 'Fee (% of the amount, before GST)'], ['minDaysToPayday', 'Fewest days before payday'], ['repayDaysAfterSalary', 'Due this many days after payday']];
+const table = (rows, cols) => rows.length ? `<table><thead><tr>${cols.map(c => `<th${c[2] ? ' class="n"' : ''}>${c[0]}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr>${cols.map(c => `<td${c[2] ? ' class="n"' : ''}>${c[1](r)}</td>`).join('')}</tr>`).join('')}</tbody></table>` : '<div class="note">None.</div>';
+const base = [['Customer', r => esc(r.who) + (r.phone ? `<div class="note">${esc(r.phone)}</div>` : '')], ['Advance', r => inr(r.amount), 1], ['Due', r => fmt(r.dueDate)], ['Status', r => `<span class="tag ${r.status === 'PAID' ? 'processed' : r.status === 'OVERDUE' || r.status === 'FAILED' ? 'failed' : ''}">${esc(r.status)}</span>`]];
+function draw() {
+  const s = D.settings, dis = D.canEdit ? '' : 'disabled';
+  $('rules').innerHTML = `<label class="row" style="margin:0"><input type="checkbox" id="f-enabled" ${s.enabled ? 'checked' : ''} ${dis}> <b>Payday advance is on</b></label>` + FIELDS.map(([k, l]) => `<div><label for="f-${k}">${l}</label><input id="f-${k}" type="number" step="any" value="${s[k]}" ${dis}></div>`).join('') + `<label class="row" style="margin:0"><input type="checkbox" id="f-salaried" ${s.requireSalaried ? 'checked' : ''} ${dis}> Only people who say they are salaried</label><label class="row" style="margin:0"><input type="checkbox" id="f-verified" ${s.requireVerifiedIncome ? 'checked' : ''} ${dis}> Only income seen in their bank statements</label>`;
+  $('actions').innerHTML = D.canEdit ? '<button class="btn primary" onclick="save()">Save</button>' : '<span class="note">Your role can look but not change these.</span>';
+  $('overdue').innerHTML = table(D.overdue, base);
+  $('today').innerHTML = table(D.dueToday, base);
+  $('week').innerHTML = table(D.dueThisWeek, base);
+  $('totals').textContent = `${D.waiting} waiting for a decision or payout. Owed now: ${inr(D.outstanding.amount)} from ${D.outstanding.count} advance(s). ${D.totals.advances} paid out so far, ${D.totals.repaid} repaid${D.totals.onTimePercent === null ? '' : ` (${D.totals.onTimePercent}% on time)`}, fees ${inr(D.totals.feesEarned)}.`;
+  $('recent').innerHTML = table(D.recent, [...base.slice(0, 3), ['Loan status', r => esc(r.loanStatus)], ['Applied', r => fmt(r.at)]]);
+}
+async function load() { try { D = await api('/admin/payday'); draw(); } catch (e) { msg(e.message, 'err'); } }
+async function save() {
+  const b = { enabled: $('f-enabled').checked, requireSalaried: $('f-salaried').checked, requireVerifiedIncome: $('f-verified').checked };
+  FIELDS.forEach(([k]) => (b[k] = Number($('f-' + k).value)));
+  if (b.enabled && !D.settings.enabled && !confirm('Customers will see the payday advance in the app and can apply. Has compliance confirmed the fee and wording?')) return;
+  try { await api('/admin/payday/settings', 'PUT', b); msg('Saved.', 'ok'); load(); } catch (e) { msg(e.message, 'err'); }
+}
+load();
+</script>
+<script src="assets/portal.js"></script>
+</body>
+</html>

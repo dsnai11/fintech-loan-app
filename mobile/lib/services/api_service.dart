@@ -301,6 +301,43 @@ class ApiService {
     } catch (_) {}
   }
 
+  // Payday advance: what the customer can borrow against their salary, and applying
+  Future<Map<String, dynamic>> getPaydayStatus() async {
+    try {
+      final response = await _dio.get('/payday/status');
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> savePaydayDetails({required int salaryDay, num? monthlyIncome, String? company}) async {
+    try {
+      final response = await _dio.put('/payday/salary-day', data: {'salaryDay': salaryDay, if (monthlyIncome != null) 'monthlyIncome': monthlyIncome, if (company != null && company.isNotEmpty) 'company': company});
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> getPaydayQuote(int amount) async {
+    try {
+      final response = await _dio.get('/payday/quote', queryParameters: {'amount': amount});
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> applyPayday(int amount) async {
+    try {
+      final response = await _dio.post('/payday/apply', data: {'amount': amount});
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   // The customer's referral code, rewards and the friends they invited
   Future<Map<String, dynamic>> getReferral() async {
     try {

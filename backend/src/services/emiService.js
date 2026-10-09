@@ -29,6 +29,15 @@ export async function createEMISchedule(loanId) {
     // Delete existing schedule if any
     await EMIPayment.deleteMany({ loanId });
 
+    // A payday advance is repaid once, on the customer's payday
+    if (loan.productKey === 'payday') {
+      const { dueDateAtPayout } = await import('./paydayService.js');
+      const dueDate = dueDateAtPayout(loan);
+      await EMIPayment.create({ loanId, userId: loan.userId, emiNumber: 1, dueDate, amount: loan.loanAmount, principalAmount: loan.loanAmount, interestAmount: 0, status: 'PENDING' });
+      await Loan.updateOne({ _id: loanId }, { nextEmiDate: dueDate, 'payday.dueDate': dueDate });
+      return { success: true, emis: 1 };
+    }
+
     const monthlyEMI = loan.monthlyEMI || calculateEMI(loan);
     const tenure = loan.tenure;
     const startDate = loan.disbursementDate || new Date();
