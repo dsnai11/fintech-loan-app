@@ -186,6 +186,14 @@ export async function getTransactionHistory(userId, loanId = null) {
 
 export async function handlePayoutWebhook({ event, payload }) {
   const payout = payload.payout.entity;
+  // A reward or commission sent automatically is finished here. A loan payout also continues below.
+  try {
+    const { handleProviderEvent } = await import('./payoutService.js');
+    const rec = await handleProviderEvent(event, payout);
+    if (rec && rec.kind !== 'loan') return { success: true, processed: true, automatic: true };
+  } catch (e) {
+    console.error('Automatic payout update failed:', e.message);
+  }
   const tx = await Transaction.findOne({ transferId: payout.id });
   if (!tx) return { success: true, processed: false };
   if (tx.status === 'COMPLETED' && event !== 'payout.reversed') return { success: true, processed: false, reason: 'already completed' };

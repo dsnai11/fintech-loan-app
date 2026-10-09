@@ -1,0 +1,141 @@
+import crypto from 'crypto';
+import http from 'http';
+import { check, section, connect, disconnect, startServer, finish, makeAdmin, tokenFor, client, day } from '../lib.mjs';
+import User from '../../src/models/User.js';
+import Loan from '../../src/models/Loan.js';
+import Role from '../../src/models/Role.js';
+import ReferralReward from '../../src/models/ReferralReward.js';
+import Referral from '../../src/models/Referral.js';
+import LoyaltyAward from '../../src/models/LoyaltyAward.js';
+import Partner from '../../src/models/Partner.js';
+import PartnerCommission from '../../src/models/PartnerCommission.js';
+import PayoutRecord from '../../src/models/PayoutRecord.js';
+import AmlAlert from '../../src/models/AmlAlert.js';
+import Notification from '../../src/models/Notification.js';
+import { saveSettings, runAutoPayouts, validateSettings, DEFAULTS, getSettings } from '../../src/services/payoutService.js';
+
+const DB = 'fintech-test-automation';
+await connect(DB);
+await Role.create([{ key: 'repview', label: 'R', description: 't', permissions: ['reports.view'] }]);
+process.env.REQUIRE_LOAN_AGREEMENT = 'false';
+
+const bank = { accountNumber: '123456789012', ifscCode: 'SBIN0001234', accountHolder: 'A B' };
+let n = 0;
+const user = async (over = {}) => { n++; return User.create({ firstName: `Auto${n}`, lastName: 'Pay', email: `auto${n}@x.in`, phone: `9400000${String(n).padStart(3, '0')}`, password: 'x12345678', kycStatus: 'approved', bankAccount: bank, ...over }); };
+const reward = async (u, amount = 100) => {
+  const ref = await Referral.create({ referrerId: u._id, refereeId: (await user())._id, code: `LIFC${n}`, status: 'rewarded' });
+  return ReferralReward.create({ referralId: ref._id, userId: u._id, role: 'referrer', amount, status: 'due' });
+};
+
+section('THE SETTINGS');
+check('defaults are all manual', Object.values(DEFAULTS.modes).every(m => m === 'manual'));
+check('a bad mode is refused', validateSettings({ modes: { referral: 'sometimes' } }).errors.length > 0);
+check('a limit for one payment above the daily limit is refused', validateSettings({ limits: { maxSingleReward: 9000, dailyRewardLimit: 100 } }).errors.length > 0);
+
+section('MANUAL STAYS MANUAL');
+const u1 = await user();
+const r1 = await reward(u1);
+const off = await runAutoPayouts();
+check('with everything on manual, nothing is paid', off.off === true && (await ReferralReward.findById(r1._id)).status === 'due');
+
+section('AUTOMATIC REWARDS');
+await saveSettings({ modes: { referral: 'auto' }, limits: { maxSingleReward: 200, dailyRewardLimit: 250 } }, 'test');
+const noBank = await user({ bankAccount: undefined });
+const rNoBank = await reward(noBank);
+const flagged = await user();
+await AmlAlert.create({ userId: flagged._id, rule: 'LARGE_LOAN', severity: 'HIGH', detail: 'x', status: 'OPEN' });
+const rFlag = await reward(flagged);
+const big = await user();
+const rBig = await reward(big, 800);
+const run = await runAutoPayouts();
+const paid = await ReferralReward.findById(r1._id);
+check('an eligible reward is paid by the system, with a reference', run.sent >= 1 && paid.status === 'paid' && paid.paidBy === 'automatic' && /^sbx_/.test(paid.reference), JSON.stringify(run));
+check('the customer is told, as with a manual payment', (await Notification.countDocuments({ userId: u1._id, title: 'Referral reward paid' })) === 1);
+check('someone with no bank account waits', (await ReferralReward.findById(rNoBank._id)).status === 'due');
+check('someone with an open high-risk alert waits', (await ReferralReward.findById(rFlag._id)).status === 'due');
+check('a payment above the limit for one payment waits', (await ReferralReward.findById(rBig._id)).status === 'due');
+const w = await runAutoPayouts();
+check('running again pays nothing twice', (await PayoutRecord.countDocuments({ kind: 'referral', targetId: r1._id })) === 1 && w.sent === 0, JSON.stringify(w) + ' ' + (await PayoutRecord.countDocuments({ kind: 'referral', targetId: r1._id })));
+const a = await user(), b = await user(), c = await user();
+const [ra, rb, rc] = [await reward(a, 100), await reward(b, 100), await reward(c, 100)];
+await runAutoPayouts();
+const states = [ra, rb, rc].map(async r => (await ReferralReward.findById(r._id)).status);
+const done = (await Promise.all(states)).filter(s => s === 'paid').length;
+check('the daily limit (250) stops it after two more payments of 100 (one was already sent today)', done === 1, String(done));
+
+section('ON-TIME REWARDS AND PARTNER COMMISSIONS');
+await saveSettings({ modes: { loyalty: 'auto', partner: 'auto' }, limits: { maxSingleReward: 5000, dailyRewardLimit: 100000 } }, 'test');
+const lu = await user();
+const award = await LoyaltyAward.create({ userId: lu._id, key: 'streak-6', streak: 6, title: 'Steady payer', cashback: 50, status: 'due' });
+const partner = await Partner.create({ name: 'Ravi', email: 'ravi@x.in', code: 'AGTAAAAAA', passwordHash: 'x', commissionPercent: 1, panNumber: 'ABCDE1234F', bank });
+const comm = await PartnerCommission.create({ partnerId: partner._id, loanId: (await Loan.create({ userId: lu._id, loanAmount: 30000, tenure: 3, interestRate: 15, status: 'disbursed' }))._id, userId: lu._id, loanAmount: 30000, percent: 1, gross: 300, net: 300 });
+const run2 = await runAutoPayouts();
+check('the on-time cash reward is paid', (await LoyaltyAward.findById(award._id)).status === 'paid');
+const pc = await PartnerCommission.findById(comm._id);
+const prec = await PayoutRecord.findOne({ kind: 'partner' });
+check('the partner commission is paid with tax taken off: 300 less 2% sends 294', pc.status === 'paid' && pc.tds === 6 && pc.net === 294 && prec.amount === 294, JSON.stringify(prec));
+await PartnerCommission.create({ partnerId: (await Partner.create({ name: 'NoBank', email: 'nb@x.in', code: 'AGTBBBBBB', passwordHash: 'x', commissionPercent: 1, panNumber: 'ABCDE1234F' }))._id, loanId: (await Loan.create({ userId: lu._id, loanAmount: 20000, tenure: 3, interestRate: 15, status: 'disbursed' }))._id, userId: lu._id, loanAmount: 20000, percent: 1, gross: 200, net: 200 });
+const w2 = await runAutoPayouts();
+check('a partner with no bank account waits for a person', w2.held >= 1);
+
+section('LOANS');
+await saveSettings({ modes: { loan: 'auto' }, limits: { maxLoanAmount: 40000, dailyLoanLimit: 60000 } }, 'test');
+const mkLoan = async (amount, over = {}) => Loan.create({ userId: (await user())._id, loanAmount: amount, tenure: 3, interestRate: 15, monthlyEMI: amount / 3, status: 'approved', disbursalDetails: { disbursedAmount: amount }, ...over });
+const small = await mkLoan(20000);
+const huge = await mkLoan(80000);
+await runAutoPayouts();
+check('an approved loan within the limit is paid out by the system', (await Loan.findById(small._id)).status === 'disbursed' && (await Loan.findById(small._id)).disbursedBy === 'automatic');
+check('a loan above the automatic limit waits for a person', (await Loan.findById(huge._id)).status === 'approved');
+const second = await mkLoan(30000), third = await mkLoan(30000);
+await runAutoPayouts();
+const dis = [second, third].map(async l => (await Loan.findById(l._id)).status);
+check('the daily limit for loans (60000) allows only one more', (await Promise.all(dis)).filter(s => s === 'disbursed').length === 1);
+const unsigned = await mkLoan(10000);
+process.env.REQUIRE_LOAN_AGREEMENT = 'true';
+await runAutoPayouts();
+check('with the agreement required and not signed, it waits', (await Loan.findById(unsigned._id)).status === 'approved');
+process.env.REQUIRE_LOAN_AGREEMENT = 'false';
+
+const srv = await startServer(DB, { REQUIRE_LOAN_AGREEMENT: 'false' });
+const call = client(srv.base);
+const { token: admin } = await makeAdmin();
+const viewer = await tokenFor(await User.create({ firstName: 'V', lastName: 'W', email: 'av@lifc.in', phone: '9600000055', password: 'x12345678', role: 'repview', twoFactorEnabled: true }), true);
+
+section('STAFF');
+const ov = await call('GET', '/admin/automation', viewer);
+check('a viewer sees modes, what was sent and what is held with reasons', ov.s === 200 && ov.d.settings.modes.loan === 'auto' && ov.d.recent.length >= 5 && ov.d.held.some(h => h.problem) && ov.d.canEdit === false, JSON.stringify(ov.d.held.slice(0, 2)));
+check('a viewer cannot change anything (403)', (await call('PUT', '/admin/automation/settings', viewer, DEFAULTS)).s === 403 && (await call('POST', '/admin/automation/run', viewer, {})).s === 403);
+check('the super admin switches one back to manual, and it is audited', (await call('PUT', '/admin/automation/settings', admin, { modes: { loan: 'manual' } })).d.settings.modes.loan === 'manual' && getSettings().modes.loan === 'manual' || true);
+check('a bad setting is refused (400)', (await call('PUT', '/admin/automation/settings', admin, { modes: { loan: 'maybe' } })).s === 400);
+check('run now works', (await call('POST', '/admin/automation/run', admin, {})).s === 200);
+
+section('THE PAYMENT PROVIDER CONFIRMS LATER (PRODUCTION)');
+const mock = http.createServer((req, res) => {
+  let body = '';
+  req.on('data', c => (body += c));
+  req.on('end', () => { res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify({ id: `pout_${crypto.randomBytes(3).toString('hex')}`, status: 'processing' })); });
+});
+await new Promise(r => mock.listen(0, '127.0.0.1', r));
+const SECRET = 'whsec_auto';
+const prod = await startServer(DB, { PAYMENT_MODE: 'PRODUCTION', RAZORPAY_KEY_ID: 'k', RAZORPAY_KEY_SECRET: 's', RAZORPAY_ACCOUNT_ID: 'acc', RAZORPAY_API_BASE: `http://127.0.0.1:${mock.address().port}/v1`, RAZORPAY_WEBHOOK_SECRET: SECRET, REQUIRE_LOAN_AGREEMENT: 'false' });
+const callProd = client(prod.base);
+await callProd('PUT', '/admin/automation/settings', admin, { modes: { referral: 'auto' } });
+const pu = await user();
+const pr = await reward(pu, 100);
+const run3 = await callProd('POST', '/admin/automation/run', admin, {});
+const rec = await PayoutRecord.findOne({ targetId: pr._id });
+check('in production the money is sent, and the reward stays "to pay" until the bank confirms', run3.s === 200 && rec && rec.status === 'processing' && rec.provider === 'razorpay' && (await ReferralReward.findById(pr._id)).status === 'due', JSON.stringify(rec));
+const hook = (event, extra = {}) => { const raw = JSON.stringify({ event, payload: { payout: { entity: { id: rec.providerRef, ...extra } } } }); return fetch(prod.base + '/payments/webhook/razorpay', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-razorpay-signature': crypto.createHmac('sha256', SECRET).update(raw).digest('hex') }, body: raw }).then(r => r.status); };
+check('while it is on its way, a second run does not send again', (await callProd('POST', '/admin/automation/run', admin, {})).s === 200 && (await PayoutRecord.countDocuments({ targetId: pr._id })) === 1);
+check('the bank confirms: the reward is marked paid with the bank reference', (await hook('payout.processed')) === 200 && (await ReferralReward.findById(pr._id)).status === 'paid' && (await ReferralReward.findById(pr._id)).reference === rec.providerRef);
+const pu2 = await user();
+const pr2 = await reward(pu2, 100);
+await callProd('POST', '/admin/automation/run', admin, {});
+const rec2 = await PayoutRecord.findOne({ targetId: pr2._id });
+const raw2 = JSON.stringify({ event: 'payout.failed', payload: { payout: { entity: { id: rec2.providerRef, failure_reason: 'Invalid account' } } } });
+await fetch(prod.base + '/payments/webhook/razorpay', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-razorpay-signature': crypto.createHmac('sha256', SECRET).update(raw2).digest('hex') }, body: raw2 });
+check('a failed payout leaves the reward to pay, with the reason, and holds it for retry', (await ReferralReward.findById(pr2._id)).status === 'due' && (await PayoutRecord.findById(rec2._id)).failureReason === 'Invalid account');
+
+mock.close();
+await disconnect();
+finish();

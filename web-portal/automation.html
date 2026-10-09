@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%E2%9A%99%3C/text%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Automatic or manual - LIFC Admin</title>
+<style>
+* { box-sizing: border-box; }
+.card { padding: 16px; margin-bottom: 14px; }
+.card h2 { margin: 0 0 4px; font-size: 15px; }
+.sub { font-size: 12px; color: var(--e-muted); margin-bottom: 12px; line-height: 1.5; }
+.note { font-size: 12px; color: var(--e-muted); }
+.alert { display: none; padding: 12px 16px; margin-bottom: 14px; white-space: pre-line; }
+.alert.show { display: block; }
+.warn { background: var(--e-warn-soft); color: var(--e-warn); border-radius: 8px; padding: 10px 14px; font-size: 12.5px; line-height: 1.5; margin-bottom: 14px; }
+.state { padding: 10px 12px; border-radius: 8px; font-size: 13px; margin-bottom: 14px; background: var(--e-primary-soft); color: var(--e-primary); }
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--e-muted); border-bottom: 1px solid var(--e-border); white-space: nowrap; }
+td { padding: 8px; border-bottom: 1px solid var(--e-border); vertical-align: top; }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+.kind { display: grid; grid-template-columns: minmax(180px, 1fr) auto; gap: 10px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--e-border); }
+.seg { display: inline-flex; border: 1px solid var(--e-border-strong); border-radius: 8px; overflow: hidden; }
+.seg label { margin: 0; padding: 8px 14px; cursor: pointer; font-size: 13px; font-weight: 600; background: var(--e-surface); }
+.seg input { display: none; }
+.seg input:checked + span { color: #fff; }
+.seg label:has(input:checked) { background: var(--e-primary); color: #fff; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; align-items: end; }
+.grid input[type=number] { width: 100%; }
+.tag { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 20px; background: #E0ECFF; color: #1D4ED8; }
+.tag.processed { background: #DCFCE7; color: #166534; } .tag.failed, .tag.reversed { background: #FEE2E2; color: #991B1B; } .tag.processing { background: #FEF3C7; color: #92400E; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+</style>
+<link rel="stylesheet" href="assets/portal.css">
+</head>
+<body data-shell="app" data-title="Automatic or manual" data-sub="Choose which payments the system sends by itself and which a person sends.">
+<div class="container">
+  <div id="alert" class="alert" role="alert"></div>
+  <div class="warn"><b>Switching to Automatic sends real money without anyone pressing a button.</b> Start with small limits and watch the list below for a few days. Automatic mode follows every rule: the limits you set, a bank account on file, no open high-risk alert, never the same payment twice. A payment that fails three times is left for a person. You can switch back to Manual at any time; anything already sent stays sent. Rewards and commissions that carry tax are always left for a person.</div>
+  <div id="provider" class="state"></div>
+  <div class="card"><h2>Who sends what</h2><div class="sub">Manual means a person pays and enters the bank reference, on the page named under each item. Automatic means the system pays through your payment provider as soon as the rules are met (checked every 5 minutes) and records it for you.</div><div id="kinds"></div></div>
+  <div class="card"><h2>Safety limits</h2><div class="grid" id="limits"></div>
+    <div style="margin-top:12px" class="row" id="actions"></div></div>
+  <div class="card"><h2>Waiting, and why</h2><div class="sub">Items in an automatic category that the system is holding back, with the reason. A person can still pay them on the usual page.</div><div class="scroll" id="held"></div></div>
+  <div class="card"><h2>What the system sent</h2><div class="sub" id="today"></div><div class="scroll" id="recent"></div></div>
+</div>
+<script>
+const API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
+const token = localStorage.getItem('admin_token');
+if (!token) location.href = 'admin-config.html';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const inr = n => '₹' + Math.round(n || 0).toLocaleString('en-IN');
+let D = null;
+function msg(text, kind) { const a = $('alert'); a.textContent = text; a.className = 'alert show ' + (kind === 'ok' ? 'ok' : 'err'); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+async function api(path, method = 'GET', body) {
+  const r = await fetch(API + path, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.errors ? d.errors.join('\n') : d.error || 'Something went wrong');
+  return d;
+}
+const LIM = [['maxSingleReward', 'Most for one reward or commission (₹)'], ['dailyRewardLimit', 'Most for all rewards and commissions in a day (₹)'], ['maxLoanAmount', 'Largest loan paid out automatically (₹)'], ['dailyLoanLimit', 'Most for all automatic loan payouts in a day (₹)']];
+function draw() {
+  const s = D.settings, dis = D.canEdit ? '' : 'disabled';
+  $('provider').textContent = D.provider === 'live' ? 'Payments go through your payment provider (live).' : D.provider === 'test' ? 'Test mode: automatic payments are simulated and no real money moves. In production they use your Razorpay payout account.' : 'Production mode is on but the payout account is not set up in Railway (RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RAZORPAY_ACCOUNT_ID), so automatic payments cannot go out.';
+  $('kinds').innerHTML = Object.entries(D.kinds).map(([k, v]) => `<div class="kind"><div><b>${esc(v.label)}</b><div class="note">Manual: paid by a person on <a href="${esc(v.manualPage)}">${esc(v.manualPage.replace('.html', ''))}</a></div></div>
+    <div class="seg"><label><input type="radio" name="m-${k}" value="manual" ${s.modes[k] === 'manual' ? 'checked' : ''} ${dis}><span>Manual</span></label><label><input type="radio" name="m-${k}" value="auto" ${s.modes[k] === 'auto' ? 'checked' : ''} ${dis}><span>Automatic</span></label></div></div>`).join('');
+  $('limits').innerHTML = LIM.map(([k, l]) => `<div><label for="l-${k}">${l}</label><input id="l-${k}" type="number" value="${s.limits[k]}" ${dis}></div>`).join('') + `<label class="row" style="margin:0"><input type="checkbox" id="l-vb" ${s.limits.requireVerifiedBank ? 'checked' : ''} ${dis}> Pay only to bank accounts verified with the bank</label>`;
+  $('actions').innerHTML = D.canEdit ? '<button class="btn primary" onclick="save()">Save</button><button class="btn" onclick="runNow()">Run now</button><span class="note">It also runs by itself every 5 minutes.</span>' : '<span class="note">Your role can look but not change these.</span>';
+  $('held').innerHTML = D.held.length ? `<table><thead><tr><th>Kind</th><th>Who</th><th class="n">Amount</th><th>Why it is waiting</th></tr></thead><tbody>${D.held.map(h => `<tr><td>${esc(D.kinds[h.kind].label)}</td><td>${esc(h.who)}</td><td class="n">${inr(h.send)}</td><td>${esc(h.problem)}</td></tr>`).join('')}</tbody></table>` : `<div class="note">Nothing is being held back.${D.willSend.length ? ` ${D.willSend.length} will go out at the next run.` : ''}</div>`;
+  $('today').textContent = `Today: rewards and commissions ${inr(D.today.rewards)} of ${inr(s.limits.dailyRewardLimit)}; loan payouts ${inr(D.today.loans)} of ${inr(s.limits.dailyLoanLimit)}. ${D.manual} item(s) in manual categories are waiting for a person.`;
+  $('recent').innerHTML = D.recent.length ? `<table><thead><tr><th>When</th><th>Kind</th><th class="n">Amount</th><th>Status</th><th>Reference</th></tr></thead><tbody>${D.recent.map(r => `<tr><td>${new Date(r.at).toLocaleString('en-IN')}</td><td>${esc(D.kinds[r.kind].label)}</td><td class="n">${inr(r.amount)}</td><td><span class="tag ${esc(r.status)}">${esc(r.status)}</span>${r.failureReason ? `<div class="note">${esc(r.failureReason)}</div>` : ''}${r.attempt > 1 ? `<div class="note">attempt ${r.attempt}</div>` : ''}</td><td class="note">${esc(r.providerRef || '')}</td></tr>`).join('')}</tbody></table>` : '<div class="note">Nothing sent automatically yet.</div>';
+}
+async function load() { try { D = await api('/admin/automation'); draw(); } catch (e) { msg(e.message, 'err'); } }
+async function save() {
+  const modes = {};
+  Object.keys(D.kinds).forEach(k => (modes[k] = document.querySelector(`input[name="m-${k}"]:checked`).value));
+  const limits = { requireVerifiedBank: $('l-vb').checked };
+  LIM.forEach(([k]) => (limits[k] = Number($('l-' + k).value)));
+  const turningOn = Object.keys(modes).filter(k => modes[k] === 'auto' && D.settings.modes[k] !== 'auto');
+  if (turningOn.length && !confirm('This will send real money automatically for: ' + turningOn.map(k => D.kinds[k].label).join(', ') + '. Continue?')) return;
+  try { await api('/admin/automation/settings', 'PUT', { modes, limits }); msg('Saved.', 'ok'); load(); } catch (e) { msg(e.message, 'err'); }
+}
+async function runNow() { try { const r = await api('/admin/automation/run', 'POST', {}); msg(r.message, 'ok'); load(); } catch (e) { msg(e.message, 'err'); } }
+load();
+</script>
+<script src="assets/portal.js"></script>
+</body>
+</html>

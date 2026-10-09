@@ -228,6 +228,16 @@ export function startScheduler() {
       console.error('Service-target job failed:', e.message);
     }
   };
+  const payouts = async () => {
+    try {
+      const { runAutoPayouts } = await import('./payoutService.js');
+      await runAutoPayouts();
+    } catch (e) {
+      console.error('Automatic payout job failed:', e.message);
+    }
+  };
+  setTimeout(payouts, 180 * 1000);
+  setInterval(payouts, 5 * 60 * 1000);
   setTimeout(sla, 150 * 1000);
   setInterval(sla, 15 * 60 * 1000);
   setTimeout(nudges, 120 * 1000);
