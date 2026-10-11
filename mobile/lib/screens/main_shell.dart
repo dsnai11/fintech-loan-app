@@ -7,12 +7,13 @@ import 'offers_screen.dart';
 import 'notifications_screen.dart';
 import '../services/notification_watcher.dart';
 import 'home_screen.dart';
+import 'pay_hub_screen.dart';
 import 'loan_history_screen.dart';
 import 'profile_screen.dart';
 import 'support_screen.dart';
 
-// The signed-in app: four tabs along the bottom (home, loans, messages, profile), the usual layout of
-// consumer lending apps. Everything else opens on top of it.
+// The signed-in app: five tabs along the bottom (home, offers, pay, my loans, profile). Messages open from the home header and
+// shortcuts. Everything else opens on top of it.
 class MainShell extends StatefulWidget {
   const MainShell({Key? key}) : super(key: key);
 
@@ -71,7 +72,18 @@ class _MainShellState extends State<MainShell> {
     if (mounted) setState(() => _newOffers = n);
   }
 
-  void _open(int tab) {
+  // Other screens ask for a tab by its older number: 0 home, 1 offers, 2 my loans, 3 messages, 4 profile, 5 pay.
+  // This turns that into the tab's place in the bar now (0 home, 1 offers, 2 pay, 3 my loans, 4 profile).
+  void _open(int legacy) {
+    if (legacy == 3) {
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SupportScreen()));
+      return;
+    }
+    const place = {0: 0, 1: 1, 2: 3, 4: 4, 5: 2};
+    _select(place[legacy] ?? 0);
+  }
+
+  void _select(int tab) {
     final leftOffers = _tab == 1 && tab != 1;
     setState(() { _tab = tab; if (tab == 1) _newOffers = 0; });
     if (leftOffers || tab == 0) _refreshOffers();
@@ -84,23 +96,22 @@ class _MainShellState extends State<MainShell> {
     final pages = <Widget>[
       HomeScreen(onOpenTab: _open),
       _tab == 1 ? OffersScreen(embedded: true, onOpenTab: _open) : const SizedBox.shrink(),
-      _tab == 2 ? const LoanHistoryScreen(embedded: true) : const SizedBox.shrink(),
-      _tab == 3 ? const SupportScreen() : const SizedBox.shrink(),
+      _tab == 2 ? const PayHubScreen() : const SizedBox.shrink(),
+      _tab == 3 ? const LoanHistoryScreen(embedded: true) : const SizedBox.shrink(),
       _tab == 4 ? const ProfileScreen(embedded: true) : const SizedBox.shrink(),
     ];
     return Scaffold(
       body: IndexedStack(index: _tab, children: pages),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _tab,
-        onDestinationSelected: _open,
-        backgroundColor: Colors.white,
-        indicatorColor: kNavy.withOpacity(0.10),
-        height: 66,
+        onDestinationSelected: _select,
+        height: 68,
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         destinations: [
           NavigationDestination(icon: const Icon(Icons.home_outlined), selectedIcon: const Icon(Icons.home_rounded, color: kNavy), label: tr('Home')),
           NavigationDestination(icon: Badge(isLabelVisible: _newOffers > 0, smallSize: 9, child: const Icon(Icons.local_offer_outlined)), selectedIcon: const Icon(Icons.local_offer_rounded, color: kNavy), label: tr('Offers')),
+          NavigationDestination(icon: const Icon(Icons.payments_outlined), selectedIcon: const Icon(Icons.payments_rounded, color: kNavy), label: tr('Pay')),
           NavigationDestination(icon: const Icon(Icons.account_balance_wallet_outlined), selectedIcon: const Icon(Icons.account_balance_wallet_rounded, color: kNavy), label: tr('My Loans')),
-          NavigationDestination(icon: const Icon(Icons.chat_bubble_outline_rounded), selectedIcon: const Icon(Icons.chat_bubble_rounded, color: kNavy), label: tr('Messages')),
           NavigationDestination(icon: const Icon(Icons.person_outline_rounded), selectedIcon: const Icon(Icons.person_rounded, color: kNavy), label: tr('Profile')),
         ],
       ),

@@ -87,7 +87,10 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
         children: [
           // Header
           Container(
-            color: kNavy,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(colors: [kNavy, Color(0xFF9B1B30)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+              borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
+            ),
             child: SafeArea(
               bottom: false,
               child: Padding(

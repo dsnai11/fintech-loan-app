@@ -89,47 +89,27 @@ class _LoginScreenState extends State<LoginScreen> {
       backgroundColor: kNavy,
       body: Column(
         children: [
-          // ── Navy header ──────────────────────────────────────────
-          SizedBox(
-            height: size.height * 0.40,
+          // ── Brand header ─────────────────────────────────────────
+          Container(
+            width: double.infinity,
+            height: size.height * 0.38,
+            decoration: const BoxDecoration(gradient: LinearGradient(colors: [kNavy, Color(0xFF9B1B30)], begin: Alignment.topLeft, end: Alignment.bottomRight)),
             child: SafeArea(
               child: Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    RichText(
-                      text: const TextSpan(
-                        children: [
-                          TextSpan(
-                            text: 'Fintech',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 32,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: -0.5,
-                            ),
-                          ),
-                          TextSpan(
-                            text: 'LOAN',
-                            style: TextStyle(
-                              color: kGreen,
-                              fontSize: 32,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -0.5,
-                            ),
-                          ),
-                        ],
-                      ),
+                    Container(
+                      width: 78,
+                      height: 78,
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.22), blurRadius: 20, offset: const Offset(0, 8))]),
+                      child: ClipRRect(borderRadius: BorderRadius.circular(17), child: Image.asset('assets/images/lifc_logo.jpg', fit: BoxFit.contain)),
                     ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Sign in to continue',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
+                    const SizedBox(height: 16),
+                    const Text('Welcome to LIFC', style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 4),
+                    Text('Laxmi India Finance', style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 14, fontWeight: FontWeight.w500)),
                     const SizedBox(height: 14),
                     const LanguageChip(),
                   ],
@@ -150,7 +130,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Enter your credentials to get started',
+                      'Sign in to see your offer and your loans',
                       style: TextStyle(color: Color(0xFF6B7280), fontSize: 14),
                     ),
                     const SizedBox(height: 24),

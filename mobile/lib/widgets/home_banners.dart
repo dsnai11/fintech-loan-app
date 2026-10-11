@@ -64,7 +64,8 @@ class BrandHeader extends StatefulWidget {
   final Map<String, dynamic>? brand;
   final Widget trailing;
   final Widget logo;
-  const BrandHeader({Key? key, required this.first, required this.brand, required this.trailing, required this.logo}) : super(key: key);
+  final Widget? bottom; // a card that sits inside the gradient, under the trust points
+  const BrandHeader({Key? key, required this.first, required this.brand, required this.trailing, required this.logo, this.bottom}) : super(key: key);
 
   @override
   State<BrandHeader> createState() => _BrandHeaderState();
@@ -104,10 +105,10 @@ class _BrandHeaderState extends State<BrandHeader> with SingleTickerProviderStat
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(colors: cols, begin: Alignment.topLeft, end: Alignment.bottomRight),
-        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(26)),
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(32)),
       ),
       child: ClipRRect(
-        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(26)),
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(32)),
         child: Stack(
           children: [
             Positioned.fill(
@@ -117,7 +118,7 @@ class _BrandHeaderState extends State<BrandHeader> with SingleTickerProviderStat
               ),
             ),
             Padding(
-              padding: EdgeInsets.fromLTRB(20, MediaQuery.of(context).padding.top + 12, 20, 18),
+              padding: EdgeInsets.fromLTRB(20, MediaQuery.of(context).padding.top + 12, 20, 22),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -159,6 +160,10 @@ class _BrandHeaderState extends State<BrandHeader> with SingleTickerProviderStat
                       ],
                     ),
                   ],
+                  if (widget.bottom != null) ...[
+                    const SizedBox(height: 16),
+                    widget.bottom!,
+                  ],
                 ],
               ),
             ),
@@ -176,7 +181,7 @@ class _OrbPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final p = Paint()..color = Colors.white.withOpacity(0.07);
-    canvas.drawCircle(Offset(size.width - 30 - 14 * t, 20 + 10 * t), 70, p);
+    canvas.drawCircle(Offset(size.width - 30 - 14 * t, 40 + 10 * t), 96, p);
     canvas.drawCircle(Offset(30 + 12 * t, 8 - 6 * t), 34, p);
   }
 

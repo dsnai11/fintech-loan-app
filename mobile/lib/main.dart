@@ -14,9 +14,15 @@ import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
 import 'screens/main_shell.dart';
 
+// Brand and surface colours used across the app. The company's own colours from the web portal still override the home header and banners.
 const kNavy = Color(0xFF7B0000);
 const kGreen = Color(0xFFC41E3A);
-const kBg = Color(0xFFFFF8F8);
+const kBg = Color(0xFFFAF6F6);
+const kInk = Color(0xFF1B1416);
+const kMuted = Color(0xFF6B7280);
+const kLine = Color(0xFFEADFE0);
+const kGold = Color(0xFFD9A441);
+const kGood = Color(0xFF15803D);
 
 // Lets a tapped notification open a screen from outside any widget
 final navigatorKey = GlobalKey<NavigatorState>();
@@ -61,43 +67,7 @@ class MyApp extends StatelessWidget {
         builder: (context, child) => LockGate(child: child ?? const SizedBox.shrink()),
         title: 'LIFC - Laxmi India Finance',
         debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          useMaterial3: true,
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: kNavy,
-            primary: kNavy,
-            secondary: kGreen,
-            background: kBg,
-          ),
-          scaffoldBackgroundColor: kBg,
-          fontFamily: 'Roboto',
-          inputDecorationTheme: InputDecorationTheme(
-            filled: true,
-            fillColor: Colors.white,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: kNavy, width: 1.5),
-            ),
-          ),
-          elevatedButtonTheme: ElevatedButtonThemeData(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: kNavy,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
-          ),
-        ),
+        theme: _theme(),
         home: const SplashScreen(),
         routes: {
           '/login': (_) => const LoginScreen(),
@@ -107,4 +77,83 @@ class MyApp extends StatelessWidget {
       ),
     );
   }
+}
+
+ThemeData _theme() {
+  final base = ColorScheme.fromSeed(seedColor: kNavy, primary: kNavy, secondary: kGreen, background: kBg, surface: Colors.white);
+  OutlineInputBorder border(Color c, [double w = 1]) => OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: c, width: w));
+  return ThemeData(
+    useMaterial3: true,
+    colorScheme: base,
+    scaffoldBackgroundColor: kBg,
+    fontFamily: 'Poppins',
+    textTheme: ThemeData.light().textTheme.apply(fontFamily: 'Poppins', bodyColor: kInk, displayColor: kInk),
+    pageTransitionsTheme: const PageTransitionsTheme(builders: {
+      TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+      TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+    }),
+    appBarTheme: const AppBarTheme(
+      backgroundColor: kNavy,
+      foregroundColor: Colors.white,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      centerTitle: false,
+      systemOverlayStyle: SystemUiOverlayStyle(statusBarColor: kNavy, statusBarIconBrightness: Brightness.light, statusBarBrightness: Brightness.dark),
+      titleTextStyle: TextStyle(fontFamily: 'Poppins', fontSize: 17, fontWeight: FontWeight.w600, color: Colors.white),
+    ),
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      elevation: 12,
+      shadowColor: kNavy.withOpacity(0.25),
+      indicatorColor: kNavy.withOpacity(0.10),
+      labelTextStyle: MaterialStateProperty.resolveWith((s) => TextStyle(fontFamily: 'Poppins', fontSize: 11, fontWeight: s.contains(MaterialState.selected) ? FontWeight.w600 : FontWeight.w500, color: s.contains(MaterialState.selected) ? kNavy : kMuted)),
+    ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: Colors.white,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      border: border(kLine),
+      enabledBorder: border(kLine),
+      focusedBorder: border(kNavy, 1.6),
+      errorBorder: border(const Color(0xFFDC2626)),
+      focusedErrorBorder: border(const Color(0xFFDC2626), 1.6),
+      labelStyle: const TextStyle(color: kMuted, fontSize: 14),
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: kNavy,
+        foregroundColor: Colors.white,
+        disabledBackgroundColor: const Color(0xFFD9CFCF),
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+        textStyle: const TextStyle(fontFamily: 'Poppins', fontSize: 15, fontWeight: FontWeight.w600),
+      ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: kNavy,
+        side: const BorderSide(color: kNavy, width: 1.2),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
+        textStyle: const TextStyle(fontFamily: 'Poppins', fontSize: 15, fontWeight: FontWeight.w600),
+      ),
+    ),
+    textButtonTheme: TextButtonThemeData(style: TextButton.styleFrom(foregroundColor: kNavy, textStyle: const TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600))),
+    chipTheme: ChipThemeData(
+      backgroundColor: Colors.white,
+      selectedColor: kNavy.withOpacity(0.12),
+      side: const BorderSide(color: kLine),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      labelStyle: const TextStyle(fontFamily: 'Poppins', fontSize: 13, fontWeight: FontWeight.w500),
+    ),
+    dialogTheme: DialogTheme(backgroundColor: Colors.white, surfaceTintColor: Colors.transparent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22))),
+    bottomSheetTheme: const BottomSheetThemeData(backgroundColor: Colors.white, surfaceTintColor: Colors.transparent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24)))),
+    snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)), backgroundColor: kInk),
+    sliderTheme: SliderThemeData(activeTrackColor: kNavy, thumbColor: kNavy, inactiveTrackColor: kNavy.withOpacity(0.15), overlayColor: kNavy.withOpacity(0.12), trackHeight: 5),
+    progressIndicatorTheme: const ProgressIndicatorThemeData(color: kNavy, linearTrackColor: Color(0xFFF1E7E8)),
+    dividerTheme: const DividerThemeData(color: kLine, thickness: 1, space: 1),
+    listTileTheme: const ListTileThemeData(iconColor: kNavy),
+  );
 }

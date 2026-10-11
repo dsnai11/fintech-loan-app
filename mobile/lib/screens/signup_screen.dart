@@ -93,42 +93,28 @@ class _SignupScreenState extends State<SignupScreen> {
       backgroundColor: kNavy,
       body: Column(
         children: [
-          // ── Navy header ──────────────────────────────────────────
-          SizedBox(
+          // ── Brand header ─────────────────────────────────────────
+          Container(
+            width: double.infinity,
             height: size.height * 0.28,
+            decoration: const BoxDecoration(gradient: LinearGradient(colors: [kNavy, Color(0xFF9B1B30)], begin: Alignment.topLeft, end: Alignment.bottomRight)),
             child: SafeArea(
               child: Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    RichText(
-                      text: const TextSpan(
-                        children: [
-                          TextSpan(
-                            text: 'Fintech',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 28,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          TextSpan(
-                            text: 'LOAN',
-                            style: TextStyle(
-                              color: kGreen,
-                              fontSize: 28,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ],
-                      ),
+                    Container(
+                      width: 58,
+                      height: 58,
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18)),
+                      child: ClipRRect(borderRadius: BorderRadius.circular(13), child: Image.asset('assets/images/lifc_logo.jpg', fit: BoxFit.contain)),
                     ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Create your account',
-                      style: TextStyle(color: Colors.white70, fontSize: 14),
-                    ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
+                    const Text('Create your LIFC account', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 3),
+                    Text('One sign-up for every loan product', style: TextStyle(color: Colors.white.withOpacity(0.82), fontSize: 12.5)),
+                    const SizedBox(height: 10),
                     const LanguageChip(),
                   ],
                 ),
