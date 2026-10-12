@@ -34,6 +34,7 @@
     { href: 'loan-management.html', label: 'Loan management', icon: 'loans', any: ['loans.view'] },
     { href: 'emi-analytics.html', label: 'EMI collections', icon: 'emi', any: ['reports.view'] },
     { href: 'decisions.html', label: 'Decisions', icon: 'scale', any: ['decisions.view'] },
+    { href: 'product-rules.html', label: 'Rules by product', icon: 'scale', any: ['decisions.view'] },
     { href: 'customers.html', label: 'Customers', icon: 'users', any: ['customers.view'] },
     { group: 'Customer care' },
     { href: 'support.html', label: 'Messages', icon: 'chat', any: ['support.view', 'announcements.send'] },

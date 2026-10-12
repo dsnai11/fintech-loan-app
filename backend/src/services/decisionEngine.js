@@ -97,7 +97,10 @@ export const DEFAULTS = {
   bureauReport: { enabled: false, maxEnquiries90: 5, maxDpd: 30, rejectDpd: null, maxActiveLoans: 4 },
   // Income seen in the customer's bank statements (shared by the customer through Account Aggregator).
   incomeCheck: { enabled: false, requireAbove: null, maxBounces: 2, maxDeclaredGapPercent: 30, minVerifiedIncome: null, maxObligationShare: null, useVerifiedIncome: true },
-  custom: [], // the lender's own rules: { id, name, field, op, value, result: 'refer' | 'reject', message }
+  custom: [], // the lender's own rules: { id, name, field, op, value, result: 'refer' | 'reject', message, products?: [keys] } (no products = every product)
+  // Rules that differ for one product: { <productKey>: { mode: 'inherit' | 'off' | 'shadow' | 'auto', overrides: { <section>: { <field>: value } }, custom: [...] } }.
+  // A product with no entry follows the rules above exactly.
+  products: {},
 };
 
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -107,10 +110,30 @@ function overlay(base, input) {
   if (!isObj(input)) return base;
   for (const k of Object.keys(base)) {
     if (!(k in input)) continue;
+    if (k === 'products') { base[k] = isObj(input[k]) ? input[k] : {}; continue; }
     if (isObj(base[k])) base[k] = overlay(base[k], input[k]);
     else base[k] = input[k];
   }
   return base;
+}
+
+// The parts of the rules a product may change for itself
+export const OVERRIDABLE = ['age', 'kyc', 'selfie', 'foir', 'phone', 'amount', 'bureau', 'history', 'aml', 'velocity', 'rejections', 'lateHistory', 'incomeMultiple', 'serviceArea', 'accountAge', 'bureauReport', 'incomeCheck'];
+export const productKeyOf = k => String(k || 'personal').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 30);
+
+// The rules as they apply to one product: the shared rules, with that product's own changes laid over them, its own mode if it
+// has one, and only the custom rules that apply to it. A product with no entry gets the shared rules unchanged.
+export function effectiveRules(rules, productKey) {
+  const key = productKeyOf(productKey);
+  const entry = rules.products?.[key];
+  const out = clone(rules);
+  delete out.products;
+  out.custom = (rules.custom || []).filter(c => !c.products?.length || c.products.includes(key));
+  if (!entry) return out;
+  for (const sec of OVERRIDABLE) if (isObj(entry.overrides?.[sec])) out[sec] = { ...out[sec], ...clone(entry.overrides[sec]) };
+  if (entry.mode && entry.mode !== 'inherit' && MODES.includes(entry.mode)) out.mode = entry.mode;
+  if (Array.isArray(entry.custom)) out.custom = [...out.custom, ...clone(entry.custom)];
+  return out;
 }
 
 export function getRules() {
@@ -133,7 +156,38 @@ function num(v, min, max, name, errors, { int = false, allowNull = false } = {})
   return n;
 }
 
-export function validateRules(candidate) {
+// The lender's own rules, checked and tidied. `scoped` lets a rule name the products it applies to.
+function parseCustom(rawList, errors, { scoped = true, label: prefix = '' } = {}) {
+  const custom = [];
+  const list = Array.isArray(rawList) ? rawList : [];
+  if (list.length > 30) errors.push(`${prefix}Too many of your own rules (up to 30)`);
+  const seen = new Set();
+  list.slice(0, 30).forEach((c, i) => {
+    const label = `${prefix}Your rule ${i + 1}`;
+    const name = String(c?.name ?? '').trim();
+    if (!name || name.length > 60) { errors.push(`${label} needs a name of up to 60 characters`); return; }
+    const spec = CUSTOM_FIELDS[c.field];
+    if (!spec) { errors.push(`${prefix}${name}: choose what the rule looks at`); return; }
+    if (!OPS.includes(c.op) || (spec.type === 'boolean' && !['=', '!='].includes(c.op))) { errors.push(`${prefix}${name}: that comparison does not fit "${spec.label}"`); return; }
+    let value;
+    if (spec.type === 'boolean') value = c.value === true || c.value === 'true' ? true : c.value === false || c.value === 'false' ? false : undefined;
+    else value = c.value === '' || c.value === null || c.value === undefined ? undefined : Number(c.value);
+    if (value === undefined || (spec.type === 'number' && (!Number.isFinite(value) || value < -1e9 || value > 1e9))) { errors.push(`${prefix}${name}: enter a value to compare with`); return; }
+    if (!['refer', 'reject'].includes(c.result)) { errors.push(`${prefix}${name}: choose whether it sends the application to a person or rejects it`); return; }
+    let id = String(c.id || name).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 30) || `rule_${i + 1}`;
+    while (seen.has(id)) id += '_x';
+    seen.add(id);
+    const rule = { id, name, field: c.field, op: c.op, value, result: c.result, message: String(c.message ?? '').trim().slice(0, 120) };
+    if (scoped) {
+      const keys = [...new Set((Array.isArray(c.products) ? c.products : String(c.products ?? '').split(',')).map(x => String(x).trim()).filter(Boolean).map(productKeyOf))].slice(0, 20);
+      if (keys.length) rule.products = keys;
+    }
+    custom.push(rule);
+  });
+  return custom;
+}
+
+export function validateRules(candidate, inner = false) {
   const errors = [];
   const r = clone(candidate);
   const out = clone(DEFAULTS);
@@ -176,27 +230,7 @@ export function validateRules(candidate) {
     for (let i = 1; i < lines.length; i++) if (lines[i].limit > lines[i - 1].limit) errors.push('A lower score cannot be offered more than a higher score');
     if (lines.length && out.offer.belowCleanLimit > lines[lines.length - 1].limit) errors.push('The offer for a low score cannot be above the offer for the lowest score line');
   }
-  out.custom = [];
-  const list = Array.isArray(r.custom) ? r.custom : [];
-  if (list.length > 30) errors.push('Too many of your own rules (up to 30)');
-  const seen = new Set();
-  list.slice(0, 30).forEach((c, i) => {
-    const label = `Your rule ${i + 1}`;
-    const name = String(c?.name ?? '').trim();
-    if (!name || name.length > 60) { errors.push(`${label} needs a name of up to 60 characters`); return; }
-    const spec = CUSTOM_FIELDS[c.field];
-    if (!spec) { errors.push(`${name}: choose what the rule looks at`); return; }
-    if (!OPS.includes(c.op) || (spec.type === 'boolean' && !['=', '!='].includes(c.op))) { errors.push(`${name}: that comparison does not fit "${spec.label}"`); return; }
-    let value;
-    if (spec.type === 'boolean') value = c.value === true || c.value === 'true' ? true : c.value === false || c.value === 'false' ? false : undefined;
-    else value = c.value === '' || c.value === null || c.value === undefined ? undefined : Number(c.value);
-    if (value === undefined || (spec.type === 'number' && (!Number.isFinite(value) || value < -1e9 || value > 1e9))) { errors.push(`${name}: enter a value to compare with`); return; }
-    if (!['refer', 'reject'].includes(c.result)) { errors.push(`${name}: choose whether it sends the application to a person or rejects it`); return; }
-    let id = String(c.id || name).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 30) || `rule_${i + 1}`;
-    while (seen.has(id)) id += '_x';
-    seen.add(id);
-    out.custom.push({ id, name, field: c.field, op: c.op, value, result: c.result, message: String(c.message ?? '').trim().slice(0, 120) });
-  });
+  out.custom = parseCustom(r.custom, errors);
   out.history.rejectIfDefaulted = bool(r.history?.rejectIfDefaulted);
   out.history.referIfOverdue = bool(r.history?.referIfOverdue);
   out.history.maxOpenLoans = num(r.history?.maxOpenLoans, 0, 20, 'Open loans allowed', errors, { int: true });
@@ -250,6 +284,32 @@ export function validateRules(candidate) {
   out.incomeCheck.minVerifiedIncome = num(ic.minVerifiedIncome, 1000, 10000000, 'Lowest monthly income seen in the statements', errors, { int: true, allowNull: true });
   out.incomeCheck.maxObligationShare = num(ic.maxObligationShare, 1, 200, 'Most of the income that may go to repayments (percent)', errors, { allowNull: true });
   out.incomeCheck.useVerifiedIncome = ic.useVerifiedIncome === undefined ? DEFAULTS.incomeCheck.useVerifiedIncome : bool(ic.useVerifiedIncome);
+
+  // Rules that differ for one product. Each product's changes are checked as if they were the rules for that product alone.
+  out.products = {};
+  const prods = isObj(r.products) ? r.products : {};
+  if (!inner && Object.keys(prods).length > 30) errors.push('Too many products with their own rules (up to 30)');
+  if (!inner && !errors.length) {
+    for (const [rawKey, p] of Object.entries(prods).slice(0, 30)) {
+      const key = productKeyOf(rawKey);
+      if (!key) continue;
+      const label = `Product "${key}": `;
+      const entry = isObj(p) ? p : {};
+      const mode = entry.mode === undefined || entry.mode === null || entry.mode === '' || entry.mode === 'inherit' ? 'inherit' : MODES.includes(entry.mode) ? entry.mode : (errors.push(`${label}mode must be inherit, off, shadow or auto`), 'inherit');
+      const ov = isObj(entry.overrides) ? entry.overrides : {};
+      const merged = { ...r, products: {}, custom: [] };
+      for (const sec of OVERRIDABLE) if (isObj(ov[sec])) merged[sec] = { ...(r[sec] || {}), ...ov[sec] };
+      const check = validateRules(merged, true);
+      check.errors.forEach(e => errors.push(label + e));
+      const norm = {};
+      for (const sec of OVERRIDABLE) if (isObj(ov[sec])) {
+        const picked = {};
+        for (const k of Object.keys(ov[sec])) if (k in (check.rules[sec] || {})) picked[k] = check.rules[sec][k];
+        if (Object.keys(picked).length) norm[sec] = picked;
+      }
+      out.products[key] = { mode, overrides: norm, custom: parseCustom(entry.custom, errors, { scoped: false, label }) };
+    }
+  }
   return { errors, rules: out };
 }
 
@@ -485,8 +545,10 @@ export async function gatherFacts(loan, user, rules = getRules()) {
 
 // Decide on a new application. Records what the engine found on the loan, and in "auto" mode acts on it.
 // Never throws: a problem here must not stop the customer's application from being saved.
-export async function decideLoan(loan, user, { rules = getRules() } = {}) {
+export async function decideLoan(loan, user, { rules: given } = {}) {
   try {
+    // Each product follows its own rules where it has them
+    const rules = given || effectiveRules(getRules(), loan.productKey);
     if (rules.mode === 'off') return null;
     const result = evaluate(rules, await gatherFacts(loan, user, rules));
     let applied = false;
@@ -507,7 +569,7 @@ export async function decideLoan(loan, user, { rules = getRules() } = {}) {
       }
     }
 
-    loan.decision = { outcome: result.outcome, mode: rules.mode, applied, checks: result.checks, customerReason: result.customerReason, at: new Date() };
+    loan.decision = { outcome: result.outcome, mode: rules.mode, product: productKeyOf(loan.productKey), applied, checks: result.checks, customerReason: result.customerReason, at: new Date() };
     loan.markModified('decision');
     await loan.save();
 
@@ -579,4 +641,43 @@ export const SUGGESTED_START = {
   incomeCheck: { enabled: true, requireAbove: 50000, maxBounces: 2, maxDeclaredGapPercent: 30, minVerifiedIncome: null, maxObligationShare: 60, useVerifiedIncome: true },
 };
 
-export default { getRules, saveRules, validateRules, evaluate, computeOffer, gatherUserFacts, gatherFacts, decideLoan, DEFAULTS, MODES, SUGGESTED_START };
+// A sensible first set of values per product, to start from (they only fill the form; nothing is saved until you press Save).
+// They are proposals for the credit head to confirm, not policy.
+export const SUGGESTED_PRODUCTS = {
+  payday: {
+    mode: 'shadow',
+    overrides: {
+      amount: { firstLoanAutoMax: 25000, repeatAutoMax: 25000 },
+      bureau: { autoMinScore: 600, requireScore: false },
+      history: { maxOpenLoans: 2 },
+      bureauReport: { enabled: true, maxEnquiries90: 6, maxDpd: 30, rejectDpd: 90, maxActiveLoans: 5 },
+      incomeCheck: { enabled: true, requireAbove: 20000, maxBounces: 1, maxDeclaredGapPercent: 30, minVerifiedIncome: 15000, maxObligationShare: 60, useVerifiedIncome: true },
+      accountAge: { enabled: true, minDays: 1 },
+    },
+  },
+  personal: {
+    mode: 'shadow',
+    overrides: {
+      amount: { firstLoanAutoMax: 100000, repeatAutoMax: 200000 },
+      bureau: { autoMinScore: 650, requireScore: false },
+      foir: { enabled: true, maxPercent: 50 },
+      incomeMultiple: { enabled: true, maxMonths: 5 },
+      bureauReport: { enabled: true, maxEnquiries90: 5, maxDpd: 60, rejectDpd: 90, maxActiveLoans: 4 },
+      incomeCheck: { enabled: true, requireAbove: 100000, maxBounces: 2, maxDeclaredGapPercent: 25, minVerifiedIncome: 20000, maxObligationShare: 60, useVerifiedIncome: true },
+    },
+  },
+  salaried: {
+    mode: 'shadow',
+    overrides: {
+      amount: { firstLoanAutoMax: 100000, repeatAutoMax: 300000 },
+      bureau: { autoMinScore: 700, requireScore: true },
+      foir: { enabled: true, maxPercent: 55 },
+      incomeMultiple: { enabled: true, maxMonths: 15 },
+      history: { maxOpenLoans: 1 },
+      bureauReport: { enabled: true, maxEnquiries90: 4, maxDpd: 30, rejectDpd: 90, maxActiveLoans: 4 },
+      incomeCheck: { enabled: true, requireAbove: 1000, maxBounces: 1, maxDeclaredGapPercent: 20, minVerifiedIncome: 30000, maxObligationShare: 55, useVerifiedIncome: true },
+    },
+  },
+};
+
+export default { getRules, effectiveRules, saveRules, validateRules, evaluate, computeOffer, gatherUserFacts, gatherFacts, decideLoan, DEFAULTS, MODES, SUGGESTED_START };

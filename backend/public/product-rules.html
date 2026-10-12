@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%E2%9A%96%3C/text%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rules by product - LIFC Admin</title>
+<style>
+* { box-sizing: border-box; }
+.card { padding: 16px; margin-bottom: 14px; }
+.card h2 { margin: 0 0 4px; font-size: 15px; }
+.sub { font-size: 12px; color: var(--e-muted); margin-bottom: 12px; line-height: 1.5; }
+.note { font-size: 12px; color: var(--e-muted); }
+.alert { display: none; padding: 12px 16px; margin-bottom: 14px; white-space: pre-line; }
+.alert.show { display: block; }
+.scroll { overflow-x: auto; }
+.ptabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.ptab { border: 1px solid var(--e-border-strong); background: var(--e-surface); border-radius: 10px; padding: 10px 14px; cursor: pointer; text-align: left; min-width: 150px; font: inherit; color: var(--e-text); }
+.ptab.on { border-color: var(--e-primary); background: var(--e-primary-soft); }
+.ptab b { display: block; font-size: 14px; }
+.ptab span { font-size: 11.5px; color: var(--e-muted); }
+.modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+.mode { border: 1px solid var(--e-border); border-radius: 10px; padding: 12px 14px; cursor: pointer; display: flex; gap: 10px; background: var(--e-surface); }
+.mode.on { border-color: var(--e-primary); background: var(--e-primary-soft); }
+.mode b { display: block; font-size: 14px; }
+.mode span { font-size: 12px; color: var(--e-muted); line-height: 1.4; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--e-muted); border-bottom: 1px solid var(--e-border); white-space: nowrap; }
+td { padding: 7px 8px; border-bottom: 1px solid var(--e-border); vertical-align: middle; }
+tr.grp td { background: var(--e-surface-2); font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--e-muted); }
+td.shared { color: var(--e-muted); white-space: nowrap; }
+td input[type=number] { width: 120px; }
+tr.changed td.mine input { border-color: var(--e-primary); background: var(--e-primary-soft); }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--e-primary); margin-right: 6px; visibility: hidden; }
+tr.changed .dot { visibility: visible; }
+.pill { display: inline-block; padding: 1px 9px; border-radius: 99px; font-size: 11px; font-weight: 700; background: var(--e-surface-2); border: 1px solid var(--e-border); }
+.pill.APPROVE { background: var(--e-good-soft); color: var(--e-good); border-color: transparent; }
+.pill.REJECT { background: var(--e-danger-soft); color: var(--e-danger); border-color: transparent; }
+.pill.REFER { background: var(--e-warn-soft); color: var(--e-warn); border-color: transparent; }
+.bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+.warn { background: var(--e-warn-soft); color: var(--e-warn); border-radius: 8px; padding: 10px 14px; font-size: 12.5px; line-height: 1.5; margin-bottom: 14px; }
+</style>
+<link rel="stylesheet" href="assets/portal.css">
+</head>
+<body data-shell="app" data-title="Rules by product" data-sub="The rules each loan product follows. Anything you leave as it is follows the shared rules on the Decisions page.">
+<div class="container">
+  <div id="alert" class="alert" role="alert"></div>
+  <div class="warn"><b>Credit head to confirm:</b> the suggested values are starting proposals, not your credit policy. Keep a product in Shadow until its results look right, then switch it to Automatic.</div>
+  <div class="ptabs" id="ptabs"></div>
+  <div id="body"></div>
+</div>
+<script>
+const API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
+const token = localStorage.getItem('admin_token');
+if (!token) location.href = 'admin-config.html';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const money = n => '₹' + Math.round(n || 0).toLocaleString('en-IN');
+const when = d => new Date(d).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+const canEdit = () => !window.PortalShell || PortalShell.can('decisions.edit');
+let LIST = [], CUR = null, D = null;
+
+function msg(text, kind) { const a = $('alert'); a.textContent = text; a.className = 'alert show ' + (kind === 'ok' ? 'ok' : 'err'); window.scrollTo({ top: 0, behavior: 'smooth' }); if (kind === 'ok') setTimeout(() => a.classList.remove('show'), 5000); }
+async function api(path, method = 'GET', body) {
+  const r = await fetch(API + path, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.errors ? d.errors.join('\n') : d.error || 'Something went wrong');
+  return d;
+}
+
+// [group, label, section, field, kind]  kind: n = number, z = number that may be empty, b = yes / no
+const ROWS = [
+  ['Who and how old', 'Youngest we lend to', 'age', 'hardMin', 'n'], ['', 'Youngest without a check', 'age', 'min', 'n'], ['', 'Oldest without a check', 'age', 'max', 'n'], ['', 'Oldest we lend to', 'age', 'hardMax', 'n'],
+  ['Amount', 'Largest automatic approval, new customer (₹)', 'amount', 'firstLoanAutoMax', 'n'], ['', 'Largest automatic approval, repeat customer (₹)', 'amount', 'repeatAutoMax', 'n'],
+  ['Credit score', 'Clean score (this or higher passes)', 'bureau', 'autoMinScore', 'n'], ['', 'Reject below this score (empty = never)', 'bureau', 'rejectBelow', 'z'], ['', 'A person decides when there is no score', 'bureau', 'requireScore', 'b'],
+  ['Income and burden', 'Check EMI against income (FOIR)', 'foir', 'enabled', 'b'], ['', 'Highest EMI as a share of income (%)', 'foir', 'maxPercent', 'n'], ['', 'Check loan against months of income', 'incomeMultiple', 'enabled', 'b'], ['', 'Most months of income a loan can be', 'incomeMultiple', 'maxMonths', 'n'],
+  ['Bank statements', 'Check income against bank statements', 'incomeCheck', 'enabled', 'b'], ['', 'Ask for statements above this amount (₹, empty = never)', 'incomeCheck', 'requireAbove', 'z'], ['', 'Most bounced payments allowed', 'incomeCheck', 'maxBounces', 'n'], ['', 'Declared income may exceed statements by (%)', 'incomeCheck', 'maxDeclaredGapPercent', 'n'], ['', 'Lowest monthly income seen (₹, empty = none)', 'incomeCheck', 'minVerifiedIncome', 'z'], ['', 'Most income that may go to repayments (%, empty = none)', 'incomeCheck', 'maxObligationShare', 'z'], ['', 'Use statement income for other checks', 'incomeCheck', 'useVerifiedIncome', 'b'],
+  ['Credit record (bureau)', 'Use the credit record history', 'bureauReport', 'enabled', 'b'], ['', 'Most credit enquiries in 90 days', 'bureauReport', 'maxEnquiries90', 'n'], ['', 'Send to a person at this many days past due', 'bureauReport', 'maxDpd', 'n'], ['', 'Reject at this many days past due (empty = never)', 'bureauReport', 'rejectDpd', 'z'], ['', 'Most live loans on the credit record', 'bureauReport', 'maxActiveLoans', 'n'],
+  ['History with us', 'Other open loans allowed', 'history', 'maxOpenLoans', 'n'], ['', 'Send to a person if an instalment is overdue', 'history', 'referIfOverdue', 'b'], ['', 'Reject if an earlier loan defaulted', 'history', 'rejectIfDefaulted', 'b'], ['', 'Check late payments with us', 'lateHistory', 'enabled', 'b'], ['', 'Days late that send to a person', 'lateHistory', 'referDays', 'n'],
+  ['Behaviour', 'Check many applications in a short time', 'velocity', 'enabled', 'b'], ['', 'Look back (days)', 'velocity', 'days', 'n'], ['', 'Send to a person at this many applications', 'velocity', 'referAt', 'n'], ['', 'Reject at this many (empty = never)', 'velocity', 'rejectAt', 'z'], ['', 'Check recent rejections', 'rejections', 'enabled', 'b'], ['', 'Send to a person at this many rejections', 'rejections', 'referAt', 'n'], ['', 'Check brand-new accounts', 'accountAge', 'enabled', 'b'], ['', 'Account must be at least this many days old', 'accountAge', 'minDays', 'n'],
+  ['Basics', 'KYC must be approved', 'kyc', 'requireApproved', 'b'], ['', 'Sign-up photo must have passed', 'selfie', 'requirePassed', 'b'], ['', 'Phone must be verified', 'phone', 'requireVerified', 'b'], ['', 'Open AML alert sends to a person', 'aml', 'referOnOpenAlert', 'b'],
+];
+const MODE_INFO = {
+  inherit: ['Follow the shared mode', 'This product does what the Decisions page mode says.'],
+  off: ['Off', 'Every application for this product waits for a person.'],
+  shadow: ['Shadow', 'Records what it would decide. A person still decides.'],
+  auto: ['Automatic', 'Applications that pass every rule are approved at once; hard-rule failures are rejected.'],
+};
+const rid = (s, k) => `r-${s}-${k}`;
+const show = (v, kind) => v === null || v === undefined ? (kind === 'z' ? 'none' : '-') : kind === 'b' ? (v ? 'Yes' : 'No') : String(v);
+
+async function loadList() {
+  const d = await api('/admin/decisions/products');
+  LIST = d.products;
+  $('ptabs').innerHTML = LIST.map(p => `<button class="ptab ${CUR === p.key ? 'on' : ''}" onclick="pick('${esc(p.key)}')"><b>${esc(p.name)}</b><span>${esc({ off: 'Off', shadow: 'Shadow', auto: 'Automatic' }[p.mode])}${p.ownMode === 'inherit' ? ' (shared)' : ''} · ${p.changes} change${p.changes === 1 ? '' : 's'}</span></button>`).join('');
+}
+async function pick(key) {
+  CUR = key;
+  try { await loadList(); D = await api('/admin/decisions/products/' + encodeURIComponent(key)); draw(); loadRecent(); } catch (e) { msg(e.message, 'err'); }
+}
+function cell(sec, k, kind, v, dis) {
+  const id = rid(sec, k);
+  if (kind === 'b') return `<input type="checkbox" id="${id}" ${v ? 'checked' : ''} ${dis} onchange="mark()">`;
+  return `<input type="number" id="${id}" step="any" value="${v === null || v === undefined ? '' : esc(v)}" ${dis} oninput="mark()">`;
+}
+function draw() {
+  const dis = canEdit() ? '' : 'disabled';
+  const mode = D.entry.mode || 'inherit';
+  let rows = '';
+  for (const [g, label, sec, k, kind] of ROWS) {
+    if (g) rows += `<tr class="grp"><td colspan="3">${esc(g)}</td></tr>`;
+    rows += `<tr data-sec="${sec}" data-k="${k}" data-kind="${kind}"><td><span class="dot"></span>${esc(label)}</td><td class="shared">${esc(show(D.shared[sec]?.[k], kind))}</td><td class="mine">${cell(sec, k, kind, D.effective[sec]?.[k], dis)}</td></tr>`;
+  }
+  const mine = D.entry.custom || [];
+  const customLine = c => `<tr><td>${esc(c.name)}</td><td>${esc(c.field)} ${esc(c.op)} ${esc(c.value)}</td><td>${esc(c.result === 'reject' ? 'Reject' : 'Send to a person')}</td></tr>`;
+  $('body').innerHTML = `
+    <div class="card"><h2>${esc(D.name)}: mode</h2><div class="sub">The shared mode is <b>${esc(D.sharedMode)}</b>. Give this product its own mode to try it in Shadow, or run it automatically, while the others stay as they are.</div>
+      <div class="modes">${Object.entries(MODE_INFO).map(([k, [t, d]]) => `<label class="mode ${mode === k ? 'on' : ''}"><input type="radio" name="mode" value="${k}" ${mode === k ? 'checked' : ''} ${dis} onchange="document.querySelectorAll('.mode').forEach(m => m.classList.toggle('on', m.querySelector('input').checked))"><div><b>${esc(t)}</b><span>${esc(d)}</span></div></label>`).join('')}</div></div>
+    <div class="card"><h2>${esc(D.name)}: rules</h2><div class="sub">The middle column is the shared value. Change a value on the right to give this product its own; a highlighted row differs from the shared rules. Leave it equal to the shared value to follow it.</div>
+      <div class="scroll"><table><thead><tr><th>Rule</th><th>Shared</th><th>This product</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="bar"><button class="btn primary" id="save" onclick="save()" ${dis}>Save for ${esc(D.name)}</button>${D.suggested ? `<button class="btn" onclick="fillSuggested()" ${dis}>Fill in suggested values</button>` : ''}<button class="btn" onclick="resetIt()" ${dis}>Follow the shared rules</button><span class="note">${canEdit() ? '' : 'Your role can view the rules but not change them.'}</span></div></div>
+    <div class="card"><h2>Your own rules that apply here</h2><div class="sub">Add rules of your own on the Decisions page (Rules tab) and choose which products they apply to.</div>
+      <div class="scroll"><table><thead><tr><th>Name</th><th>When</th><th>Then</th></tr></thead><tbody>${[...D.sharedCustom, ...mine].map(customLine).join('') || '<tr><td colspan="3" class="note">None.</td></tr>'}</tbody></table></div></div>
+    <div class="card"><h2>Recent decisions for ${esc(D.name)}</h2><div id="recent" class="scroll"><div class="note">Loading...</div></div></div>`;
+  mark();
+}
+function readCell(sec, k, kind) {
+  const el = $(rid(sec, k));
+  if (kind === 'b') return el.checked;
+  const v = el.value.trim();
+  return v === '' ? null : Number(v);
+}
+function mark() {
+  document.querySelectorAll('tr[data-sec]').forEach(tr => {
+    const sec = tr.dataset.sec, k = tr.dataset.k, kind = tr.dataset.kind;
+    const cur = readCell(sec, k, kind), base = D.shared[sec]?.[k];
+    tr.classList.toggle('changed', (cur ?? null) !== (base ?? null));
+  });
+}
+function collect() {
+  const overrides = {};
+  for (const [, , sec, k, kind] of ROWS) {
+    const cur = readCell(sec, k, kind), base = D.shared[sec]?.[k];
+    if ((cur ?? null) !== (base ?? null)) (overrides[sec] = overrides[sec] || {})[k] = cur;
+  }
+  return { mode: document.querySelector('input[name=mode]:checked')?.value || 'inherit', overrides, custom: D.entry.custom || [] };
+}
+function fillSuggested() {
+  const s = D.suggested;
+  for (const [sec, fields] of Object.entries(s.overrides || {})) for (const [k, v] of Object.entries(fields)) {
+    const row = ROWS.find(r => r[2] === sec && r[3] === k);
+    const el = $(rid(sec, k));
+    if (!row || !el) continue;
+    if (row[4] === 'b') el.checked = !!v; else el.value = v === null ? '' : v;
+  }
+  if (s.mode) { const r = document.querySelector(`input[name=mode][value=${s.mode}]`); if (r) { r.checked = true; r.dispatchEvent(new Event('change')); } }
+  mark();
+  msg('Suggested values are filled in. Check them, then press Save.', 'ok');
+}
+async function save() {
+  const body = collect();
+  if (body.mode === 'auto' && D.entry.mode !== 'auto' && !confirm('Applications for this product that pass every rule will be approved automatically, with no person looking at them. Switch it to Automatic?')) return;
+  $('save').disabled = true;
+  try { const d = await api('/admin/decisions/products/' + encodeURIComponent(CUR), 'PUT', body); msg(d.message, 'ok'); await pick(CUR); }
+  catch (e) { msg(e.message, 'err'); }
+  if ($('save')) $('save').disabled = !canEdit();
+}
+async function resetIt() {
+  if (!confirm('This product will follow the shared rules again, and its own values are removed. Continue?')) return;
+  try { const d = await api('/admin/decisions/products/' + encodeURIComponent(CUR), 'PUT', { reset: true }); msg(d.message, 'ok'); await pick(CUR); } catch (e) { msg(e.message, 'err'); }
+}
+async function loadRecent() {
+  try {
+    const d = await api('/admin/decisions?days=30&product=' + encodeURIComponent(CUR));
+    $('recent').innerHTML = d.recent.length ? `<table><thead><tr><th>When</th><th>Customer</th><th>Amount</th><th>Engine</th><th>Why</th><th>Loan now</th></tr></thead><tbody>${d.recent.map(r => `<tr><td>${when(r.at)}</td><td>${esc(r.customer)}</td><td>${money(r.amount)}</td><td><span class="pill ${esc(r.outcome)}">${esc(r.outcome)}</span>${r.applied ? '<div class="note">automatic</div>' : r.mode === 'shadow' ? '<div class="note">shadow</div>' : ''}</td><td>${r.reasons.length ? r.reasons.map(x => `<div>${esc(x)}</div>`).join('') : '<span class="note">All rules passed</span>'}</td><td>${esc(r.status)}</td></tr>`).join('')}</tbody></table>` : '<div class="note">No decisions for this product in the last 30 days.</div>';
+  } catch (e) { $('recent').innerHTML = `<div class="note">${esc(e.message)}</div>`; }
+}
+window.addEventListener('load', async () => {
+  try { await loadList(); await pick(LIST[0].key); } catch (e) { msg(e.message, 'err'); }
+});
+</script>
+<script src="assets/portal.js"></script>
+</body>
+</html>
