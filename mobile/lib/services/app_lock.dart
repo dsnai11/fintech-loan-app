@@ -15,6 +15,7 @@ class AppLock extends ChangeNotifier {
 
   SharedPreferences? _p;
   bool pinSet = false;
+  bool biometricOn = false; // unlock with Face ID or a fingerprint instead of typing the PIN
   bool locked = false;
   int triesLeft = maxTries;
   DateTime? _leftAt;
@@ -22,6 +23,20 @@ class AppLock extends ChangeNotifier {
   Future<void> init() async {
     _p = await SharedPreferences.getInstance();
     pinSet = _p!.getString('lock_hash') != null;
+    biometricOn = pinSet && (_p!.getBool('lock_bio') ?? false);
+  }
+
+  Future<void> setBiometric(bool on) async {
+    await _p?.setBool('lock_bio', on);
+    biometricOn = on;
+    notifyListeners();
+  }
+
+  // The person was recognised by Face ID or a fingerprint
+  void unlockWithBiometric() {
+    locked = false;
+    triesLeft = maxTries;
+    notifyListeners();
   }
 
   String _hash(String pin, String salt) {
@@ -61,6 +76,8 @@ class AppLock extends ChangeNotifier {
   Future<void> removePin() async {
     await _p?.remove('lock_hash');
     await _p?.remove('lock_salt');
+    await _p?.remove('lock_bio');
+    biometricOn = false;
     pinSet = false;
     locked = false;
     triesLeft = maxTries;

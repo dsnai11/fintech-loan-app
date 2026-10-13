@@ -5,6 +5,7 @@ import '../main.dart';
 import '../services/app_lock.dart';
 import '../services/app_settings.dart';
 import '../services/auth_service.dart';
+import '../services/biometric.dart';
 import 'tr_text.dart';
 
 /// Wraps the whole app. It locks the app behind the PIN when the app was left for a while, asks for a PIN when the company
@@ -142,6 +143,22 @@ class _EnterPin extends StatefulWidget {
 class _EnterPinState extends State<_EnterPin> {
   String _pin = '';
   String? _error;
+  bool _bioBusy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // With Face ID or a fingerprint switched on, ask for it as soon as the lock appears. The PIN pad is still there.
+    if (AppLock.instance.biometricOn) WidgetsBinding.instance.addPostFrameCallback((_) => _bio());
+  }
+
+  Future<void> _bio() async {
+    if (_bioBusy) return;
+    _bioBusy = true;
+    final ok = await Biometric.confirm('Unlock LIFC');
+    _bioBusy = false;
+    if (ok) AppLock.instance.unlockWithBiometric();
+  }
 
   void _changed(String v) {
     setState(() { _pin = v; _error = null; });
@@ -172,6 +189,7 @@ class _EnterPinState extends State<_EnterPin> {
               SizedBox(height: 20, child: _error == null ? null : Text(_error!, style: const TextStyle(color: Color(0xFFDC2626), fontSize: 13))),
               const SizedBox(height: 10),
               SizedBox(width: 300, child: _PinPad(value: _pin, onChanged: _changed)),
+              if (AppLock.instance.biometricOn) TextButton.icon(onPressed: _bio, icon: const Icon(Icons.fingerprint_rounded), label: const Text('Use Face ID or fingerprint')),
               TextButton(onPressed: widget.onForgot, child: const Text('Forgot PIN? Sign in again')),
             ]),
           ),
@@ -255,6 +273,10 @@ class AppLockRow extends StatelessWidget {
     final mode = context.watch<AppSettings>().appLockMode;
     final lock = context.watch<AppLock>();
     if (mode == 'off') return const SizedBox.shrink();
+    return Column(children: [_pinCard(context, lock, mode), if (lock.pinSet) const _BiometricRow()]);
+  }
+
+  Widget _pinCard(BuildContext context, AppLock lock, String mode) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -276,6 +298,54 @@ class AppLockRow extends StatelessWidget {
             child: const Text('Set PIN'),
           ),
       ]),
+    );
+  }
+}
+
+
+// "Unlock with Face ID or fingerprint", shown under the PIN row once a PIN is set and the phone can do it
+class _BiometricRow extends StatefulWidget {
+  const _BiometricRow();
+
+  @override
+  State<_BiometricRow> createState() => _BiometricRowState();
+}
+
+class _BiometricRowState extends State<_BiometricRow> {
+  late final Future<bool> _can = Biometric.available();
+
+  Future<void> _toggle(bool on) async {
+    final messenger = ScaffoldMessenger.of(context);
+    if (on) {
+      // Prove it works before relying on it: the person must be recognised once now
+      final ok = await Biometric.confirm('Confirm to turn on unlock with Face ID or fingerprint');
+      if (!ok) {
+        messenger.showSnackBar(const SnackBar(content: Text('We could not confirm it is you, so it was not turned on.')));
+        return;
+      }
+    }
+    await AppLock.instance.setBiometric(on);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lock = context.watch<AppLock>();
+    return FutureBuilder<bool>(
+      future: _can,
+      builder: (context, snap) {
+        if (snap.data != true) return const SizedBox.shrink();
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFE5E7EB))),
+          child: Row(children: [
+            const Icon(Icons.fingerprint_rounded, color: kNavy),
+            const SizedBox(width: 14),
+            const Expanded(child: Text('Unlock with Face ID or fingerprint', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF111827)))),
+            Switch(value: lock.biometricOn, onChanged: _toggle, activeColor: kNavy),
+          ]),
+        );
+      },
     );
   }
 }

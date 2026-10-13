@@ -1,5 +1,6 @@
 package com.fintech.loan
 
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 
-class MainActivity: FlutterActivity()
+// The fingerprint prompt needs a fragment activity
+class MainActivity: FlutterFragmentActivity()
