@@ -124,6 +124,36 @@ class ApiService {
     }
   }
 
+  // Employer names that start like what the customer has typed (names only)
+  Future<List<String>> searchEmployers(String q) async {
+    try {
+      final response = await _dio.get('/employers/search', queryParameters: {'q': q});
+      final names = response.data['names'];
+      return names is List ? names.map((e) => '$e').toList() : <String>[];
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  // Signing in from a phone the account has not used before: an SMS code proves the number
+  Future<Map<String, dynamic>> sendDeviceCode(String deviceToken) async {
+    try {
+      final response = await _dio.post('/auth/device/send', data: {'deviceToken': deviceToken});
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> verifyDeviceCode(String deviceToken, String code) async {
+    try {
+      final response = await _dio.post('/auth/device/verify', data: {'deviceToken': deviceToken, 'code': code});
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   // User endpoints
   Future<Map<String, dynamic>> getUserProfile() async {
     try {

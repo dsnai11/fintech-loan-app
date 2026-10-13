@@ -1,3 +1,4 @@
+import '../widgets/employer_field.dart';
 import 'package:flutter/material.dart' hide Text;
 import '../widgets/tr_text.dart';
 import 'package:provider/provider.dart';
@@ -163,7 +164,7 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
                 ),
                 if (_earns) ...[
                   const SizedBox(height: 10),
-                  TextField(controller: _company, textCapitalization: TextCapitalization.words, decoration: InputDecoration(hintText: _status == 'Employed' ? 'Employer' : 'Business name')),
+                  EmployerField(controller: _company, hint: _status == 'Employed' ? 'Employer' : 'Business name', suggest: _status == 'Employed'),
                   const SizedBox(height: 10),
                   TextField(controller: _income, keyboardType: TextInputType.number, decoration: const InputDecoration(hintText: 'Monthly income (₹)')),
                 ],

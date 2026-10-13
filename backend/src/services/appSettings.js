@@ -43,7 +43,7 @@ export const DEFAULTS = {
   maintenance: { enabled: false, message: 'We are updating the app. Please try again in a little while.' },
   minAppVersion: '',
   // How the app protects itself on the customer's phone: a PIN, locking after the app was left, and signing out when idle
-  security: { appLock: 'optional', lockAfterSeconds: 30, idleLogoutMinutes: 15 },
+  security: { appLock: 'optional', lockAfterSeconds: 30, idleLogoutMinutes: 15, newDevice: 'off' }, // newDevice: 'otp' asks for an SMS code when a customer signs in from a phone they have not used before
   baseProduct: { name: 'Personal Loan', description: 'Quick personal loan with the charges shown up front.' },
   products: [], // extra products: { key, name, description, enabled, overrides }
   home: HOME_DEFAULTS,
@@ -127,6 +127,7 @@ export function validateSettings(candidate) {
 
   const sec = s.security || {};
   out.security.appLock = ['off', 'optional', 'required'].includes(sec.appLock) ? sec.appLock : DEFAULTS.security.appLock;
+  out.security.newDevice = ['off', 'otp'].includes(sec.newDevice) ? sec.newDevice : DEFAULTS.security.newDevice;
   const secNum = (v, def, min, max, label) => {
     const n = v === undefined || v === null || v === '' ? def : Number(v);
     if (!Number.isInteger(n) || n < min || n > max) { errors.push(`${label} must be a whole number between ${min} and ${max}`); return def; }

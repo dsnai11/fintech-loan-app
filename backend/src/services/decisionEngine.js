@@ -1,4 +1,5 @@
 import Loan from '../models/Loan.js';
+import { levelOf, categoryOf } from './employerService.js';
 import EMIPayment from '../models/EMIPayment.js';
 import AmlAlert from '../models/AmlAlert.js';
 import { getConfig, setConfig } from './configService.js';
@@ -44,6 +45,7 @@ export const CUSTOM_FIELDS = {
   bankObligations: { label: 'Monthly loan repayments seen in bank statements (Rs)', type: 'number' },
   avgBankBalance: { label: 'Average bank balance (Rs, 0 if not checked)', type: 'number' },
   bankRisk: { label: 'Bank statement risk (0 = no statements, 1 = higher risk, 2 = lower risk)', type: 'number' },
+  employerCategory: { label: 'Employer category (3 = A, 2 = B, 1 = C, 0 = not on your employer list)', type: 'number' },
 };
 const OPS = ['>', '>=', '<', '<=', '=', '!='];
 
@@ -439,6 +441,7 @@ export function evaluate(rules, f) {
     add(result === 'reject' ? 'BUREAU_DPD' : 'EWS', 'Early warning (bureau history)', result, reasons.length ? reasons.join('; ') : 'Nothing worrying on the credit record');
   }
 
+  if (f.employerName !== undefined && f.employerName !== '') add('EMPLOYER', 'Employer', 'skip', f.employerCategory > 0 ? `${f.employerName}: category ${['', 'C', 'B', 'A'][f.employerCategory]} on your employer list` : `${f.employerName}: not on your employer list. Use a rule of your own to act on it.`);
   if (f.incomeVerified) add('BANK_RISK', 'Bank statement risk', 'skip', f.bankRisk === 2 ? 'Lower risk: no bounced payments, repayments and balance within your lines' : 'Higher risk: a bounced payment, heavy repayments, a low balance or no regular salary seen. Use a rule of your own to act on it.');
   const ic = rules.incomeCheck;
   if (!ic.enabled) add('INCOME', 'Income check (bank statements)', 'skip', 'Switched off. Turn it on to use income seen in the bank statements a customer shares.');
@@ -556,6 +559,8 @@ export async function gatherFacts(loan, user, rules = getRules()) {
     bureauEnquiries90: report?.enquiries90 || 0,
     bureauMaxDpd: report?.maxDpd || 0,
     bureauActiveLoans: report?.activeLoans || 0,
+    employerName: String(user.employment?.company || ''),
+    employerCategory: levelOf(user.employment?.company),
   };
 }
 
@@ -684,6 +689,10 @@ export const SUGGESTED_PRODUCTS = {
   },
   salaried: {
     mode: 'shadow',
+    custom: [
+      { name: 'Employer not on the list', field: 'employerCategory', op: '=', value: 0, result: 'refer', message: 'The employer is not on your graded list' },
+      { name: 'Category C employer', field: 'employerCategory', op: '=', value: 1, result: 'refer', message: 'The employer is in the weakest category' },
+    ],
     overrides: {
       amount: { firstLoanAutoMax: 100000, repeatAutoMax: 300000 },
       bureau: { autoMinScore: 700, requireScore: true },

@@ -2,7 +2,10 @@ import DeviceBinding from '../models/DeviceBinding.js';
 import User from '../models/User.js';
 import { clientIp } from './auditService.js';
 import { raise } from './amlService.js';
+import jwt from 'jsonwebtoken';
 import { getConfig } from './configService.js';
+import { getSettings as appSettings } from './appSettings.js';
+import { smsConfigured } from './smsService.js';
 
 // Fraud signals from the phone and the network. Each raises a review item in the compliance team's alert list; none of them
 // blocks a customer by itself.
@@ -21,6 +24,28 @@ export const installIdOf = req => {
   const v = String(req.headers?.['x-install-id'] || '').trim();
   return /^[A-Za-z0-9-]{16,64}$/.test(v) ? v : null;
 };
+
+// A customer signing in from a phone this account has never used must prove they hold the number on the account (an SMS code),
+// when the company has switched that on (Customer app > Security). Nothing is asked of a first sign-in, of an account with no phone
+// verified, of an old app that does not send an install id, or of staff. Returns null to let the sign-in go on, or what the app needs.
+export const DEVICE_PURPOSE = 'device';
+const maskPhone = phone => String(phone).replace(/(\d{2})\d{6}(\d{2})/, '$1XXXXXX$2');
+
+export async function deviceGate(req, user) {
+  try {
+    if (appSettings().security.newDevice !== 'otp' || !user.phoneVerified) return null;
+    // With no way to send the code on a live system, asking would lock customers out. Skip the check rather than do that.
+    if (!smsConfigured() && process.env.PAYMENT_MODE === 'PRODUCTION') return null;
+    const installId = installIdOf(req);
+    if (!installId) return null;
+    const known = await DeviceBinding.find({ userId: user._id }).select('installId').lean();
+    if (!known.length || known.some(b => b.installId === installId)) return null;
+    const deviceToken = jwt.sign({ userId: String(user._id), installId, purpose: DEVICE_PURPOSE }, process.env.JWT_SECRET, { expiresIn: '10m' });
+    return { deviceVerificationRequired: true, deviceToken, phone: maskPhone(user.phone), message: 'You are signing in from a new phone. For your safety, we will send a code to your registered number.' };
+  } catch (e) {
+    return null; // a fault here must never lock customers out
+  }
+}
 
 // Records that this account used this installation, and looks for the signals above. Never throws.
 // event: 'login' | 'signup' | 'apply'

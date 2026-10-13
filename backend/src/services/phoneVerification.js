@@ -18,8 +18,8 @@ const fail = (status, error, extra = {}) => ({ status, body: { error, ...extra }
 // With no SMS provider set up (and not in production) the code is handed back so the flow can be tried.
 const sandboxAllowed = () => !smsConfigured() && process.env.PAYMENT_MODE !== 'PRODUCTION';
 
-export async function sendCode(user) {
-  if (user.phoneVerified) return { status: 200, body: { alreadyVerified: true, phone: mask(user.phone), message: 'This number is already verified' } };
+export async function sendCode(user, { force = false } = {}) {
+  if (user.phoneVerified && !force) return { status: 200, body: { alreadyVerified: true, phone: mask(user.phone), message: 'This number is already verified' } };
 
   const now = Date.now();
   const phone = user.phone;
@@ -68,10 +68,10 @@ export async function sendCode(user) {
   };
 }
 
-export async function verifyCode(user, rawCode, req = null) {
+export async function verifyCode(user, rawCode, req = null, { force = false } = {}) {
   const code = String(rawCode ?? '').trim();
   if (!/^\d{6}$/.test(code)) return fail(400, 'Enter the 6-digit code');
-  if (user.phoneVerified) return { status: 200, body: { message: 'This number is already verified', verified: true } };
+  if (user.phoneVerified && !force) return { status: 200, body: { message: 'This number is already verified', verified: true } };
 
   const rec = await PhoneOtp.findOne({ phone: user.phone });
   if (!rec || !rec.codeHash || !rec.codeExpiresAt) return fail(400, 'No code found. Ask for a new one.');
@@ -87,9 +87,9 @@ export async function verifyCode(user, rawCode, req = null) {
     return fail(400, 'That code is not right', { attemptsLeft: Math.max(0, MAX_ATTEMPTS - counted.attempts) });
   }
 
-  await User.updateOne({ _id: user._id }, { phoneVerified: true, phoneVerifiedAt: new Date() });
+  if (!user.phoneVerified) await User.updateOne({ _id: user._id }, { phoneVerified: true, phoneVerifiedAt: new Date() });
   await PhoneOtp.updateOne({ phone: user.phone }, { codeHash: '', $unset: { codeExpiresAt: '' }, attempts: 0 });
-  await audit({ email: user.email, role: 'customer' }, 'PHONE_VERIFIED', { type: 'User', id: user._id }, {}, req);
+  if (!user.phoneVerified) await audit({ email: user.email, role: 'customer' }, 'PHONE_VERIFIED', { type: 'User', id: user._id }, {}, req);
   return { status: 200, body: { message: 'Phone number verified', verified: true } };
 }
 

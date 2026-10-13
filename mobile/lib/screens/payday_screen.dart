@@ -1,3 +1,4 @@
+import '../widgets/employer_field.dart';
 import 'package:flutter/material.dart' hide Text;
 import 'package:provider/provider.dart';
 import '../main.dart';
@@ -130,7 +131,7 @@ class _PaydayScreenState extends State<PaydayScreen> {
         const SizedBox(height: 10),
         TextField(controller: _income, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Monthly take-home salary (₹)')),
         const SizedBox(height: 10),
-        TextField(controller: _company, maxLength: 80, decoration: const InputDecoration(labelText: 'Where you work (optional)')),
+        EmployerField(controller: _company, hint: 'Where you work (optional)', asLabel: true, maxLength: 80),
         const SizedBox(height: 6),
         SizedBox(width: double.infinity, child: ElevatedButton(onPressed: _busy ? null : _saveDetails, child: const Text('Save'))),
       ]);

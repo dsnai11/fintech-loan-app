@@ -63,10 +63,23 @@ class AuthService extends ChangeNotifier {
     }
   }
 
+  // Set when the server wants an SMS code before it will sign this phone in (a phone the account has not used before)
+  Map<String, dynamic>? pendingDevice;
+
+  // Finishes a sign-in that needed the new-phone check
+  Future<void> completeDeviceLogin(Map<String, dynamic> response) async {
+    _token = response['token'];
+    _user = response['user'];
+    pendingDevice = null;
+    await _apiService.setToken(_token!);
+    notifyListeners();
+  }
+
   Future<bool> login({
     required String email,
     required String password,
   }) async {
+    pendingDevice = null;
     _isLoading = true;
     _error = null;
     notifyListeners();
@@ -76,6 +89,11 @@ class AuthService extends ChangeNotifier {
         email: email,
         password: password,
       );
+
+      if (response['deviceVerificationRequired'] == true) {
+        pendingDevice = {'deviceToken': response['deviceToken'], 'phone': response['phone'], 'message': response['message']};
+        return false;
+      }
 
       _token = response['token'];
       _user = response['user'];

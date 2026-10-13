@@ -88,6 +88,7 @@ const MODE_INFO = {
   auto: ['Automatic', 'Applications that pass every rule are approved at once; hard-rule failures are rejected.'],
 };
 const rid = (s, k) => `r-${s}-${k}`;
+const customLine = c => `<tr><td>${esc(c.name)}</td><td>${esc(c.field)} ${esc(c.op)} ${esc(c.value)}</td><td>${esc(c.result === 'reject' ? 'Reject' : 'Send to a person')}</td></tr>`;
 const show = (v, kind) => v === null || v === undefined ? (kind === 'z' ? 'none' : '-') : kind === 'b' ? (v ? 'Yes' : 'No') : String(v);
 
 async function loadList() {
@@ -113,7 +114,6 @@ function draw() {
     rows += `<tr data-sec="${sec}" data-k="${k}" data-kind="${kind}"><td><span class="dot"></span>${esc(label)}</td><td class="shared">${esc(show(D.shared[sec]?.[k], kind))}</td><td class="mine">${cell(sec, k, kind, D.effective[sec]?.[k], dis)}</td></tr>`;
   }
   const mine = D.entry.custom || [];
-  const customLine = c => `<tr><td>${esc(c.name)}</td><td>${esc(c.field)} ${esc(c.op)} ${esc(c.value)}</td><td>${esc(c.result === 'reject' ? 'Reject' : 'Send to a person')}</td></tr>`;
   $('body').innerHTML = `
     <div class="card"><h2>${esc(D.name)}: mode</h2><div class="sub">The shared mode is <b>${esc(D.sharedMode)}</b>. Give this product its own mode to try it in Shadow, or run it automatically, while the others stay as they are.</div>
       <div class="modes">${Object.entries(MODE_INFO).map(([k, [t, d]]) => `<label class="mode ${mode === k ? 'on' : ''}"><input type="radio" name="mode" value="${k}" ${mode === k ? 'checked' : ''} ${dis} onchange="document.querySelectorAll('.mode').forEach(m => m.classList.toggle('on', m.querySelector('input').checked))"><div><b>${esc(t)}</b><span>${esc(d)}</span></div></label>`).join('')}</div></div>
@@ -121,7 +121,7 @@ function draw() {
       <div class="scroll"><table><thead><tr><th>Rule</th><th>Shared</th><th>This product</th></tr></thead><tbody>${rows}</tbody></table></div>
       <div class="bar"><button class="btn primary" id="save" onclick="save()" ${dis}>Save for ${esc(D.name)}</button>${D.suggested ? `<button class="btn" onclick="fillSuggested()" ${dis}>Fill in suggested values</button>` : ''}<button class="btn" onclick="resetIt()" ${dis}>Follow the shared rules</button><span class="note">${canEdit() ? '' : 'Your role can view the rules but not change them.'}</span></div></div>
     <div class="card"><h2>Your own rules that apply here</h2><div class="sub">Add rules of your own on the Decisions page (Rules tab) and choose which products they apply to.</div>
-      <div class="scroll"><table><thead><tr><th>Name</th><th>When</th><th>Then</th></tr></thead><tbody>${[...D.sharedCustom, ...mine].map(customLine).join('') || '<tr><td colspan="3" class="note">None.</td></tr>'}</tbody></table></div></div>
+      <div class="scroll"><table><thead><tr><th>Name</th><th>When</th><th>Then</th></tr></thead><tbody id="custom-rows">${[...D.sharedCustom, ...mine].map(customLine).join('') || '<tr><td colspan="3" class="note">None.</td></tr>'}</tbody></table></div></div>
     <div class="card"><h2>Recent decisions for ${esc(D.name)}</h2><div id="recent" class="scroll"><div class="note">Loading...</div></div></div>`;
   mark();
 }
@@ -153,6 +153,10 @@ function fillSuggested() {
     const el = $(rid(sec, k));
     if (!row || !el) continue;
     if (row[4] === 'b') el.checked = !!v; else el.value = v === null ? '' : v;
+  }
+  if (Array.isArray(s.custom) && s.custom.length) {
+    D.entry.custom = s.custom;
+    $('custom-rows').innerHTML = [...D.sharedCustom, ...s.custom].map(customLine).join('');
   }
   if (s.mode) { const r = document.querySelector(`input[name=mode][value=${s.mode}]`); if (r) { r.checked = true; r.dispatchEvent(new Event('change')); } }
   mark();

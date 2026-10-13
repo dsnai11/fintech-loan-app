@@ -5,13 +5,15 @@ import User from '../models/User.js';
 import { generateToken, authMiddleware } from '../middleware/auth.js';
 import { currentVersion, termsRequiredFor } from '../services/terms.js';
 import { setupStatus } from '../services/onboardingService.js';
-import { audit } from '../services/auditService.js';
+import { audit, clientIp } from '../services/auditService.js';
 import { issueResetToken, consumeResetToken } from '../services/passwordReset.js';
 import { sendPlainEmail } from '../services/notificationService.js';
 import { lockedSeconds, recordFailure, recordSuccess, lockMessage } from '../services/loginGuard.js';
 import { isStaffRole, permissionsOf, ensureRoles } from '../services/permissions.js';
 import { checkCode, attach } from '../services/referralService.js';
-import { recordDevice } from '../services/deviceService.js';
+import { recordDevice, deviceGate, DEVICE_PURPOSE } from '../services/deviceService.js';
+import DeviceBinding from '../models/DeviceBinding.js';
+import { sendCode, verifyCode } from '../services/phoneVerification.js';
 import { isPartnerCode, findByCode, attachLead } from '../services/partnerService.js';
 
 // Checked against when the email is unknown, so a wrong email and a wrong password take the same time.
@@ -138,7 +140,12 @@ router.post('/login', async (req, res) => {
     const role = user.email === adminEmail ? 'super_admin' : isStaffRole(user.role) ? user.role : 'customer';
     const token = generateToken(user._id, user.email, isAdmin);
     if (isAdmin) await audit({ email: user.email, role: user.email === adminEmail ? 'super_admin' : user.role }, 'ADMIN_LOGIN', { type: 'User', id: user._id }, {}, req);
-    if (!isAdmin) await recordDevice(req, user._id, 'login');
+    if (!isAdmin) {
+      // A phone this account has not used before may have to prove the phone number first
+      const gate = await deviceGate(req, user);
+      if (gate) return res.json(gate);
+      await recordDevice(req, user._id, 'login');
+    }
 
     res.json({
       message: 'Login successful',
@@ -153,6 +160,48 @@ router.post('/login', async (req, res) => {
         role,
         permissions: isAdmin ? permissionsOf(role) : [],
       },
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+// ── The new-phone check ──────────────────────────────────────────────────────────────────────────
+// Step 1 of a sign-in from an unfamiliar phone ends with a short-lived device token. These two calls turn it into a sign-in.
+const deviceUser = async token => {
+  let d;
+  try { d = jwt.verify(String(token || ''), process.env.JWT_SECRET); } catch (e) { return null; }
+  if (d.purpose !== DEVICE_PURPOSE) return null;
+  const user = await User.findById(d.userId);
+  return user && (!user.status || user.status === 'active') ? { user, installId: d.installId } : null;
+};
+
+router.post('/device/send', async (req, res) => {
+  try {
+    const who = await deviceUser(req.body?.deviceToken);
+    if (!who) return res.status(401).json({ error: 'This step has expired. Please sign in again.' });
+    const r = await sendCode(who.user, { force: true });
+    res.status(r.status).json(r.body);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/device/verify', async (req, res) => {
+  try {
+    const who = await deviceUser(req.body?.deviceToken);
+    if (!who) return res.status(401).json({ error: 'This step has expired. Please sign in again.' });
+    const r = await verifyCode(who.user, req.body?.code, req, { force: true });
+    if (r.status !== 200) return res.status(r.status).json(r.body);
+    const { user, installId } = who;
+    await DeviceBinding.updateOne({ installId, userId: user._id }, { $set: { lastSeenAt: new Date(), lastIp: clientIp(req) || '', platform: String(req.headers['x-platform'] || '').slice(0, 20), appVersion: String(req.headers['x-app-version'] || '').slice(0, 20) }, $inc: { events: 1 }, $setOnInsert: { firstSeenAt: new Date() } }, { upsert: true });
+    await audit({ email: user.email, role: 'customer' }, 'DEVICE_VERIFIED', { type: 'User', id: user._id }, { installId: installId.slice(0, 8) }, req);
+    await recordSuccess(user.email);
+    res.json({
+      message: 'Login successful',
+      token: generateToken(user._id, user.email, false),
+      user: { id: user._id, firstName: user.firstName, lastName: user.lastName, email: user.email, phone: user.phone, isAdmin: false, role: 'customer', permissions: [] },
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

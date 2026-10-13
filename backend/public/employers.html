@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%8F%A2%3C/text%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Employers - LIFC Admin</title>
+<style>
+* { box-sizing: border-box; }
+.card { padding: 16px; margin-bottom: 14px; }
+.card h2 { margin: 0 0 4px; font-size: 15px; }
+.sub { font-size: 12px; color: var(--e-muted); margin-bottom: 12px; line-height: 1.6; }
+.note { font-size: 12px; color: var(--e-muted); }
+.alert { display: none; padding: 12px 16px; margin-bottom: 14px; white-space: pre-line; }
+.alert.show { display: block; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 14px; }
+.tile { padding: 12px 14px; }
+.tile .l { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--e-muted); }
+.tile .v { font-size: 26px; font-weight: 800; margin-top: 2px; }
+textarea { width: 100%; min-height: 380px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; line-height: 1.6; }
+.warn { background: var(--e-warn-soft); color: var(--e-warn); border-radius: 8px; padding: 10px 14px; font-size: 12.5px; line-height: 1.5; margin-bottom: 14px; }
+.bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+</style>
+<link rel="stylesheet" href="assets/portal.css">
+</head>
+<body data-shell="app" data-title="Employers" data-sub="The employers you have graded A, B or C. The salaried loan rules can use the grade.">
+<div class="container">
+  <div id="alert" class="alert" role="alert"></div>
+  <div class="warn"><b>Credit head to confirm:</b> how an employer is graded is your credit policy. This page only stores the list and lets the rules read it. An employer that is not on the list has no grade, and a rule of yours decides what that means.</div>
+  <div class="tiles" id="tiles"></div>
+  <div class="card"><h2>The list</h2>
+    <div class="sub">One employer per line: the name, a comma, then <b>A</b>, <b>B</b> or <b>C</b>. For example <code>Tata Consultancy Services, A</code>. Customers see the names as suggestions while they type where they work; they never see the grade. To act on the grade, add a rule of your own (Decisions, Rules tab, or Rules by product) that looks at "Employer category", where 3 = A, 2 = B, 1 = C and 0 = not on the list.</div>
+    <textarea id="text" spellcheck="false" aria-label="Employers and their grade"></textarea>
+    <div class="bar"><button class="btn primary" id="save" onclick="save()">Save the list</button><span class="note" id="hint"></span></div></div>
+</div>
+<script>
+const API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
+const token = localStorage.getItem('admin_token');
+if (!token) location.href = 'admin-config.html';
+const $ = id => document.getElementById(id);
+function msg(text, kind) { const a = $('alert'); a.textContent = text; a.className = 'alert show ' + (kind === 'ok' ? 'ok' : 'err'); window.scrollTo({ top: 0, behavior: 'smooth' }); if (kind === 'ok') setTimeout(() => a.classList.remove('show'), 5000); }
+async function api(path, method = 'GET', body) {
+  const r = await fetch(API + path, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.errors ? d.errors.join('\n') : d.error || 'Something went wrong');
+  return d;
+}
+function draw(d) {
+  $('tiles').innerHTML = [['Grade A', d.counts.A], ['Grade B', d.counts.B], ['Grade C', d.counts.C], ['Total', d.counts.total]].map(([l, v]) => `<div class="card tile"><div class="l">${l}</div><div class="v">${v}</div></div>`).join('');
+  $('text').value = d.text;
+  $('text').disabled = !d.canEdit;
+  $('save').disabled = !d.canEdit;
+  $('hint').textContent = d.canEdit ? '' : 'Your role can look but not change the list.';
+}
+async function load() { try { draw(await api('/admin/employers')); } catch (e) { msg(e.message, 'err'); } }
+async function save() {
+  $('save').disabled = true;
+  try { const r = await api('/admin/employers', 'PUT', { text: $('text').value }); msg(r.message, 'ok'); await load(); }
+  catch (e) { msg(e.message, 'err'); $('save').disabled = false; }
+}
+load();
+</script>
+<script src="assets/portal.js"></script>
+</body>
+</html>

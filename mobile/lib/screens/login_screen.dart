@@ -1,4 +1,5 @@
 import 'onboarding_flow.dart';
+import 'device_verify_screen.dart';
 import 'package:flutter/material.dart' hide Text;
 import '../widgets/tr_text.dart';
 import '../widgets/language_picker.dart';
@@ -78,6 +79,12 @@ class _LoginScreenState extends State<LoginScreen> {
       email: _emailController.text.trim(),
       password: _passwordController.text,
     );
+    // A phone this account has not used before has to prove the number first
+    if (!success && mounted && authService.pendingDevice != null) {
+      final done = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => const DeviceVerifyScreen()));
+      if (done == true && mounted) await continueToHome(context);
+      return;
+    }
     // The terms and the phone check come first when they are still outstanding.
     if (success && mounted) await continueToHome(context);
   }
