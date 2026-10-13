@@ -1,3 +1,4 @@
+import 'money_on_the_way_screen.dart';
 import 'package:flutter/material.dart' hide Text;
 import '../widgets/tr_text.dart';
 import 'dart:async';
@@ -96,8 +97,7 @@ class _AgreementScreenState extends State<AgreementScreen> {
       if (st == 'completed') {
         _poll?.cancel();
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Agreement signed. Your loan will be disbursed soon.')));
-        Navigator.of(context).pop(true);
+        Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => MoneyOnTheWayScreen(loanId: _loanId)));
       } else if (st == 'failed' || st == 'expired') {
         _poll?.cancel();
         _esignSession = null;
@@ -123,10 +123,7 @@ class _AgreementScreenState extends State<AgreementScreen> {
     try {
       await context.read<ApiService>().acceptAgreement(_loanId, hash, code: _method == 'otp' ? _codeCtrl.text.trim() : null);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Agreement accepted. Your loan will be disbursed soon.')),
-      );
-      Navigator.of(context).pop(true);
+      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => MoneyOnTheWayScreen(loanId: _loanId)));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));

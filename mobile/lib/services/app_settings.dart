@@ -90,6 +90,35 @@ class AppSettings extends ChangeNotifier {
     return p.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
   }
 
+  // The home screen layout the company sets in the web portal: which sections show, in what order, and their words.
+  // Without it (or on an old server) every section shows in the usual order with the usual words.
+  static const homeSectionIds = ['loan', 'shortcuts', 'offers', 'products', 'referral', 'why', 'how', 'help'];
+
+  List<String> get homeSections {
+    final h = _data['home'];
+    final raw = h is Map ? h['sections'] : null;
+    if (raw is! List) return List<String>.of(homeSectionIds);
+    final out = <String>[];
+    for (final e in raw) {
+      if (e is Map && e['enabled'] != false && homeSectionIds.contains('${e['id']}') && !out.contains('${e['id']}')) out.add('${e['id']}');
+    }
+    return out;
+  }
+
+  String homeText(String key, String fallback) {
+    final h = _data['home'];
+    final v = h is Map ? h[key] : null;
+    return v is String && v.trim().isNotEmpty ? v : fallback;
+  }
+
+  // A list of { icon, title, text } such as the trust tiles or the how-it-works steps
+  List<Map<String, dynamic>> homeList(String key, List<Map<String, dynamic>> fallback) {
+    final h = _data['home'];
+    final v = h is Map ? h[key] : null;
+    if (v is! List || v.isEmpty) return fallback;
+    return v.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+  }
+
   String get supportEmail {
     final s = _data['support'];
     return s is Map ? (s['email'] ?? '').toString() : '';

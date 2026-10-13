@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%93%B1%3C/text%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Home screen - LIFC Admin</title>
+<style>
+* { box-sizing: border-box; }
+.card { padding: 16px; margin-bottom: 14px; }
+.card h2 { margin: 0 0 4px; font-size: 15px; }
+.sub { font-size: 12px; color: var(--e-muted); margin-bottom: 12px; line-height: 1.5; }
+.note { font-size: 12px; color: var(--e-muted); }
+.alert { display: none; padding: 12px 16px; margin-bottom: 14px; white-space: pre-line; }
+.alert.show { display: block; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.grid input, .grid select { width: 100%; }
+.sec { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; padding: 10px 12px; border: 1px solid var(--e-border); border-radius: 10px; margin-bottom: 8px; background: var(--e-surface); }
+.sec.off { opacity: .55; }
+.sec b { display: block; font-size: 14px; }
+.sec .btns { display: flex; gap: 6px; }
+.sec .btns button { min-width: 36px; }
+.tile { display: grid; grid-template-columns: 130px 1fr 2fr auto; gap: 8px; align-items: center; margin-bottom: 8px; }
+.tile input, .tile select { width: 100%; }
+@media (max-width: 760px) { .tile { grid-template-columns: 1fr; border: 1px solid var(--e-border); border-radius: 10px; padding: 10px; } }
+.bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+</style>
+<link rel="stylesheet" href="assets/portal.css">
+</head>
+<body data-shell="app" data-title="Home screen" data-sub="Choose which parts of the app's home screen show, in what order, and the words and icons on them. Phones pick this up the next time the app opens, with no new app release.">
+<div class="container">
+  <div id="alert" class="alert" role="alert"></div>
+  <div id="form"></div>
+</div>
+<script>
+const API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
+const token = localStorage.getItem('admin_token');
+if (!token) location.href = 'admin-config.html';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const canEdit = () => !window.PortalShell || PortalShell.can('appsettings.edit');
+const NAMES = { loan: 'Your loan or application', shortcuts: 'Shortcut buttons', offers: 'Offers carousel', products: 'Loan products', referral: 'Refer and earn', why: 'Why customers choose us', how: 'How it works', help: 'Help card' };
+const NOTES = { loan: 'Shows only when the customer has a loan or an application.', offers: 'Shows only while an offer is live (set on Offers and branding).', referral: 'Shows only while the refer-and-earn programme is on.' };
+const ICONS = { receipt: 'Receipt', shield: 'Shield', lock: 'Lock', translate: 'Language', bolt: 'Lightning', heart: 'Heart', star: 'Star', support: 'Support', rupee: 'Rupee', clock: 'Clock', check: 'Tick', gift: 'Gift', calendar: 'Calendar', badge: 'ID badge', draw: 'Signature', bank: 'Bank', offer: 'Offer tag', speed: 'Gauge' };
+let S = null; // all app settings; only the home part is changed here
+
+function msg(text, kind) { const a = $('alert'); a.textContent = text; a.className = 'alert show ' + (kind === 'ok' ? 'ok' : 'err'); window.scrollTo({ top: 0, behavior: 'smooth' }); if (kind === 'ok') setTimeout(() => a.classList.remove('show'), 5000); }
+async function api(path, method = 'GET', body) {
+  const r = await fetch(API + path, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.errors ? d.errors.join('\n') : d.error || 'Something went wrong');
+  return d;
+}
+const tileRow = (kind, t, i, dis) => `<div class="tile"><select id="${kind}-icon-${i}" aria-label="Icon" ${dis}>${Object.entries(ICONS).map(([k, l]) => `<option value="${k}" ${t.icon === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
+  <input id="${kind}-title-${i}" value="${esc(t.title)}" maxlength="40" placeholder="Title" aria-label="Title" ${dis}>
+  <input id="${kind}-text-${i}" value="${esc(t.text)}" maxlength="120" placeholder="One line of text" aria-label="Text" ${dis}>
+  <button class="btn" onclick="removeTile('${kind}', ${i})" ${dis}>Remove</button></div>`;
+function render() {
+  const h = S.home, dis = canEdit() ? '' : 'disabled';
+  $('form').innerHTML = `
+    <div class="card"><h2>Sections, in order</h2><div class="sub">The header with the customer's offer always comes first. Move a section up or down, or hide it. A hidden section is not drawn at all.</div>
+      ${h.sections.map((s, i) => `<div class="sec ${s.enabled ? '' : 'off'}"><label style="display:flex;gap:8px;align-items:center;margin:0"><input type="checkbox" id="sec-on-${i}" ${s.enabled ? 'checked' : ''} onchange="toggleSec(${i})" ${dis}> Show</label>
+        <div><b>${esc(NAMES[s.id] || s.id)}</b>${NOTES[s.id] ? `<span class="note">${esc(NOTES[s.id])}</span>` : ''}</div>
+        <div class="btns"><button class="btn" onclick="moveSec(${i}, -1)" ${i === 0 ? 'disabled' : dis} aria-label="Move up">&uarr;</button><button class="btn" onclick="moveSec(${i}, 1)" ${i === h.sections.length - 1 ? 'disabled' : dis} aria-label="Move down">&darr;</button></div></div>`).join('')}</div>
+
+    <div class="card"><h2>Section titles</h2><div class="grid">
+      ${[['offersTitle', 'Offers carousel title'], ['productsTitle', 'Loan products title'], ['productsSubtitle', 'Loan products line under it'], ['whyTitle', 'Trust section title'], ['howTitle', 'How it works title'], ['helpTitle', 'Help card title'], ['helpText', 'Help card text']].map(([k, l]) => `<div><label for="t-${k}">${l}</label><input id="t-${k}" value="${esc(h[k])}" maxlength="140" ${dis}></div>`).join('')}</div></div>
+
+    <div class="card"><h2>Trust tiles</h2><div class="sub">Short reasons to trust you. Up to 6. Say only what is true of your service.</div>
+      ${h.whyTiles.map((t, i) => tileRow('why', t, i, dis)).join('')}
+      <button class="btn" onclick="addTile('why', 6)" ${dis}>Add a tile</button></div>
+
+    <div class="card"><h2>How it works</h2><div class="sub">The steps a customer follows, in order. Up to 8.</div>
+      ${h.howSteps.map((t, i) => tileRow('how', t, i, dis)).join('')}
+      <button class="btn" onclick="addTile('how', 8)" ${dis}>Add a step</button></div>
+
+    <div class="bar"><button class="btn primary" id="save" onclick="save()" ${dis}>Save</button><button class="btn" onclick="resetAll()" ${dis}>Back to the standard layout</button><span class="note">${canEdit() ? 'Phones pick this up the next time the app opens.' : 'Your role can look but not change this.'}</span></div>`;
+}
+function collect() {
+  const h = { sections: [], whyTiles: [], howSteps: [] };
+  S.home.sections.forEach((s, i) => h.sections.push({ id: s.id, enabled: $('sec-on-' + i).checked }));
+  for (const k of ['offersTitle', 'productsTitle', 'productsSubtitle', 'whyTitle', 'howTitle', 'helpTitle', 'helpText']) h[k] = $('t-' + k).value;
+  for (const [kind, key, list] of [['why', 'whyTiles', S.home.whyTiles], ['how', 'howSteps', S.home.howSteps]]) list.forEach((_, i) => h[key].push({ icon: $(kind + '-icon-' + i).value, title: $(kind + '-title-' + i).value, text: $(kind + '-text-' + i).value }));
+  return h;
+}
+function sync() { S.home = collect(); }
+function toggleSec(i) { sync(); render(); }
+function moveSec(i, d) { sync(); const a = S.home.sections; [a[i], a[i + d]] = [a[i + d], a[i]]; render(); }
+function addTile(kind, max) { sync(); const list = kind === 'why' ? S.home.whyTiles : S.home.howSteps; if (list.length >= max) return msg(`Up to ${max}.`, 'err'); list.push({ icon: 'check', title: '', text: '' }); render(); }
+function removeTile(kind, i) { sync(); (kind === 'why' ? S.home.whyTiles : S.home.howSteps).splice(i, 1); render(); }
+async function save() {
+  $('save').disabled = true;
+  try { const d = await api('/app-settings/admin', 'PUT', { home: collect() }); S = d.settings; render(); msg(d.message, 'ok'); }
+  catch (e) { msg(e.message, 'err'); }
+  if ($('save')) $('save').disabled = !canEdit();
+}
+async function resetAll() {
+  if (!confirm('Go back to the standard home screen layout and words?')) return;
+  try { const d = await api('/app-settings/admin', 'PUT', { home: {} }); S = d.settings; render(); msg('Back to the standard layout.', 'ok'); } catch (e) { msg(e.message, 'err'); }
+}
+window.addEventListener('load', async () => { try { S = (await api('/app-settings/admin')).settings; render(); } catch (e) { msg(e.message, 'err'); } });
+</script>
+<script src="assets/portal.js"></script>
+</body>
+</html>

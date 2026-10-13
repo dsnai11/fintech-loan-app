@@ -43,6 +43,7 @@ export const CUSTOM_FIELDS = {
   bankBounces: { label: 'Bounced or returned payments in the bank statements', type: 'number' },
   bankObligations: { label: 'Monthly loan repayments seen in bank statements (Rs)', type: 'number' },
   avgBankBalance: { label: 'Average bank balance (Rs, 0 if not checked)', type: 'number' },
+  bankRisk: { label: 'Bank statement risk (0 = no statements, 1 = higher risk, 2 = lower risk)', type: 'number' },
 };
 const OPS = ['>', '>=', '<', '<=', '=', '!='];
 
@@ -96,7 +97,7 @@ export const DEFAULTS = {
   // Checks that use the credit bureau's report. They only run when the bureau returns these details.
   bureauReport: { enabled: false, maxEnquiries90: 5, maxDpd: 30, rejectDpd: null, maxActiveLoans: 4 },
   // Income seen in the customer's bank statements (shared by the customer through Account Aggregator).
-  incomeCheck: { enabled: false, requireAbove: null, maxBounces: 2, maxDeclaredGapPercent: 30, minVerifiedIncome: null, maxObligationShare: null, useVerifiedIncome: true },
+  incomeCheck: { enabled: false, requireAbove: null, maxBounces: 2, maxDeclaredGapPercent: 30, minVerifiedIncome: null, maxObligationShare: null, useVerifiedIncome: true, riskMaxObligationShare: 40, riskMinBalancePercent: 25 },
   custom: [], // the lender's own rules: { id, name, field, op, value, result: 'refer' | 'reject', message, products?: [keys] } (no products = every product)
   // Rules that differ for one product: { <productKey>: { mode: 'inherit' | 'off' | 'shadow' | 'auto', overrides: { <section>: { <field>: value } }, custom: [...] } }.
   // A product with no entry follows the rules above exactly.
@@ -284,6 +285,8 @@ export function validateRules(candidate, inner = false) {
   out.incomeCheck.minVerifiedIncome = num(ic.minVerifiedIncome, 1000, 10000000, 'Lowest monthly income seen in the statements', errors, { int: true, allowNull: true });
   out.incomeCheck.maxObligationShare = num(ic.maxObligationShare, 1, 200, 'Most of the income that may go to repayments (percent)', errors, { allowNull: true });
   out.incomeCheck.useVerifiedIncome = ic.useVerifiedIncome === undefined ? DEFAULTS.incomeCheck.useVerifiedIncome : bool(ic.useVerifiedIncome);
+  out.incomeCheck.riskMaxObligationShare = num(ic.riskMaxObligationShare ?? DEFAULTS.incomeCheck.riskMaxObligationShare, 1, 200, 'Lower-risk: most of the income that may go to repayments (percent)', errors);
+  out.incomeCheck.riskMinBalancePercent = num(ic.riskMinBalancePercent ?? DEFAULTS.incomeCheck.riskMinBalancePercent, 0, 1000, 'Lower-risk: average balance as a percent of monthly income', errors);
 
   // Rules that differ for one product. Each product's changes are checked as if they were the rules for that product alone.
   out.products = {};
@@ -436,6 +439,7 @@ export function evaluate(rules, f) {
     add(result === 'reject' ? 'BUREAU_DPD' : 'EWS', 'Early warning (bureau history)', result, reasons.length ? reasons.join('; ') : 'Nothing worrying on the credit record');
   }
 
+  if (f.incomeVerified) add('BANK_RISK', 'Bank statement risk', 'skip', f.bankRisk === 2 ? 'Lower risk: no bounced payments, repayments and balance within your lines' : 'Higher risk: a bounced payment, heavy repayments, a low balance or no regular salary seen. Use a rule of your own to act on it.');
   const ic = rules.incomeCheck;
   if (!ic.enabled) add('INCOME', 'Income check (bank statements)', 'skip', 'Switched off. Turn it on to use income seen in the bank statements a customer shares.');
   else if (!f.incomeVerified) {
@@ -483,7 +487,7 @@ function daysLate(emis, now = Date.now()) {
 
 // What the customer's bank statements showed, if they shared them lately. Older results no longer count.
 const INCOME_CHECK_DAYS = 90;
-function bankFacts(user) {
+function bankFacts(user, rules = DEFAULTS) {
   const c = user.incomeCheck;
   const fresh = c && c.at && Date.now() - new Date(c.at).getTime() <= INCOME_CHECK_DAYS * DAY;
   return {
@@ -493,11 +497,23 @@ function bankFacts(user) {
     bankBounces: fresh ? c.bounces || 0 : 0,
     bankObligations: fresh ? c.monthlyObligations || 0 : 0,
     avgBankBalance: fresh ? c.avgBalance || 0 : 0,
+    bankRisk: fresh ? bankRiskSegment(c, rules.incomeCheck) : 0,
   };
 }
+// Money View style three-way read of the bank statements: no statements, higher risk, or lower risk. Lower risk means no bounced
+// payments, repayments within the lender's share of income, and a healthy average balance. It is a fact for the lender's own rules.
+export function bankRiskSegment(check, ic = DEFAULTS.incomeCheck) {
+  if (!check) return 0;
+  const income = check.estimatedMonthlyIncome || 0;
+  if (!(income > 0)) return 1;
+  const share = ((check.monthlyObligations || 0) / income) * 100;
+  const balanceOk = (check.avgBalance || 0) >= (income * (ic.riskMinBalancePercent ?? 25)) / 100;
+  return (check.bounces || 0) === 0 && share <= (ic.riskMaxObligationShare ?? 40) && balanceOk ? 2 : 1;
+}
+
 // The income the rules use: what the statements show, when the lender chose that and the statements show a regular income
 function incomeFor(user, rules) {
-  const b = bankFacts(user);
+  const b = bankFacts(user, rules);
   if (rules.incomeCheck?.enabled && rules.incomeCheck.useVerifiedIncome && b.incomeVerified && b.verifiedMonthlyIncome > 0) return b.verifiedMonthlyIncome;
   return user.employment?.monthlyIncome || 0;
 }
@@ -527,7 +543,7 @@ export async function gatherFacts(loan, user, rules = getRules()) {
     selfieStatus: user.selfie?.status || 'none',
     monthlyIncome: incomeFor(user, rules),
     declaredIncome: user.employment?.monthlyIncome || 0,
-    ...bankFacts(user),
+    ...bankFacts(user, rules),
     emi: loan.monthlyEMI || 0,
     applicationsRecent: within(rules.velocity.days).length + 1,
     rejectionsRecent: within(rules.rejections.days).filter(l => l.status === 'rejected').length,

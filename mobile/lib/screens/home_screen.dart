@@ -31,6 +31,18 @@ import '../services/push_service.dart';
 
 // Home tab. Top to bottom: the branded header with the customer's offer, any notice, their own loan, shortcuts, the company's
 // offers, the loan products, why to trust the company, how it works, and who the lender is.
+// The icon names the web portal can pick for a tile or a step
+IconData homeIcon(String name) {
+  const icons = <String, IconData>{
+    'receipt': Icons.receipt_long_rounded, 'shield': Icons.verified_user_rounded, 'lock': Icons.lock_rounded, 'translate': Icons.translate_rounded,
+    'bolt': Icons.bolt_rounded, 'heart': Icons.favorite_rounded, 'star': Icons.star_rounded, 'support': Icons.support_agent_rounded,
+    'rupee': Icons.currency_rupee_rounded, 'clock': Icons.schedule_rounded, 'check': Icons.check_circle_rounded, 'gift': Icons.card_giftcard_rounded,
+    'calendar': Icons.event_rounded, 'badge': Icons.badge_outlined, 'draw': Icons.draw_outlined, 'bank': Icons.account_balance_outlined,
+    'offer': Icons.local_offer_outlined, 'speed': Icons.speed_rounded,
+  };
+  return icons[name] ?? Icons.check_circle_rounded;
+}
+
 class HomeScreen extends StatefulWidget {
   // Switches the bottom tabs: 0 home, 1 offers, 2 my loans, 3 messages, 4 profile, 5 pay
   final void Function(int tab)? onOpenTab;
@@ -213,49 +225,14 @@ class _HomeScreenState extends State<HomeScreen> {
                       if (_phoneUnverified) _verifyPhoneCard(),
                       if (_setup != null && !setupComplete(_setup)) _setupCard(),
                       if (settings.banner != null) _banner(settings.banner!),
-                      if (_loan != null) ...[_loanCard(_loan!), const SizedBox(height: 22)],
-                      _shortcuts(settings),
                     ],
                   ),
                 ),
-                if (banners.isNotEmpty) ...[
-                  const SizedBox(height: 24),
-                  const Padding(padding: EdgeInsets.symmetric(horizontal: 20), child: SectionTitle('Offers for you')),
-                  const SizedBox(height: 12),
-                  OfferBanners(
-                    key: ValueKey(banners.map((b) => b['id']).join(',')),
-                    banners: banners,
-                    brand: brand,
-                    autoplaySeconds: autoplay,
-                    serverTime: serverTime,
-                    onAction: _bannerAction,
-                    onEvent: (id, type) => context.read<ApiService>().sendBannerEvent(id, type),
-                  ),
-                ],
-                const SizedBox(height: 26),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: SectionTitle('Loans made for you', subtitle: 'Pick what fits. Every charge is shown before you accept.', action: products.length > 1 ? 'See all' : null, onAction: () => _push(const ProductsScreen())),
-                ),
-                const SizedBox(height: 14),
-                _productRail(products),
+                // The rest of the screen is laid out from the web portal: which sections, in what order, with what words
+                for (final id in settings.homeSections) ..._section(id, settings, products, banners, brand, autoplay, serverTime),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 26, 20, 28),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (_referral != null) ...[_referralCard(_referral!), const SizedBox(height: 26)],
-                      const SectionTitle('Why customers choose LIFC'),
-                      const SizedBox(height: 12),
-                      _whyGrid(),
-                      const SizedBox(height: 26),
-                      _howItWorks(),
-                      const SizedBox(height: 22),
-                      _helpCard(settings),
-                      const SizedBox(height: 22),
-                      _footer(),
-                    ],
-                  ),
+                  child: _footer(),
                 ),
               ],
             ),
@@ -263,6 +240,47 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
+  }
+
+  // One home section, or nothing when it has nothing to show
+  List<Widget> _section(String id, AppSettings settings, List<ProductInfo> products, List<Map<String, dynamic>> banners, Map<String, dynamic>? brand, int autoplay, DateTime serverTime) {
+    const pad = EdgeInsets.fromLTRB(20, 24, 20, 0);
+    switch (id) {
+      case 'loan':
+        return _loan == null ? [] : [Padding(padding: pad, child: _loanCard(_loan!))];
+      case 'shortcuts':
+        return [Padding(padding: pad, child: _shortcuts(settings))];
+      case 'offers':
+        if (banners.isEmpty) return [];
+        return [
+          Padding(padding: pad, child: SectionTitle(settings.homeText('offersTitle', 'Offers for you'))),
+          const SizedBox(height: 12),
+          OfferBanners(
+            key: ValueKey(banners.map((b) => b['id']).join(',')),
+            banners: banners,
+            brand: brand,
+            autoplaySeconds: autoplay,
+            serverTime: serverTime,
+            onAction: _bannerAction,
+            onEvent: (i, type) => context.read<ApiService>().sendBannerEvent(i, type),
+          ),
+        ];
+      case 'products':
+        return [
+          Padding(padding: pad, child: SectionTitle(settings.homeText('productsTitle', 'Loans made for you'), subtitle: settings.homeText('productsSubtitle', 'Pick what fits. Every charge is shown before you accept.'), action: products.length > 1 ? 'See all' : null, onAction: () => _push(const ProductsScreen()))),
+          const SizedBox(height: 14),
+          _productRail(products),
+        ];
+      case 'referral':
+        return _referral == null ? [] : [Padding(padding: pad, child: _referralCard(_referral!))];
+      case 'why':
+        return [Padding(padding: pad, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [SectionTitle(settings.homeText('whyTitle', 'Why customers choose LIFC')), const SizedBox(height: 12), _whyGrid(settings)]))];
+      case 'how':
+        return [Padding(padding: pad, child: _howItWorks(settings))];
+      case 'help':
+        return [Padding(padding: pad, child: _helpCard(settings))];
+    }
+    return [];
   }
 
   // ── Header card: the customer's offer ──────────────────────────────────────
@@ -511,34 +529,41 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ── Trust, how it works, help, who we are ──────────────────────────────────
 
-  Widget _whyGrid() {
-    const tiles = [
-      [Icons.receipt_long_rounded, 'Charges shown first', 'A Key Fact Statement with the yearly cost, before you accept.', Color(0xFF7B0000)],
-      [Icons.verified_user_rounded, 'Paperless KYC', 'Verify with DigiLocker and a quick selfie. No forms to post.', Color(0xFF0F766E)],
-      [Icons.lock_rounded, 'Private and protected', 'App PIN lock, automatic sign-out, and your data stays yours.', Color(0xFF1D4ED8)],
-      [Icons.translate_rounded, 'Help in your language', 'Message us, or ask for a call back at a time that suits you.', Color(0xFFB45309)],
-    ];
+  static const _whyColors = [Color(0xFF7B0000), Color(0xFF0F766E), Color(0xFF1D4ED8), Color(0xFFB45309), Color(0xFF7C3AED), Color(0xFFDB2777)];
+  static const _whyDefault = <Map<String, dynamic>>[
+    {'icon': 'receipt', 'title': 'Charges shown first', 'text': 'A Key Fact Statement with the yearly cost, before you accept.'},
+    {'icon': 'shield', 'title': 'Paperless KYC', 'text': 'Verify with DigiLocker and a quick selfie. No forms to post.'},
+    {'icon': 'lock', 'title': 'Private and protected', 'text': 'App PIN lock, automatic sign-out, and your data stays yours.'},
+    {'icon': 'translate', 'title': 'Help in your language', 'text': 'Message us, or ask for a call back at a time that suits you.'},
+  ];
+
+  Widget _whyGrid(AppSettings settings) {
+    final tiles = settings.homeList('whyTiles', _whyDefault);
     return LayoutBuilder(builder: (context, c) {
       final w = (c.maxWidth - 12) / 2;
       return Wrap(spacing: 12, runSpacing: 12, children: [
-        for (final t in tiles) SizedBox(width: w, child: TrustTile(icon: t[0] as IconData, title: t[1] as String, subtitle: t[2] as String, color: t[3] as Color)),
+        for (var i = 0; i < tiles.length; i++)
+          SizedBox(width: w, child: TrustTile(icon: homeIcon('${tiles[i]['icon']}'), title: '${tiles[i]['title'] ?? ''}', subtitle: '${tiles[i]['text'] ?? ''}', color: _whyColors[i % _whyColors.length])),
       ]);
     });
   }
 
-  Widget _howItWorks() {
-    const steps = [
-      [Icons.badge_outlined, 'Verify yourself', 'PAN, phone number and a quick selfie'],
-      [Icons.local_offer_outlined, 'See your offer', 'Every charge is shown before you accept'],
-      [Icons.draw_outlined, 'Sign online', 'Read the agreement and sign in the app'],
-      [Icons.account_balance_outlined, 'Get the money', 'Sent straight to your own bank account'],
-    ];
+  static const _howDefault = <Map<String, dynamic>>[
+    {'icon': 'badge', 'title': 'Verify yourself', 'text': 'PAN, phone number and a quick selfie'},
+    {'icon': 'offer', 'title': 'See your offer', 'text': 'Every charge is shown before you accept'},
+    {'icon': 'draw', 'title': 'Sign online', 'text': 'Read the agreement and sign in the app'},
+    {'icon': 'bank', 'title': 'Get the money', 'text': 'Sent straight to your own bank account'},
+  ];
+
+  Widget _howItWorks(AppSettings settings) {
+    final list = settings.homeList('howSteps', _howDefault);
+    final steps = [for (final e in list) [homeIcon('${e['icon']}'), '${e['title'] ?? ''}', '${e['text'] ?? ''}']];
     return AppCard(
       padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SectionTitle('How it works'),
+          SectionTitle(settings.homeText('howTitle', 'How it works')),
           const SizedBox(height: 16),
           for (var i = 0; i < steps.length; i++)
             IntrinsicHeight(
@@ -580,9 +605,9 @@ class _HomeScreenState extends State<HomeScreen> {
       shadow: false,
       padding: const EdgeInsets.all(18),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('Need a hand?', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: kInk)),
+        Text(settings.homeText('helpTitle', 'Need a hand?'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: kInk)),
         const SizedBox(height: 4),
-        const Text('Our team can walk you through any step, in your language.', style: TextStyle(fontSize: 12.5, color: kMuted, height: 1.4)),
+        Text(settings.homeText('helpText', 'Our team can walk you through any step, in your language.'), style: const TextStyle(fontSize: 12.5, color: kMuted, height: 1.4)),
         const SizedBox(height: 14),
         Row(children: [
           if (settings.support) ...[

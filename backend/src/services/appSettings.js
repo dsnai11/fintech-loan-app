@@ -7,6 +7,36 @@ import { getPolicy, computeQuote } from './pricingPolicy.js';
 
 export const BASE_PRODUCT = 'personal';
 
+// The home screen is laid out from here, so a change reaches every phone without a new app release. The app has the pieces; the
+// company chooses which to show, in what order, and the words and icons on them.
+export const HOME_SECTIONS = [
+  ['loan', 'Your loan or application'], ['shortcuts', 'Shortcut buttons'], ['offers', 'Offers carousel'], ['products', 'Loan products'],
+  ['referral', 'Refer and earn'], ['why', 'Why customers choose us'], ['how', 'How it works'], ['help', 'Help card'],
+];
+export const HOME_ICONS = ['receipt', 'shield', 'lock', 'translate', 'bolt', 'heart', 'star', 'support', 'rupee', 'clock', 'check', 'gift', 'calendar', 'badge', 'draw', 'bank', 'offer', 'speed'];
+const HOME_DEFAULTS = {
+  sections: HOME_SECTIONS.map(([id]) => ({ id, enabled: true })),
+  offersTitle: 'Offers for you',
+  productsTitle: 'Loans made for you',
+  productsSubtitle: 'Pick what fits. Every charge is shown before you accept.',
+  whyTitle: 'Why customers choose LIFC',
+  whyTiles: [
+    { icon: 'receipt', title: 'Charges shown first', text: 'A Key Fact Statement with the yearly cost, before you accept.' },
+    { icon: 'shield', title: 'Paperless KYC', text: 'Verify with DigiLocker and a quick selfie. No forms to post.' },
+    { icon: 'lock', title: 'Private and protected', text: 'App PIN lock, automatic sign-out, and your data stays yours.' },
+    { icon: 'translate', title: 'Help in your language', text: 'Message us, or ask for a call back at a time that suits you.' },
+  ],
+  howTitle: 'How it works',
+  howSteps: [
+    { icon: 'badge', title: 'Verify yourself', text: 'PAN, phone number and a quick selfie' },
+    { icon: 'offer', title: 'See your offer', text: 'Every charge is shown before you accept' },
+    { icon: 'draw', title: 'Sign online', text: 'Read the agreement and sign in the app' },
+    { icon: 'bank', title: 'Get the money', text: 'Sent straight to your own bank account' },
+  ],
+  helpTitle: 'Need a hand?',
+  helpText: 'Our team can walk you through any step, in your language.',
+};
+
 export const DEFAULTS = {
   features: { emiCalculator: true, eligibilityCheck: true, support: true },
   banner: { enabled: false, level: 'info', text: '' },
@@ -16,6 +46,7 @@ export const DEFAULTS = {
   security: { appLock: 'optional', lockAfterSeconds: 30, idleLogoutMinutes: 15 },
   baseProduct: { name: 'Personal Loan', description: 'Quick personal loan with the charges shown up front.' },
   products: [], // extra products: { key, name, description, enabled, overrides }
+  home: HOME_DEFAULTS,
 };
 
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -107,6 +138,32 @@ export function validateSettings(candidate) {
   out.baseProduct.name = text(s.baseProduct?.name, 60, 'Main product name', errors, true);
   out.baseProduct.description = text(s.baseProduct?.description, 200, 'Main product description', errors);
 
+  const hs = s.home || {};
+  out.home = clone(HOME_DEFAULTS);
+  const ids = HOME_SECTIONS.map(([id]) => id);
+  const ordered = [];
+  for (const e of Array.isArray(hs.sections) ? hs.sections : []) {
+    const id = String(e?.id || '');
+    if (ids.includes(id) && !ordered.some(x => x.id === id)) ordered.push({ id, enabled: e.enabled !== false });
+  }
+  for (const id of ids) if (!ordered.some(x => x.id === id)) ordered.push({ id, enabled: true }); // a section the list left out is still shown
+  out.home.sections = ordered;
+  for (const [k, max, name] of [['offersTitle', 40, 'Offers title'], ['productsTitle', 40, 'Products title'], ['productsSubtitle', 120, 'Products subtitle'], ['whyTitle', 40, 'Trust section title'], ['howTitle', 40, 'How it works title'], ['helpTitle', 40, 'Help title'], ['helpText', 140, 'Help text']]) {
+    const v = text(hs[k] ?? HOME_DEFAULTS[k], max, name, errors);
+    out.home[k] = v || HOME_DEFAULTS[k];
+  }
+  const tiles = (raw, key, max, name) => {
+    const list = Array.isArray(raw) ? raw : HOME_DEFAULTS[key];
+    if (list.length > max) errors.push(`${name}: up to ${max} items`);
+    return list.slice(0, max).map((t, i) => ({
+      icon: HOME_ICONS.includes(t?.icon) ? t.icon : 'check',
+      title: text(t?.title, 40, `${name} ${i + 1} title`, errors, true),
+      text: text(t?.text, 120, `${name} ${i + 1} text`, errors),
+    }));
+  };
+  out.home.whyTiles = tiles(hs.whyTiles, 'whyTiles', 6, 'Trust tile');
+  out.home.howSteps = tiles(hs.howSteps, 'howSteps', 8, 'Step');
+
   const seen = new Set([BASE_PRODUCT]);
   const base = getPolicy();
   out.products = [];
@@ -175,9 +232,10 @@ export function publicSettings() {
     maintenance: s.maintenance,
     minAppVersion: s.minAppVersion,
     security: s.security,
+    home: s.home,
     products,
     support: { email: base.institution.supportEmail, phone: base.institution.supportPhone },
   };
 }
 
-export default { getSettings, saveSettings, validateSettings, policyFor, publicSettings, BASE_PRODUCT, DEFAULTS };
+export default { getSettings, saveSettings, validateSettings, policyFor, publicSettings, BASE_PRODUCT, DEFAULTS, HOME_SECTIONS, HOME_ICONS };

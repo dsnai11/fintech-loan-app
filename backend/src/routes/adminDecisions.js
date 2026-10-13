@@ -11,7 +11,7 @@ import { getPolicy } from '../services/pricingPolicy.js';
 const router = express.Router();
 router.use(adminMiddleware);
 
-const FACT_FIELDS = ['amount', 'age', 'bureauScore', 'openAmlAlerts', 'defaultedLoans', 'openLoans', 'overdueEmis', 'monthlyIncome', 'emi', 'applicationsRecent', 'rejectionsRecent', 'maxDaysLate', 'accountAgeDays', 'bureauEnquiries90', 'bureauMaxDpd', 'bureauActiveLoans', 'declaredIncome', 'verifiedMonthlyIncome', 'bankBounces', 'bankObligations', 'avgBankBalance'];
+const FACT_FIELDS = ['amount', 'age', 'bureauScore', 'openAmlAlerts', 'defaultedLoans', 'openLoans', 'overdueEmis', 'monthlyIncome', 'emi', 'applicationsRecent', 'rejectionsRecent', 'maxDaysLate', 'accountAgeDays', 'bureauEnquiries90', 'bureauMaxDpd', 'bureauActiveLoans', 'declaredIncome', 'verifiedMonthlyIncome', 'bankBounces', 'bankObligations', 'avgBankBalance', 'bankRisk'];
 
 router.get('/rules', (req, res) => res.json({ rules: getRules(), modes: MODES, customFields: CUSTOM_FIELDS, suggested: SUGGESTED_START }));
 
