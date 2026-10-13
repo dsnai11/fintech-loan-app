@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%8C%90%3C/text%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Website pages - LIFC Admin</title>
+<style>
+* { box-sizing: border-box; }
+.card { padding: 16px; margin-bottom: 14px; }
+.card h2 { margin: 0 0 4px; font-size: 15px; }
+.sub { font-size: 12px; color: var(--e-muted); margin-bottom: 12px; line-height: 1.6; }
+.note { font-size: 12px; color: var(--e-muted); }
+.alert { display: none; padding: 12px 16px; margin-bottom: 14px; white-space: pre-line; }
+.alert.show { display: block; }
+.warn { background: var(--e-warn-soft); color: var(--e-warn); border-radius: 8px; padding: 10px 14px; font-size: 12.5px; line-height: 1.5; margin-bottom: 14px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; align-items: end; }
+.grid input, .grid select, .grid textarea { width: 100%; }
+.pg { border: 1px solid var(--e-border); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+.pg.off { opacity: .6; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+</style>
+<link rel="stylesheet" href="assets/portal.css">
+</head>
+<body data-shell="app" data-title="Website pages" data-sub="Public pages for people searching for a loan. They all lead to the one application in the app.">
+<div class="container">
+  <div id="alert" class="alert" role="alert"></div>
+  <div class="warn"><b>Check before switching on:</b> these pages advertise your loans. Compliance should confirm the wording, the worked examples and that your registration and grievance details (Pricing page) are filled in. Each example uses your real pricing; an example is shown only when the amount is one the product lends.</div>
+  <div id="form"></div>
+</div>
+<script>
+const API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
+const token = localStorage.getItem('admin_token');
+if (!token) location.href = 'admin-config.html';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const canEdit = () => !window.PortalShell || PortalShell.can('banners.edit');
+let C = null, PREV = {};
+function msg(text, kind) { const a = $('alert'); a.textContent = text; a.className = 'alert show ' + (kind === 'ok' ? 'ok' : 'err'); window.scrollTo({ top: 0, behavior: 'smooth' }); if (kind === 'ok') setTimeout(() => a.classList.remove('show'), 5000); }
+async function api(path, method = 'GET', body) {
+  const r = await fetch(API + path, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.errors ? d.errors.join('\n') : d.error || 'Something went wrong');
+  return d;
+}
+function pageRow(p, i, dis) {
+  return `<div class="pg ${p.enabled ? '' : 'off'}"><div class="grid">
+    <div><label for="p${i}-slug">Web address (after /loan/)</label><input id="p${i}-slug" value="${esc(p.slug)}" maxlength="60" ${dis}></div>
+    <div><label for="p${i}-prod">Loan it is about</label><select id="p${i}-prod" ${dis}><option value="personal" ${p.product === 'personal' ? 'selected' : ''}>Personal loan</option><option value="payday" ${p.product === 'payday' ? 'selected' : ''}>Payday advance (shown only while it is on)</option></select></div>
+    <div><label for="p${i}-amt">Example amount (₹)</label><input id="p${i}-amt" type="number" value="${esc(p.amount)}" ${dis}></div>
+    <div><label style="display:flex;gap:8px;align-items:center;margin:0"><input type="checkbox" id="p${i}-on" ${p.enabled ? 'checked' : ''} ${dis}> Page is on</label></div>
+    <div style="grid-column: 1 / -1"><label for="p${i}-title">Page title (search results)</label><input id="p${i}-title" value="${esc(p.title)}" maxlength="70" ${dis}></div>
+    <div style="grid-column: 1 / -1"><label for="p${i}-h1">Heading</label><input id="p${i}-h1" value="${esc(p.h1)}" maxlength="90" ${dis}></div>
+    <div style="grid-column: 1 / -1"><label for="p${i}-intro">Introduction</label><textarea id="p${i}-intro" rows="2" maxlength="300" ${dis}>${esc(p.intro)}</textarea></div>
+  </div><div class="row" style="margin-top:8px"><a href="/loan/${esc(p.slug)}" target="_blank" rel="noopener">Open the page</a><span class="note">${esc(PREV[p.slug] || '')}</span><button class="btn" onclick="removePage(${i})" ${dis}>Remove</button></div></div>`;
+}
+function render() {
+  const dis = canEdit() ? '' : 'disabled';
+  $('form').innerHTML = `
+    <div class="card"><h2>The website</h2><div class="sub">Everything below is invisible to the public until you switch the pages on. Pages are at <code>/loan/your-address</code>, with a site map at <code>/sitemap.xml</code> for search engines.</div>
+      <label style="display:flex;gap:8px;align-items:center;margin:0 0 12px"><input type="checkbox" id="on" ${C.enabled ? 'checked' : ''} ${dis}> <b>The website pages are on</b></label>
+      <div class="grid"><div><label for="base">Your website address (optional, https://...)</label><input id="base" value="${esc(C.baseUrl)}" placeholder="uses this server's address" ${dis}></div>
+      <div><label for="l-an">Android app link</label><input id="l-an" value="${esc(C.links.android)}" placeholder="https://play.google.com/..." ${dis}></div>
+      <div><label for="l-io">iPhone app link</label><input id="l-io" value="${esc(C.links.ios)}" placeholder="https://apps.apple.com/..." ${dis}></div>
+      <div><label for="l-web">Web app link</label><input id="l-web" value="${esc(C.links.web)}" placeholder="https://..." ${dis}></div></div>
+      <div class="note" style="margin-top:8px">A link left empty is not shown; the page then says the links are coming soon.</div></div>
+    <div class="card"><h2>Pages</h2><div class="sub">One page for each thing people search for. Each page shows a worked example from your real pricing, the plain requirements, a form to ask for a call, and your registration and grievance details. Calls requested here arrive on the Leads page.</div>
+      ${C.pages.map((p, i) => pageRow(p, i, dis)).join('')}
+      <button class="btn" onclick="addPage()" ${dis}>Add a page</button></div>
+    <div class="row"><button class="btn primary" id="save" onclick="save()" ${dis}>Save</button>${canEdit() ? '' : '<span class="note">Your role can look but not change this.</span>'}</div>`;
+}
+function collect() {
+  return { enabled: $('on').checked, baseUrl: $('base').value, links: { android: $('l-an').value, ios: $('l-io').value, web: $('l-web').value },
+    pages: C.pages.map((_, i) => ({ slug: $(`p${i}-slug`).value, product: $(`p${i}-prod`).value, amount: Number($(`p${i}-amt`).value), enabled: $(`p${i}-on`).checked, title: $(`p${i}-title`).value, h1: $(`p${i}-h1`).value, intro: $(`p${i}-intro`).value })) };
+}
+function addPage() { C = collect(); C.pages.push({ slug: '', product: 'personal', amount: 25000, enabled: true, title: '', h1: '', intro: '' }); render(); }
+function removePage(i) { C = collect(); C.pages.splice(i, 1); render(); }
+async function save() {
+  if (collect().enabled && !C.enabled && !confirm('The pages become public and search engines can find them. Has compliance checked the wording?')) return;
+  try { const d = await api('/admin/website', 'PUT', collect()); C = d.config; msg(d.message, 'ok'); await load(true); } catch (e) { msg(e.message, 'err'); }
+}
+async function load(keepMsg) { try { const d = await api('/admin/website'); C = d.config; PREV = d.previews; render(); } catch (e) { msg(e.message, 'err'); } }
+load();
+</script>
+<script src="assets/portal.js"></script>
+</body>
+</html>

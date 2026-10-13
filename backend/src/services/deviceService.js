@@ -55,11 +55,12 @@ export async function recordDevice(req, userId, event) {
     if (!installId) return { known: false, signals: [] };
     const ip = clientIp(req) || '';
     const now = new Date();
+    const rooted = String(req.headers?.['x-device-rooted'] || '') === '1';
     const existingBefore = await DeviceBinding.find({ userId }).lean();
     const seenBefore = existingBefore.find(b => b.installId === installId);
     await DeviceBinding.updateOne(
       { installId, userId },
-      { $set: { lastSeenAt: now, lastIp: ip, platform: String(req.headers['x-platform'] || '').slice(0, 20), appVersion: String(req.headers['x-app-version'] || '').slice(0, 20) }, $inc: { events: 1 }, $setOnInsert: { firstSeenAt: now } },
+      { $set: { lastSeenAt: now, lastIp: ip, rooted, platform: String(req.headers['x-platform'] || '').slice(0, 20), appVersion: String(req.headers['x-app-version'] || '').slice(0, 20) }, $inc: { events: 1 }, $setOnInsert: { firstSeenAt: now } },
       { upsert: true }
     );
 
@@ -94,6 +95,10 @@ export async function recordDevice(req, userId, event) {
         await raise('NEW_DEVICE', 'MEDIUM', user, null, `This account has used the app since ${new Date(oldest).toLocaleDateString('en-IN')} and is applying for a loan from a phone it has not used before.`);
       }
     }
+    if (rooted && event === 'apply') {
+      signals.push('ROOTED_DEVICE');
+      await raise('ROOTED_DEVICE', 'MEDIUM', user, null, 'The app reports that this phone has been modified (rooted or jailbroken). This is a simple check on the phone and can be fooled either way; treat it as a reason to look closer.');
+    }
     return { known: true, signals };
   } catch (e) {
     console.error('Device check failed:', e.message);
@@ -107,7 +112,7 @@ export async function devicesOf(userId) {
   const out = [];
   for (const r of rows) {
     const others = await DeviceBinding.countDocuments({ installId: r.installId, userId: { $ne: userId } });
-    out.push({ platform: r.platform, appVersion: r.appVersion, firstSeenAt: r.firstSeenAt, lastSeenAt: r.lastSeenAt, lastIp: r.lastIp, otherAccounts: others, idEnds: r.installId.slice(-6) });
+    out.push({ rooted: !!r.rooted, platform: r.platform, appVersion: r.appVersion, firstSeenAt: r.firstSeenAt, lastSeenAt: r.lastSeenAt, lastIp: r.lastIp, otherAccounts: others, idEnds: r.installId.slice(-6) });
   }
   return out;
 }

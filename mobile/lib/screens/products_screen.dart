@@ -43,7 +43,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<AppSettings>();
-    final products = buildProducts(settingsProducts: settings.products, pricing: _pricing, payday: _payday, offerMax: _offer);
+    final products = buildProducts(settingsProducts: settings.products, pricing: _pricing, payday: _payday, offerMax: _offer, marketplace: settings.marketplace);
     return Scaffold(
       backgroundColor: kBg,
       appBar: AppBar(title: const Text('Loan products')),
@@ -159,7 +159,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                 Expanded(child: Text('For: ${p.audience}', style: const TextStyle(fontSize: 12.5, color: kMuted, height: 1.35))),
               ]),
               const SizedBox(height: 16),
-              SizedBox(width: double.infinity, child: ElevatedButton(onPressed: () => openProduct(context, p), child: Text('Apply for ${p.name}'))),
+              SizedBox(width: double.infinity, child: ElevatedButton(onPressed: () => openProduct(context, p), child: Text(p.isLead ? 'Talk to us about ${p.name}' : 'Apply for ${p.name}'))),
             ]),
           ),
         ]),

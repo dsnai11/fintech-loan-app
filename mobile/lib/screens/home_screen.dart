@@ -182,7 +182,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final serverTime = DateTime.tryParse('${_home?['serverTime']}') ?? DateTime.now();
     final top = brandColors(brand, kNavy, const Color(0xFF9B1B30)).first;
     final hasOffer = _myOffer != null && _myOffer!['status'] != 'DECLINED';
-    final products = buildProducts(settingsProducts: settings.products, pricing: _pricing, payday: _payday, repeatMax: _repeatMax, offerMax: hasOffer ? asNum(_myOffer!['amount']) : null);
+    final products = buildProducts(settingsProducts: settings.products, pricing: _pricing, payday: _payday, repeatMax: _repeatMax, offerMax: hasOffer ? asNum(_myOffer!['amount']) : null, marketplace: settings.marketplace);
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(statusBarColor: top, statusBarIconBrightness: Brightness.light, statusBarBrightness: Brightness.dark),
       child: Scaffold(
@@ -521,7 +521,7 @@ class _HomeScreenState extends State<HomeScreen> {
         separatorBuilder: (_, __) => const SizedBox(width: 14),
         itemBuilder: (_, i) {
           final p = products[i];
-          return ProductCard(name: p.name, tagline: p.tagline, upTo: p.upTo, facts: p.facts, icon: p.look.icon, colors: p.look.colors, badge: p.badge, onTap: () => openProduct(context, p));
+          return ProductCard(name: p.name, tagline: p.tagline, upTo: p.upTo, facts: p.facts, icon: p.look.icon, colors: p.look.colors, badge: p.badge, cta: p.cta, onTap: () => openProduct(context, p));
         },
       ),
     );

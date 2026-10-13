@@ -1,3 +1,4 @@
+import '../services/device_risk.dart';
 import 'package:flutter/material.dart' hide Text;
 import '../widgets/tr_text.dart';
 import 'package:provider/provider.dart';
@@ -49,6 +50,18 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
           icon: Icons.system_update_alt_rounded,
           title: 'Please update the app',
           message: 'A newer version of the app is needed to keep your loan account safe. Install the latest version and open it again.',
+          canRetry: false,
+        ),
+      ));
+      return;
+    }
+
+    if (settings.blockRooted && DeviceRisk.rooted) {
+      Navigator.of(context).pushReplacement(MaterialPageRoute(
+        builder: (_) => const AppGateScreen(
+          icon: Icons.gpp_maybe_outlined,
+          title: 'This phone cannot be used',
+          message: 'This phone looks like it has been modified (rooted or jailbroken), so we cannot keep your loan account safe on it. Please use another phone, or contact support.',
           canRetry: false,
         ),
       ));

@@ -63,6 +63,10 @@ import adminPartnersRoutes from './routes/adminPartners.js';
 import adminColendingRoutes from './routes/adminColending.js';
 import adminSystemRoutes from './routes/adminSystem.js';
 import adminEmployersRoutes from './routes/adminEmployers.js';
+import { customerRouter as leadsRoutes, publicRouter as publicLeadsRoutes } from './routes/leads.js';
+import adminLeadsRoutes from './routes/adminLeads.js';
+import adminWebsiteRoutes from './routes/adminWebsite.js';
+import landingRoutes from './routes/landing.js';
 import employersRoutes from './routes/employers.js';
 import adminAutomationRoutes from './routes/adminAutomation.js';
 import paydayRoutes from './routes/payday.js';
@@ -208,6 +212,10 @@ app.use('/api/admin/automation', adminAutomationRoutes);
 app.use('/api/admin/system', adminSystemRoutes);
 app.use('/api/admin/employers', adminEmployersRoutes);
 app.use('/api/employers', employersRoutes);
+app.use('/api/leads', leadsRoutes);
+app.use('/api/public/leads', publicLeadsRoutes);
+app.use('/api/admin/leads', adminLeadsRoutes);
+app.use('/api/admin/website', adminWebsiteRoutes);
 app.use('/api/payday', paydayRoutes);
 app.use('/api/admin/payday', adminPaydayRoutes);
 app.use('/api/mandates', mandatesRoutes);
@@ -242,6 +250,9 @@ app.get('/api/health/ready', async (req, res) => {
   const db = await ping();
   res.status(db.ok ? 200 : 503).json({ status: db.ok ? 'ready' : 'database unavailable', databaseMs: db.ms });
 });
+
+// The public loan pages (off until switched on in the portal)
+app.use(landingRoutes);
 
 // Pages and scripts are re-checked on every load, so a new deploy shows up on the next reload.
 app.use(express.static(join(__dirname, '..', 'public'), { setHeaders: res => res.setHeader('Cache-Control', 'no-cache') }));

@@ -1,4 +1,6 @@
 import { getConfig } from './configService.js';
+import { getSettings as appSettings } from './appSettings.js';
+import { sendWhatsapp, modeNow as whatsappMode } from './whatsappService.js';
 
 // Sends one SMS through whichever provider is set up in the admin configuration (Fast2SMS, MSG91 or Twilio).
 // Returns { sent, provider, configured }. `configured` is false when no real provider is set up.
@@ -46,4 +48,19 @@ export async function sendSms(phone, text, { otp } = {}) {
   return { sent: false, provider: provider || 'none', configured: false };
 }
 
-export default { sendSms, smsConfigured };
+// Whether a code can go out on WhatsApp right now: the company chose it, and a real WhatsApp provider is connected.
+// In test mode or with no provider, WhatsApp is never claimed: the code goes by SMS.
+export const whatsappFirst = () => appSettings().security.otpChannel === 'whatsapp_first' && whatsappMode() === 'live';
+
+// A one-time code: on WhatsApp when the company chose that and it is connected, otherwise (or when the customer asks for SMS
+// instead, or WhatsApp fails) by SMS. `via` says which was used, so the app can tell the customer the truth.
+export async function sendOtpMessage(phone, text, { otp, channel } = {}) {
+  if (channel !== 'sms' && whatsappFirst()) {
+    const r = await sendWhatsapp({ phone }, text);
+    if (r === 'sent') return { sent: true, via: 'whatsapp', provider: 'whatsapp', configured: true };
+  }
+  const r = await sendSms(phone, text, { otp });
+  return { ...r, via: 'sms' };
+}
+
+export default { sendSms, smsConfigured, sendOtpMessage };

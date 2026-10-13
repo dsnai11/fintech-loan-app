@@ -13,6 +13,7 @@ const schema = new mongoose.Schema(
     lastSeenAt: { type: Date, default: Date.now },
     lastIp: { type: String, default: '', index: true },
     events: { type: Number, default: 1 },
+    rooted: { type: Boolean, default: false }, // the app reported that this phone looks rooted or jailbroken (a simple check on the phone, so it can be fooled)
   },
   { timestamps: false }
 );

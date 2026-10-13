@@ -43,10 +43,13 @@ export const DEFAULTS = {
   maintenance: { enabled: false, message: 'We are updating the app. Please try again in a little while.' },
   minAppVersion: '',
   // How the app protects itself on the customer's phone: a PIN, locking after the app was left, and signing out when idle
-  security: { appLock: 'optional', lockAfterSeconds: 30, idleLogoutMinutes: 15, newDevice: 'off' }, // newDevice: 'otp' asks for an SMS code when a customer signs in from a phone they have not used before
+  security: { appLock: 'optional', lockAfterSeconds: 30, idleLogoutMinutes: 15, newDevice: 'off', rootedDevice: 'allow', otpChannel: 'sms' }, // rootedDevice: 'block' stops the app opening on a phone that looks rooted or jailbroken; otpChannel: 'whatsapp_first' sends codes on WhatsApp when it is connected, with SMS as the backup // newDevice: 'otp' asks for an SMS code when a customer signs in from a phone they have not used before
   baseProduct: { name: 'Personal Loan', description: 'Quick personal loan with the charges shown up front.' },
   products: [], // extra products: { key, name, description, enabled, overrides }
   home: HOME_DEFAULTS,
+  // Products that partner lenders provide (home loan, loan against property). The customer asks to be called; staff pass the request to a
+  // partner. The company is the introducer, not the lender, and the app says so.
+  marketplace: [], // { key, name, enabled, tagline, minAmount, maxAmount }
 };
 
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -128,6 +131,8 @@ export function validateSettings(candidate) {
   const sec = s.security || {};
   out.security.appLock = ['off', 'optional', 'required'].includes(sec.appLock) ? sec.appLock : DEFAULTS.security.appLock;
   out.security.newDevice = ['off', 'otp'].includes(sec.newDevice) ? sec.newDevice : DEFAULTS.security.newDevice;
+  out.security.rootedDevice = ['allow', 'block'].includes(sec.rootedDevice) ? sec.rootedDevice : DEFAULTS.security.rootedDevice;
+  out.security.otpChannel = ['sms', 'whatsapp_first'].includes(sec.otpChannel) ? sec.otpChannel : DEFAULTS.security.otpChannel;
   const secNum = (v, def, min, max, label) => {
     const n = v === undefined || v === null || v === '' ? def : Number(v);
     if (!Number.isInteger(n) || n < min || n > max) { errors.push(`${label} must be a whole number between ${min} and ${max}`); return def; }
@@ -164,6 +169,25 @@ export function validateSettings(candidate) {
   };
   out.home.whyTiles = tiles(hs.whyTiles, 'whyTiles', 6, 'Trust tile');
   out.home.howSteps = tiles(hs.howSteps, 'howSteps', 8, 'Step');
+
+  out.marketplace = [];
+  const mkSeen = new Set();
+  for (const [i, raw] of (Array.isArray(s.marketplace) ? s.marketplace : []).slice(0, 10).entries()) {
+    const label = `Partner product ${i + 1}`;
+    const key = String(raw?.key || raw?.name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 30);
+    if (!key) { errors.push(`${label} needs a name`); continue; }
+    if (mkSeen.has(key) || key === BASE_PRODUCT) { errors.push(`${label}: the name "${key}" is already used`); continue; }
+    mkSeen.add(key);
+    const m = { key, name: text(raw.name, 60, `${label} name`, errors, true), enabled: raw.enabled !== false, tagline: text(raw.tagline, 140, `${label} line`, errors) };
+    for (const f of ['minAmount', 'maxAmount']) {
+      const v = raw[f];
+      if (v === undefined || v === null || v === '') continue;
+      const n = Number(v);
+      if (!Number.isInteger(n) || n < 1000 || n > 10000000000) errors.push(`${label}: ${f} must be a whole number of rupees, at least 1,000`); else m[f] = n;
+    }
+    if (m.minAmount && m.maxAmount && m.minAmount > m.maxAmount) errors.push(`${label}: the smallest amount is above the largest`);
+    out.marketplace.push(m);
+  }
 
   const seen = new Set([BASE_PRODUCT]);
   const base = getPolicy();
@@ -234,6 +258,7 @@ export function publicSettings() {
     minAppVersion: s.minAppVersion,
     security: s.security,
     home: s.home,
+    marketplace: s.marketplace.filter(m => m.enabled).map(({ key, name, tagline, minAmount, maxAmount }) => ({ key, name, tagline, minAmount, maxAmount })),
     products,
     support: { email: base.institution.supportEmail, phone: base.institution.supportPhone },
   };

@@ -181,7 +181,7 @@ router.post('/device/send', async (req, res) => {
   try {
     const who = await deviceUser(req.body?.deviceToken);
     if (!who) return res.status(401).json({ error: 'This step has expired. Please sign in again.' });
-    const r = await sendCode(who.user, { force: true });
+    const r = await sendCode(who.user, { force: true, channel: req.body?.channel === 'sms' ? 'sms' : undefined });
     res.status(r.status).json(r.body);
   } catch (error) {
     res.status(500).json({ error: error.message });

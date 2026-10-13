@@ -25,6 +25,7 @@ class _DeviceVerifyScreenState extends State<DeviceVerifyScreen> {
   bool _verifying = false;
   String? _error;
   String? _note;
+  String? _via;
 
   String get _token => '${context.read<AuthService>().pendingDevice?['deviceToken'] ?? ''}';
   String get _phone => '${context.read<AuthService>().pendingDevice?['phone'] ?? ''}';
@@ -52,13 +53,14 @@ class _DeviceVerifyScreenState extends State<DeviceVerifyScreen> {
     });
   }
 
-  Future<void> _send() async {
+  Future<void> _send({String? channel}) async {
     setState(() { _sending = true; _error = null; });
     try {
-      final r = await context.read<ApiService>().sendDeviceCode(_token);
+      final r = await context.read<ApiService>().sendDeviceCode(_token, channel: channel);
       if (!mounted) return;
       setState(() {
-        _note = r['sandboxOtp'] != null ? 'Test mode: your code is ${r['sandboxOtp']}' : 'We sent a code to ${r['phone'] ?? _phone}.';
+        _via = r['via']?.toString();
+        _note = r['sandboxOtp'] != null ? 'Test mode: your code is ${r['sandboxOtp']}' : (_via == 'whatsapp' ? 'We sent a code on WhatsApp to ${r['phone'] ?? _phone}.' : 'We sent a code to ${r['phone'] ?? _phone}.');
       });
       _startWait((r['resendAfterSeconds'] as num?)?.toInt() ?? 30);
     } catch (e) {
@@ -130,10 +132,11 @@ class _DeviceVerifyScreenState extends State<DeviceVerifyScreen> {
             const SizedBox(height: 6),
             Center(
               child: TextButton(
-                onPressed: (_sending || _wait > 0) ? null : _send,
+                onPressed: (_sending || _wait > 0) ? null : () => _send(),
                 child: Text(_wait > 0 ? 'Send the code again in ${_wait}s' : 'Send the code again'),
               ),
             ),
+            if (_via == 'whatsapp' && _wait <= 0) Center(child: TextButton(onPressed: _sending ? null : () => _send(channel: 'sms'), child: const Text('Send it by SMS instead'))),
           ]),
         ),
         const SizedBox(height: 14),

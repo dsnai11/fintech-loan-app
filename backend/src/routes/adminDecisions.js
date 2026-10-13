@@ -115,7 +115,7 @@ router.post('/test', (req, res) => {
     // Try it as one product, with that product's own rules
     if (req.body?.productKey) rules = effectiveRules(rules, req.body.productKey);
     const f = req.body?.facts || {};
-    const facts = { kycApproved: f.kycApproved === true, phoneVerified: f.phoneVerified === true, repeatCustomer: f.repeatCustomer === true, bureauReportKnown: f.bureauReportKnown === true, incomeVerified: f.incomeVerified === true, selfieStatus: String(f.selfieStatus ?? 'passed').slice(0, 20), employerName: String(f.employerName ?? '').slice(0, 80), state: String(f.state ?? '').slice(0, 40), pincode: String(f.pincode ?? '').slice(0, 6) };
+    const facts = { kycApproved: f.kycApproved === true, phoneVerified: f.phoneVerified === true, repeatCustomer: f.repeatCustomer === true, bureauReportKnown: f.bureauReportKnown === true, incomeVerified: f.incomeVerified === true, rootedDevice: f.rootedDevice === true, selfieStatus: String(f.selfieStatus ?? 'passed').slice(0, 20), employerName: String(f.employerName ?? '').slice(0, 80), state: String(f.state ?? '').slice(0, 40), pincode: String(f.pincode ?? '').slice(0, 6) };
     for (const k of FACT_FIELDS) {
       const n = Number(f[k] ?? 0);
       if (!Number.isFinite(n) || n < 0 || n > 1e9) return res.status(400).json({ error: `${k} is not a valid number` });

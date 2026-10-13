@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import PhoneOtp from '../models/PhoneOtp.js';
 import User from '../models/User.js';
-import { sendSms, smsConfigured } from './smsService.js';
+import { sendOtpMessage, smsConfigured, whatsappFirst } from './smsService.js';
 import { audit } from './auditService.js';
 
 // Proves a customer owns the phone number on their account, with a one-time code sent by SMS.
@@ -18,7 +18,7 @@ const fail = (status, error, extra = {}) => ({ status, body: { error, ...extra }
 // With no SMS provider set up (and not in production) the code is handed back so the flow can be tried.
 const sandboxAllowed = () => !smsConfigured() && process.env.PAYMENT_MODE !== 'PRODUCTION';
 
-export async function sendCode(user, { force = false } = {}) {
+export async function sendCode(user, { force = false, channel } = {}) {
   if (user.phoneVerified && !force) return { status: 200, body: { alreadyVerified: true, phone: mask(user.phone), message: 'This number is already verified' } };
 
   const now = Date.now();
@@ -35,10 +35,10 @@ export async function sendCode(user, { force = false } = {}) {
       return fail(429, `Too many codes were sent to this number. Please try again in about ${mins} minute${mins === 1 ? '' : 's'}.`, { retryAfterSeconds: mins * 60 });
     }
   }
-  if (!smsConfigured() && !sandboxAllowed()) return fail(503, 'Phone verification is not available right now. Please contact support.');
+  if (!smsConfigured() && !whatsappFirst() && !sandboxAllowed()) return fail(503, 'Phone verification is not available right now. Please contact support.');
 
   const code = String(crypto.randomInt(100000, 1000000));
-  const sms = await sendSms(phone, `${code} is your LIFC verification code. It is valid for ${CODE_MINUTES} minutes. Do not share it with anyone.`, { otp: code });
+  const sms = await sendOtpMessage(phone, `${code} is your LIFC verification code. It is valid for ${CODE_MINUTES} minutes. Do not share it with anyone.`, { otp: code, channel });
   if (sms.configured && !sms.sent) return fail(502, 'We could not send the SMS right now. Please try again in a minute.');
 
   await PhoneOtp.findOneAndUpdate(
@@ -58,9 +58,11 @@ export async function sendCode(user, { force = false } = {}) {
   return {
     status: 200,
     body: {
-      message: sms.sent ? 'We sent a code to your phone' : 'Code generated',
+      message: sms.sent ? (sms.via === 'whatsapp' ? 'We sent a code on WhatsApp' : 'We sent a code to your phone') : 'Code generated',
       phone: mask(phone),
       smsSent: sms.sent,
+      via: sms.sent ? sms.via : 'none',
+      canResendBySms: sms.sent && sms.via === 'whatsapp',
       expiresInSeconds: CODE_MINUTES * 60,
       resendAfterSeconds: COOLDOWN_SECONDS,
       ...(sandboxAllowed() ? { sandboxOtp: code } : {}),

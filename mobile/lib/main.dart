@@ -1,3 +1,4 @@
+import 'services/device_risk.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -35,6 +36,7 @@ void main() async {
   ));
   final api = ApiService();
   await AppLock.instance.init();
+  await DeviceRisk.init();
   await LanguageService.instance.init(api);
   PushService.instance.onOpen = (data) {
     if (data['type'] == 'OFFER') {

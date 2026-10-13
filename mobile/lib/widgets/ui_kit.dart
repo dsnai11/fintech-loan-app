@@ -183,7 +183,8 @@ class ProductCard extends StatelessWidget {
   final String? badge;
   final VoidCallback onTap;
   final double width;
-  const ProductCard({Key? key, required this.name, required this.tagline, required this.upTo, required this.facts, required this.icon, required this.colors, required this.onTap, this.badge, this.width = 268}) : super(key: key);
+  final String cta;
+  const ProductCard({Key? key, required this.name, required this.tagline, required this.upTo, required this.facts, required this.icon, required this.colors, required this.onTap, this.badge, this.width = 268, this.cta = 'Apply now'}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -236,7 +237,7 @@ class ProductCard extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
                 decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Text('Apply now', style: TextStyle(color: colors.first, fontSize: 12.5, fontWeight: FontWeight.w700)),
+                  Text(cta, style: TextStyle(color: colors.first, fontSize: 12.5, fontWeight: FontWeight.w700)),
                   const SizedBox(width: 4),
                   Icon(Icons.arrow_forward_rounded, size: 15, color: colors.first),
                 ]),
@@ -325,6 +326,8 @@ ProductLook productLook(String key, String name) {
   if (k.contains('business') || k.contains('msme')) return const ProductLook(Icons.storefront_rounded, [Color(0xFF1E3A8A), Color(0xFF2563EB)]);
   if (k.contains('gold')) return const ProductLook(Icons.workspace_premium_rounded, [Color(0xFF8A5A00), Color(0xFFC98A12)]);
   if (k.contains('bike') || k.contains('vehicle') || k.contains('wheeler') || k.contains('auto')) return const ProductLook(Icons.two_wheeler_rounded, [Color(0xFF334155), Color(0xFF475569)]);
+  if (k.contains('home') || k.contains('housing')) return const ProductLook(Icons.home_work_rounded, [Color(0xFF14532D), Color(0xFF15803D)]);
+  if (k.contains('property') || k.contains('lap')) return const ProductLook(Icons.apartment_rounded, [Color(0xFF3F3F46), Color(0xFF52525B)]);
   if (k.contains('educat')) return const ProductLook(Icons.school_rounded, [Color(0xFF5B21B6), Color(0xFF7C3AED)]);
   return const ProductLook(Icons.account_balance_wallet_rounded, [Color(0xFF7B0000), Color(0xFFB3202F)]);
 }

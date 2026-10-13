@@ -1,3 +1,4 @@
+import '../screens/lead_screen.dart';
 import 'package:flutter/material.dart';
 import '../screens/pan_verify_screen.dart';
 import '../screens/payday_screen.dart';
@@ -22,7 +23,11 @@ class ProductInfo {
   final String repay; // how long, or when
   final String audience; // who it is for
   final String? badge;
-  const ProductInfo({required this.key, required this.name, required this.tagline, required this.isPayday, required this.minAmount, required this.maxAmount, required this.upTo, required this.facts, required this.look, required this.cost, required this.repay, required this.audience, this.badge});
+  final String? leadKey; // set for a product partners provide: the customer asks to be called instead of applying
+  const ProductInfo({required this.key, required this.name, required this.tagline, required this.isPayday, required this.minAmount, required this.maxAmount, required this.upTo, required this.facts, required this.look, required this.cost, required this.repay, required this.audience, this.badge, this.leadKey});
+
+  bool get isLead => leadKey != null;
+  String get cta => isLead ? 'Talk to us' : 'Apply now';
 }
 
 String _tenure(Map<String, dynamic>? pricing) {
@@ -47,6 +52,7 @@ List<ProductInfo> buildProducts({
   required Map<String, dynamic>? payday,
   num? repeatMax,
   num? offerMax,
+  List<Map<String, dynamic>> marketplace = const [],
 }) {
   final out = <ProductInfo>[];
   final list = settingsProducts.isEmpty
@@ -102,10 +108,37 @@ List<ProductInfo> buildProducts({
       badge: 'Instant',
     ));
   }
+  for (final m in marketplace) {
+    final key = (m['key'] ?? '').toString();
+    final name = (m['name'] ?? '').toString();
+    if (key.isEmpty || name.isEmpty) continue;
+    final max = asNum(m['maxAmount'] ?? 0);
+    final tag = (m['tagline'] ?? '').toString().trim();
+    out.add(ProductInfo(
+      key: key,
+      name: name,
+      tagline: tag.isEmpty ? 'Talk to an expert about the best offer for you.' : tag,
+      isPayday: false,
+      minAmount: asNum(m['minAmount'] ?? 0),
+      maxAmount: max,
+      upTo: max > 0 ? 'Up to ${formatMoney(max)}' : 'Talk to an expert',
+      facts: const ['Offers from our partner lenders', 'We introduce you, the partner lends', 'No obligation to take an offer'],
+      look: productLook(key, name),
+      cost: 'Set by the partner lender',
+      repay: 'Set by the partner lender',
+      audience: 'Customers who want an expert to compare offers',
+      badge: 'Partner',
+      leadKey: key,
+    ));
+  }
   return out;
 }
 
 void openProduct(BuildContext context, ProductInfo p) {
+  if (p.isLead) {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => LeadScreen(product: p)));
+    return;
+  }
   if (p.isPayday) {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PaydayScreen()));
     return;

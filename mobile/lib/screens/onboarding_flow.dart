@@ -24,6 +24,7 @@ Future<bool> verifyPhone(BuildContext context) async {
     builder: (_) => OtpScreen(
       maskedPhone: (sent['phone'] ?? '').toString(),
       sandboxOtp: sent['sandboxOtp']?.toString(),
+      via: sent['via']?.toString(),
       onVerified: () => nav.pop(true),
     ),
   ));

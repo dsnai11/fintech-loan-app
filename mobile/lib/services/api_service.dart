@@ -1,3 +1,4 @@
+import 'device_risk.dart';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io' show Platform;
@@ -30,6 +31,7 @@ class ApiService {
           // A random id made when the app is first opened. It tells us when one phone is used by several accounts.
           options.headers['X-Install-Id'] = await _installIdValue();
           options.headers['X-App-Version'] = kAppVersion;
+          options.headers['X-Device-Rooted'] = DeviceRisk.rooted ? '1' : '0';
           try { options.headers['X-Platform'] = Platform.isAndroid ? 'android' : Platform.isIOS ? 'ios' : 'other'; } catch (_) {}
           return handler.next(options);
         },
@@ -124,6 +126,33 @@ class ApiService {
     }
   }
 
+  // "Talk to an expert" for products partners provide
+  Future<String> getLeadConsent() async {
+    try {
+      final response = await _dio.get('/leads/consent');
+      return '${response.data['text'] ?? ''}';
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> submitLead({required String kind, int? amount, int? propertyValue, String? city, String? employment, String? note}) async {
+    try {
+      final response = await _dio.post('/leads', data: {
+        'kind': kind,
+        'consent': true,
+        if (amount != null) 'amount': amount,
+        if (propertyValue != null) 'propertyValue': propertyValue,
+        if (city != null && city.isNotEmpty) 'city': city,
+        if (employment != null && employment.isNotEmpty) 'employment': employment,
+        if (note != null && note.isNotEmpty) 'note': note,
+      });
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   // Employer names that start like what the customer has typed (names only)
   Future<List<String>> searchEmployers(String q) async {
     try {
@@ -136,9 +165,9 @@ class ApiService {
   }
 
   // Signing in from a phone the account has not used before: an SMS code proves the number
-  Future<Map<String, dynamic>> sendDeviceCode(String deviceToken) async {
+  Future<Map<String, dynamic>> sendDeviceCode(String deviceToken, {String? channel}) async {
     try {
-      final response = await _dio.post('/auth/device/send', data: {'deviceToken': deviceToken});
+      final response = await _dio.post('/auth/device/send', data: {'deviceToken': deviceToken, if (channel != null) 'channel': channel});
       return Map<String, dynamic>.from(response.data);
     } on DioException catch (e) {
       throw _handleError(e);
@@ -991,9 +1020,9 @@ class ApiService {
   }
 
   // Phone number check: a code is sent by SMS, then entered
-  Future<Map<String, dynamic>> sendOtp() async {
+  Future<Map<String, dynamic>> sendOtp({String? channel}) async {
     try {
-      final response = await _dio.post('/auth/phone/send');
+      final response = await _dio.post('/auth/phone/send', data: {if (channel != null) 'channel': channel});
       return response.data;
     } on DioException catch (e) {
       throw _handleError(e);

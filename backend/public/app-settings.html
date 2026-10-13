@@ -138,6 +138,8 @@ function render() {
       <div><label for="sec-lock">App PIN</label><select id="sec-lock" class="full"><option value="off" ${S.security.appLock === 'off' ? 'selected' : ''}>Off</option><option value="optional" ${S.security.appLock === 'optional' ? 'selected' : ''}>Customer can choose to set a PIN</option><option value="required" ${S.security.appLock === 'required' ? 'selected' : ''}>Every customer must set a PIN</option></select></div>
       <div><label for="sec-after">Ask for the PIN after the app was left for (seconds)</label><input id="sec-after" type="number" min="0" max="3600" value="${S.security.lockAfterSeconds}"></div>
       <div><label for="sec-idle">Sign out after this many idle minutes</label><input id="sec-idle" type="number" min="0" max="240" value="${S.security.idleLogoutMinutes}"></div>
+      <div style="grid-column: span 2"><label for="sec-root">Phones that look rooted or jailbroken</label><select id="sec-root" class="full"><option value="allow" ${S.security.rootedDevice !== 'block' ? 'selected' : ''}>Allow, and tell staff (a review item when they apply)</option><option value="block" ${S.security.rootedDevice === 'block' ? 'selected' : ''}>Do not let the app open on them</option></select><span class="note">The app looks for the files such phones leave behind. It can be fooled, and in rare cases it names a normal phone, so blocking turns some honest customers away. You can also add a rule of your own on "Phone looks rooted" (Decisions).</span></div>
+      <div style="grid-column: span 2"><label for="sec-otpch">Codes sent to the customer's phone</label><select id="sec-otpch" class="full"><option value="sms" ${S.security.otpChannel !== 'whatsapp_first' ? 'selected' : ''}>By SMS</option><option value="whatsapp_first" ${S.security.otpChannel === 'whatsapp_first' ? 'selected' : ''}>On WhatsApp first, SMS as the backup</option></select><span class="note">WhatsApp only works once a WhatsApp provider with an approved message template is connected (Integrations). Until then codes go by SMS, and the app never says WhatsApp.</span></div>
       <div style="grid-column: span 2"><label for="sec-newdev">Signing in from a new phone</label><select id="sec-newdev" class="full"><option value="off" ${S.security.newDevice !== 'otp' ? 'selected' : ''}>No extra check</option><option value="otp" ${S.security.newDevice === 'otp' ? 'selected' : ''}>Ask for an SMS code sent to the number on the account</option></select><span class="note">Needs an SMS provider (Integrations). Without one, customers on a new phone cannot sign in. The first phone a customer uses is never asked, and neither is anyone whose phone number was never verified.</span></div>
     </div>
   </div>
@@ -180,7 +182,7 @@ function collect() {
   out.banner = { enabled: $('b-on').checked, level: $('b-level').value, text: $('b-text').value };
   out.features = Object.fromEntries(FEATURES.map(([k]) => [k, $('f-' + k).checked]));
   out.maintenance = { enabled: $('m-on').checked, message: $('m-text').value };
-  out.security = { appLock: $('sec-lock').value, lockAfterSeconds: Number($('sec-after').value), idleLogoutMinutes: Number($('sec-idle').value), newDevice: $('sec-newdev').value };
+  out.security = { appLock: $('sec-lock').value, lockAfterSeconds: Number($('sec-after').value), idleLogoutMinutes: Number($('sec-idle').value), newDevice: $('sec-newdev').value, rootedDevice: $('sec-root').value, otpChannel: $('sec-otpch').value };
   out.minAppVersion = $('min-v').value.trim();
   return out;
 }

@@ -81,6 +81,19 @@ class AppSettings extends ChangeNotifier {
     return v is num ? v.toInt() : 15;
   }
 
+  // Products that partner lenders provide (home loan, loan against property), when the company has switched them on
+  List<Map<String, dynamic>> get marketplace {
+    final m = _data['marketplace'];
+    if (m is! List) return [];
+    return m.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+  }
+
+  // The company can stop the app opening on a phone that looks rooted or jailbroken
+  bool get blockRooted {
+    final s = _data['security'];
+    return s is Map && s['rootedDevice'] == 'block';
+  }
+
   String get minAppVersion => (_data['minAppVersion'] ?? '').toString();
   bool get updateRequired => minAppVersion.isNotEmpty && versionLess(kAppVersion, minAppVersion);
 

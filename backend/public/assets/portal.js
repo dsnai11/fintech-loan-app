@@ -66,6 +66,8 @@
     { href: 'charges.html', label: 'Charges', icon: 'tag', any: ['pricing.view'] },
     { href: 'app-settings.html', label: 'Customer app', icon: 'phoneapp', any: ['appsettings.edit'] },
     { href: 'home-layout.html', label: 'App home screen', icon: 'phoneapp', any: ['appsettings.edit'] },
+    { href: 'website-pages.html', label: 'Website pages', icon: 'banner', any: ['banners.edit'] },
+    { href: 'leads.html', label: 'Leads', icon: 'phone', any: ['support.view'] },
     { href: 'approvals.html', label: 'Approvals', icon: 'tick', any: ['changes.approve', 'pricing.edit', 'banners.edit'] },
     { href: 'nudges.html', label: 'Nudges', icon: 'chat', any: ['banners.edit'] },
     { href: 'offers.html', label: 'Offers tab', icon: 'tag', any: ['banners.edit'] },

@@ -13,9 +13,10 @@ import 'terms_screen.dart' show kDarkBg, kDarkCard, kDarkLine, kDarkMuted;
 class OtpScreen extends StatefulWidget {
   final String maskedPhone;
   final String? sandboxOtp;
+  final String? via; // 'whatsapp' or 'sms': how the first code was sent
   final VoidCallback? onVerified;
 
-  const OtpScreen({Key? key, required this.maskedPhone, this.sandboxOtp, this.onVerified}) : super(key: key);
+  const OtpScreen({Key? key, required this.maskedPhone, this.sandboxOtp, this.via, this.onVerified}) : super(key: key);
 
   @override
   State<OtpScreen> createState() => _OtpScreenState();
@@ -31,10 +32,12 @@ class _OtpScreenState extends State<OtpScreen> {
   int _wait = 30;
   Timer? _timer;
   String? _sandboxOtp;
+  String? _via;
 
   @override
   void initState() {
     super.initState();
+    _via = widget.via;
     _sandboxOtp = widget.sandboxOtp;
     _startTimer(30);
     _field.addListener(() => setState(() {}));
@@ -98,14 +101,15 @@ class _OtpScreenState extends State<OtpScreen> {
     }
   }
 
-  Future<void> _resend() async {
+  Future<void> _resend({String? channel}) async {
     setState(() {
       _resending = true;
       _error = null;
     });
     try {
-      final r = await context.read<ApiService>().sendOtp();
+      final r = await context.read<ApiService>().sendOtp(channel: channel);
       _field.clear();
+      _via = r['via']?.toString();
       _sandboxOtp = r['sandboxOtp']?.toString();
       _startTimer(((r['resendAfterSeconds'] as num?) ?? 30).toInt());
       if (_sandboxOtp != null) {
@@ -195,9 +199,18 @@ class _OtpScreenState extends State<OtpScreen> {
                   Text('Resend code in $_clock', style: const TextStyle(color: kDarkMuted, fontSize: 14))
                 else
                   GestureDetector(
-                    onTap: _resending ? null : _resend,
+                    onTap: _resending ? null : () => _resend(),
                     child: Text(_resending ? 'Sending...' : 'Send a new code', style: const TextStyle(color: kGreen, fontSize: 14.5, fontWeight: FontWeight.w700)),
                   ),
+                if (_via == 'whatsapp' && !_verifying) ...[
+                  const SizedBox(height: 14),
+                  const Text('The code was sent on WhatsApp.', style: TextStyle(color: kDarkMuted, fontSize: 13)),
+                  const SizedBox(height: 6),
+                  GestureDetector(
+                    onTap: _resending ? null : () => _resend(channel: 'sms'),
+                    child: const Text('Send it by SMS instead', style: TextStyle(color: kGreen, fontSize: 14, fontWeight: FontWeight.w700)),
+                  ),
+                ],
                 const Spacer(),
                 const Text('We will never ask you to share this code with anyone, including our staff.', style: TextStyle(color: kDarkMuted, fontSize: 12.5, height: 1.4)),
               ],

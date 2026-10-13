@@ -1,0 +1,81 @@
+import { check, section, connect, disconnect, finish, day } from '../lib.mjs';
+import User from '../../src/models/User.js';
+import Loan from '../../src/models/Loan.js';
+import AmlAlert from '../../src/models/AmlAlert.js';
+import DeviceBinding from '../../src/models/DeviceBinding.js';
+import { recordDevice, devicesOf } from '../../src/services/deviceService.js';
+import { evaluate, DEFAULTS, validateRules, decideLoan } from '../../src/services/decisionEngine.js';
+import { validateSettings, DEFAULTS as APP_DEFAULTS } from '../../src/services/appSettings.js';
+import { sendOtpMessage, whatsappFirst } from '../../src/services/smsService.js';
+import { PROVIDERS } from '../../src/services/whatsappService.js';
+import { sendCode } from '../../src/services/phoneVerification.js';
+import { setConfig } from '../../src/services/configService.js';
+
+const DB = 'fintech-test-device-risk';
+await connect(DB);
+const yearsAgo = n => new Date(Date.now() - n * 365.25 * 86400000);
+let n = 0;
+const mk = (over = {}) => { n++; return User.create({ firstName: `R${n}`, lastName: 'D', email: `risk${n}@x.in`, phone: `98300000${String(n).padStart(2, '0')}`, password: 'x12345678', kycStatus: 'approved', phoneVerified: true, dateOfBirth: yearsAgo(32), selfie: { status: 'passed' }, creditScore: 720, ...over }); };
+const req = (install, rooted) => ({ headers: { 'x-install-id': install, 'x-device-rooted': rooted, 'x-platform': 'android' }, ip: '10.0.0.1', socket: {} });
+const I1 = 'rooted-install-0001', I2 = 'clean-install-000002', I3 = 'rooted-install-0003';
+
+section('A ROOTED OR JAILBROKEN PHONE IS A SIGNAL, NOT A VERDICT');
+const u1 = await mk();
+await recordDevice(req(I1, '1'), u1._id, 'login');
+check('signing in from it records the flag but raises no alert', (await DeviceBinding.findOne({ userId: u1._id, installId: I1 })).rooted === true && (await AmlAlert.countDocuments({ userId: u1._id, rule: 'ROOTED_DEVICE' })) === 0);
+const r1 = await recordDevice(req(I1, '1'), u1._id, 'apply');
+check('applying for a loan from it raises a review item', r1.signals.includes('ROOTED_DEVICE') && (await AmlAlert.countDocuments({ userId: u1._id, rule: 'ROOTED_DEVICE', status: 'OPEN' })) === 1);
+await recordDevice(req(I1, '1'), u1._id, 'apply');
+check('the same alert is not raised twice', (await AmlAlert.countDocuments({ userId: u1._id, rule: 'ROOTED_DEVICE' })) === 1);
+const u2 = await mk();
+await recordDevice(req(I2, '0'), u2._id, 'apply');
+check('a normal phone raises nothing', (await AmlAlert.countDocuments({ userId: u2._id, rule: 'ROOTED_DEVICE' })) === 0 && (await DeviceBinding.findOne({ userId: u2._id })).rooted === false);
+await recordDevice({ headers: { 'x-install-id': I2 }, ip: '10.0.0.1', socket: {} }, u2._id, 'login');
+check('an older app that does not say anything is treated as normal', (await DeviceBinding.findOne({ userId: u2._id })).rooted === false);
+check('staff see it on the customer\'s phones', (await devicesOf(u1._id))[0].rooted === true);
+
+section('THE RULES CAN ACT ON IT');
+const clean = { amount: 10000, age: 32, kycApproved: true, phoneVerified: true, openAmlAlerts: 0, defaultedLoans: 0, openLoans: 0, overdueEmis: 0, repeatCustomer: false, bureauScore: 720, selfieStatus: 'passed', monthlyIncome: 50000, emi: 3000, rootedDevice: true };
+const rules = validateRules({ ...DEFAULTS, custom: [{ name: 'Rooted phone', field: 'rootedDevice', op: '=', value: true, result: 'refer', message: 'Phone looks modified' }] }).rules;
+check('a rule of your own can send it to a person', evaluate(rules, clean).outcome === 'REFER' && evaluate(rules, { ...clean, rootedDevice: false }).outcome === 'APPROVE');
+check('by itself it changes nothing', evaluate(DEFAULTS, clean).outcome === 'APPROVE');
+await setConfig('DECISION_RULES', JSON.stringify({ ...rules, mode: 'auto' }), { group: 'decisions' });
+const mkLoan = async u => { const loan = await Loan.create({ userId: u._id, loanAmount: 10000, tenure: 3, status: 'submitted', productKey: 'personal', monthlyEMI: 3500 }); await decideLoan(loan, u); return Loan.findById(loan._id); };
+const l1 = await mkLoan(u1);
+const l2 = await mkLoan(u2);
+check('a real application from a flagged phone waits for a person', l1.status === 'submitted' && l1.decision.outcome === 'REFER');
+check('and one from a normal phone is approved', l2.status === 'approved');
+await DeviceBinding.updateOne({ userId: u1._id }, { lastSeenAt: day(-60) });
+await AmlAlert.updateMany({ userId: u1._id }, { status: 'CLEARED' }); // the review item itself is separate from the rule
+check('an old flag (over 30 days) is forgotten', (await mkLoan(u1)).decision.outcome === 'APPROVE');
+
+section('SETTINGS');
+check('both switches start safe: allow and SMS', APP_DEFAULTS.security.rootedDevice === 'allow' && APP_DEFAULTS.security.otpChannel === 'sms');
+check('valid values are kept and bad ones fall back', validateSettings({ ...APP_DEFAULTS, security: { ...APP_DEFAULTS.security, rootedDevice: 'block', otpChannel: 'whatsapp_first' } }).settings.security.rootedDevice === 'block' && validateSettings({ ...APP_DEFAULTS, security: { ...APP_DEFAULTS.security, rootedDevice: 'x', otpChannel: 'y' } }).settings.security.otpChannel === 'sms');
+
+section('CODES ON WHATSAPP, WITH SMS AS THE BACKUP');
+const save = otpChannel => setConfig('APP_SETTINGS', JSON.stringify({ security: { ...APP_DEFAULTS.security, otpChannel } }), { group: 'app' });
+await save('whatsapp_first');
+check('with no WhatsApp provider connected it is never claimed', whatsappFirst() === false);
+const sent = [];
+PROVIDERS.fake = { send: async ({ to, text }) => { sent.push({ to, text }); } };
+await setConfig('WHATSAPP_PROVIDER', 'fake', { group: 'whatsapp' });
+check('with one connected and chosen, WhatsApp is first', whatsappFirst() === true);
+const viaWa = await sendOtpMessage('9830000099', '123456 is your code');
+check('the code goes on WhatsApp and says so', viaWa.sent === true && viaWa.via === 'whatsapp' && sent.length === 1 && sent[0].text.includes('123456'));
+const viaSms = await sendOtpMessage('9830000099', '123456 is your code', { channel: 'sms' });
+check('"send by SMS instead" skips WhatsApp', viaSms.via === 'sms' && sent.length === 1);
+PROVIDERS.fake = { send: async () => { throw new Error('template not approved'); } };
+const fallback = await sendOtpMessage('9830000099', '654321 is your code');
+check('if WhatsApp fails, SMS is tried', fallback.via === 'sms');
+PROVIDERS.fake = { send: async ({ to, text }) => { sent.push({ to, text }); } };
+const u3 = await mk({ phoneVerified: false });
+const body = (await sendCode(u3)).body;
+check('the phone check tells the app it went by WhatsApp and that SMS can be asked for', body.via === 'whatsapp' && body.canResendBySms === true && /WhatsApp/.test(body.message), JSON.stringify(body));
+const bySms = (await sendCode((await User.findById(u3._id)), { channel: 'sms' }));
+check('asking for SMS straight after is held by the wait between codes', bySms.status === 429);
+await save('sms');
+check('switched back to SMS, WhatsApp is not used', whatsappFirst() === false && (await sendOtpMessage('9830000099', '111111 is your code')).via === 'sms');
+
+await disconnect();
+finish();

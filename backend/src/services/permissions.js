@@ -116,6 +116,8 @@ const RULES = [
   [/^\/api\/admin\/decisions\/rules(\/|$)/, 'decisions.view', 'decisions.edit'],
   [/^\/api\/admin\/decisions\/products(\/|$)/, 'decisions.view', 'decisions.edit'],
   [/^\/api\/admin\/employers(\/|$)/, 'decisions.view', 'decisions.edit'],
+  [/^\/api\/admin\/leads(\/|$)/, 'support.view', 'support.reply'],
+  [/^\/api\/admin\/website(\/|$)/, 'banners.edit', 'banners.edit'],
   [/^\/api\/admin\/decisions(\/|$)/, 'decisions.view', 'decisions.view'],
   [/^\/api\/admin\/support(\/|$)/, 'support.view', 'support.reply'],
   [/^\/api\/admin\/callbacks(\/|$)/, 'support.view', 'support.view'], // changes are checked in the route

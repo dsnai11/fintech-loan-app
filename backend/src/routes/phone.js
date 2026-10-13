@@ -11,7 +11,7 @@ router.post('/send', async (req, res) => {
   try {
     const user = await User.findById(req.user.userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
-    const r = await sendCode(user);
+    const r = await sendCode(user, { channel: req.body?.channel === 'sms' ? 'sms' : undefined });
     res.status(r.status).json(r.body);
   } catch (e) {
     res.status(500).json({ error: e.message });

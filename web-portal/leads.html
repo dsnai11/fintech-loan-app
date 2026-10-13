@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%93%9E%3C/text%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Leads - LIFC Admin</title>
+<style>
+* { box-sizing: border-box; }
+.card { padding: 16px; margin-bottom: 14px; }
+.card h2 { margin: 0 0 4px; font-size: 15px; }
+.sub { font-size: 12px; color: var(--e-muted); margin-bottom: 12px; line-height: 1.6; }
+.note { font-size: 12px; color: var(--e-muted); }
+.alert { display: none; padding: 12px 16px; margin-bottom: 14px; white-space: pre-line; }
+.alert.show { display: block; }
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--e-muted); border-bottom: 1px solid var(--e-border); white-space: nowrap; }
+td { padding: 8px; border-bottom: 1px solid var(--e-border); vertical-align: top; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.tile { padding: 10px 14px; cursor: pointer; }
+.tile .l { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--e-muted); }
+.tile .v { font-size: 24px; font-weight: 800; }
+.tile.on { outline: 2px solid var(--e-primary); }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; align-items: end; }
+.grid input, .grid select { width: 100%; }
+.prod { border: 1px solid var(--e-border); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+.tag { font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 20px; background: var(--e-surface-2); border: 1px solid var(--e-border); }
+</style>
+<link rel="stylesheet" href="assets/portal.css">
+</head>
+<body data-shell="app" data-title="Leads" data-sub="People who asked to be called: from the website pages, and from the app for products your partners provide.">
+<div class="container">
+  <div id="alert" class="alert" role="alert"></div>
+  <div class="tabs"><button id="tab-leads" class="on" onclick="show('leads')">Requests</button><button id="tab-prod" onclick="show('prod')">Partner products</button></div>
+  <div id="v-leads"></div>
+  <div id="v-prod" style="display:none"></div>
+</div>
+<script>
+const API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
+const token = localStorage.getItem('admin_token');
+if (!token) location.href = 'admin-config.html';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const money = n => n ? '₹' + Math.round(n).toLocaleString('en-IN') : '';
+const when = d => new Date(d).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+const LABEL = { new: 'New', contacted: 'Contacted', with_partner: 'With a partner', won: 'Won', lost: 'Lost' };
+let D = null, S = null, filter = { status: '', kind: '', q: '' };
+function msg(text, kind) { const a = $('alert'); a.textContent = text; a.className = 'alert show ' + (kind === 'ok' ? 'ok' : 'err'); window.scrollTo({ top: 0, behavior: 'smooth' }); if (kind === 'ok') setTimeout(() => a.classList.remove('show'), 5000); }
+async function api(path, method = 'GET', body) {
+  const r = await fetch(API + path, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.errors ? d.errors.join('\n') : d.error || 'Something went wrong');
+  return d;
+}
+function show(t) { for (const k of ['leads', 'prod']) { $('v-' + k).style.display = k === t ? '' : 'none'; $('tab-' + k).classList.toggle('on', k === t); } if (t === 'prod') loadProd(); }
+const qs = () => Object.entries(filter).filter(([, v]) => v).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
+
+async function loadLeads() {
+  try { D = await api('/admin/leads' + (qs() ? '?' + qs() : '')); drawLeads(); } catch (e) { msg(e.message, 'err'); }
+}
+function drawLeads() {
+  const dis = D.canEdit ? '' : 'disabled';
+  $('v-leads').innerHTML = `
+    <div class="tiles">${D.statuses.map(s => `<div class="card tile ${filter.status === s ? 'on' : ''}" onclick="setStatus('${s}')"><div class="l">${LABEL[s]}</div><div class="v">${D.counts[s] || 0}</div></div>`).join('')}</div>
+    <div class="card"><div class="row">
+      <input id="q" placeholder="Name, number or city" value="${esc(filter.q)}" style="max-width:240px">
+      <select id="kind"><option value="">All products</option>${D.kinds.map(k => `<option value="${esc(k)}" ${filter.kind === k ? 'selected' : ''}>${esc(k)}</option>`).join('')}</select>
+      <button class="btn" onclick="applyFilter()">Search</button><button class="btn" onclick="clearFilter()">Clear</button><button class="btn" onclick="exportCsv()">Download as a spreadsheet</button>
+    </div></div>
+    <div class="card scroll"><table><thead><tr><th>When</th><th>Who</th><th>Wants</th><th>Status</th><th>Partner</th><th>Add a note</th><th></th></tr></thead><tbody>
+    ${D.leads.map((l, i) => `<tr><td>${when(l.createdAt)}<div class="note">${esc(l.source === 'web' ? 'website' + (l.page ? ': ' + l.page : '') : 'app customer')}</div></td>
+      <td><b>${esc(l.name)}</b><div>${esc(l.phone)}</div><div class="note">${esc([l.city, l.employment].filter(Boolean).join(' · '))}</div></td>
+      <td>${esc(l.kind)}<div>${money(l.amount)}</div>${l.propertyValue ? `<div class="note">property ${money(l.propertyValue)}</div>` : ''}${l.note ? `<div class="note">"${esc(l.note)}"</div>` : ''}</td>
+      <td><select id="st-${i}" ${dis}>${D.statuses.map(s => `<option value="${s}" ${l.status === s ? 'selected' : ''}>${LABEL[s]}</option>`).join('')}</select></td>
+      <td><input id="pt-${i}" value="${esc(l.partner)}" placeholder="Partner" maxlength="80" style="width:150px" ${dis}></td>
+      <td><input id="nt-${i}" placeholder="Note" maxlength="300" style="width:190px" ${dis}>${l.notes.length ? `<div class="note" style="margin-top:4px">${l.notes.slice(-2).map(n => esc(n.text)).join('<br>')}</div>` : ''}</td>
+      <td><button class="btn primary" onclick="saveLead(${i})" ${dis}>Save</button></td></tr>`).join('') || '<tr><td colspan="7" class="note">No requests yet.</td></tr>'}
+    </tbody></table></div>`;
+}
+function setStatus(s) { filter.status = filter.status === s ? '' : s; loadLeads(); }
+function applyFilter() { filter.q = $('q').value.trim(); filter.kind = $('kind').value; loadLeads(); }
+function clearFilter() { filter = { status: '', kind: '', q: '' }; loadLeads(); }
+async function saveLead(i) {
+  const l = D.leads[i];
+  try { await api('/admin/leads/' + l.id, 'PUT', { status: $('st-' + i).value, partner: $('pt-' + i).value, note: $('nt-' + i).value }); msg('Saved.', 'ok'); loadLeads(); } catch (e) { msg(e.message, 'err'); }
+}
+async function exportCsv() {
+  try {
+    const r = await fetch(API + '/admin/leads/export/csv' + (qs() ? '?' + qs() : ''), { headers: { Authorization: 'Bearer ' + token } });
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'Could not download');
+    const a = document.createElement('a'); a.href = URL.createObjectURL(await r.blob()); a.download = 'leads.csv'; a.click(); URL.revokeObjectURL(a.href);
+  } catch (e) { msg(e.message, 'err'); }
+}
+
+// ── Partner products ──
+const PRESETS = { home_loan: { name: 'Home Loan', tagline: 'Compare offers from our partner banks and housing finance companies', minAmount: 300000, maxAmount: 150000000 }, lap: { name: 'Loan Against Property', tagline: 'Borrow against a property in your name, through our partners', minAmount: 100000, maxAmount: 50000000 } };
+async function loadProd() { try { S = (await api('/app-settings/admin')).settings; drawProd(); } catch (e) { msg(e.message, 'err'); } }
+function prodRow(m, i) {
+  return `<div class="prod"><div class="grid">
+    <div><label for="m${i}-name">Name customers see</label><input id="m${i}-name" value="${esc(m.name)}" maxlength="60"></div>
+    <div style="grid-column: span 2"><label for="m${i}-tag">One line under it</label><input id="m${i}-tag" value="${esc(m.tagline)}" maxlength="140"></div>
+    <div><label for="m${i}-min">Smallest amount (₹)</label><input id="m${i}-min" type="number" value="${esc(m.minAmount ?? '')}"></div>
+    <div><label for="m${i}-max">Largest amount (₹)</label><input id="m${i}-max" type="number" value="${esc(m.maxAmount ?? '')}"></div>
+    <div><label style="display:flex;gap:8px;align-items:center;margin:0"><input type="checkbox" id="m${i}-on" ${m.enabled ? 'checked' : ''}> Show in the app</label></div>
+    <div><button class="btn" onclick="removeProd(${i})">Remove</button></div></div></div>`;
+}
+function drawProd() {
+  $('v-prod').innerHTML = `<div class="card"><h2>Products your partners provide</h2><div class="sub">For loans you do not lend yourself, such as a home loan. The customer asks to be called, and your team passes the request to a partner (use the Requests tab). The app tells the customer that you introduce the loan and the partner lends it. Check the wording and your partner agreements with compliance before switching one on.</div>
+    <div id="prods">${S.marketplace.map(prodRow).join('') || '<div class="note">None yet.</div>'}</div>
+    <div class="row" style="margin-top:10px"><button class="btn" onclick="addProd('home_loan')">Add Home Loan</button><button class="btn" onclick="addProd('lap')">Add Loan Against Property</button><button class="btn" onclick="addProd('')">Add another</button></div>
+    <div class="row" style="margin-top:14px"><button class="btn primary" onclick="saveProd()">Save</button><span class="note">The apps pick this up the next time they open.</span></div></div>`;
+}
+function collectProd() { return S.marketplace.map((_, i) => ({ name: $(`m${i}-name`).value, tagline: $(`m${i}-tag`).value, minAmount: $(`m${i}-min`).value, maxAmount: $(`m${i}-max`).value, enabled: $(`m${i}-on`).checked })); }
+function addProd(k) { S.marketplace = collectProd(); S.marketplace.push({ ...(PRESETS[k] || { name: '', tagline: '' }), enabled: false }); drawProd(); }
+function removeProd(i) { S.marketplace = collectProd(); S.marketplace.splice(i, 1); drawProd(); }
+async function saveProd() { try { const d = await api('/app-settings/admin', 'PUT', { marketplace: collectProd() }); S = d.settings; drawProd(); msg(d.message, 'ok'); } catch (e) { msg(e.message, 'err'); } }
+loadLeads();
+</script>
+<script src="assets/portal.js"></script>
+</body>
+</html>

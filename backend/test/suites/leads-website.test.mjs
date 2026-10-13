@@ -1,0 +1,138 @@
+import { check, section, connect, disconnect, startServer, finish, makeAdmin, tokenFor, client } from '../lib.mjs';
+import User from '../../src/models/User.js';
+import Lead from '../../src/models/Lead.js';
+import Role from '../../src/models/Role.js';
+import AuditLog from '../../src/models/AuditLog.js';
+import { getPolicy, computeQuote } from '../../src/services/pricingPolicy.js';
+
+
+const DB = 'fintech-test-leads-website';
+await connect(DB);
+await Role.create([{ key: 'supview', label: 'V', description: 't', permissions: ['support.view'] }]);
+const srv = await startServer(DB);
+const call = client(srv.base);
+const origin = srv.base.replace('/api', '');
+const get = path => fetch(origin + path);
+const { token: admin } = await makeAdmin();
+const cust = await User.create({ firstName: 'Anita', lastName: 'Rao', email: 'anita@x.in', phone: '9876543210', password: 'x12345678', kycStatus: 'approved', phoneVerified: true });
+const ct = await tokenFor(cust);
+const enableMarket = async list => {
+  const cur = (await call('GET', '/app-settings/admin', admin)).d.settings;
+  return call('PUT', '/app-settings/admin', admin, { marketplace: list, products: cur.products });
+};
+
+section('PRODUCTS THAT PARTNERS PROVIDE');
+check('none are on by default', (await call('GET', '/app-settings')).d.marketplace.length === 0);
+check('a request for a product that is not on is refused', (await call('POST', '/leads', ct, { kind: 'home_loan', consent: true })).s === 400);
+const put = await enableMarket([{ name: 'Home Loan', enabled: true, tagline: 'Through our partner banks', minAmount: 300000, maxAmount: 15000000 }, { name: 'Loan Against Property', enabled: false, tagline: 'x' }]);
+check('staff can switch a product on', put.s === 200, JSON.stringify(put.d));
+const pub = (await call('GET', '/app-settings')).d.marketplace;
+check('the app is told only about products that are on, with a tidy key', pub.length === 1 && pub[0].key === 'home_loan' && pub[0].name === 'Home Loan' && pub[0].maxAmount === 15000000, JSON.stringify(pub));
+check('a bad amount is refused', (await enableMarket([{ name: 'Gold', enabled: true, minAmount: 5 }])).s === 400);
+check('the same name twice is refused', (await enableMarket([{ name: 'Home Loan' }, { name: 'home loan' }])).s === 400);
+await enableMarket([{ name: 'Home Loan', enabled: true, tagline: 'Through our partner banks' }, { name: 'Loan Against Property', enabled: false, tagline: 'x' }]);
+
+section('A CUSTOMER ASKS TO BE CALLED');
+check('without ticking the agreement it is refused', (await call('POST', '/leads', ct, { kind: 'home_loan', amount: 2500000, city: 'Pune' })).s === 400);
+check('a product that is off is refused', (await call('POST', '/leads', ct, { kind: 'lap', consent: true })).s === 400);
+check('a tiny amount is refused', (await call('POST', '/leads', ct, { kind: 'home_loan', consent: true, amount: 50 })).s === 400);
+const a = await call('POST', '/leads', ct, { kind: 'home_loan', consent: true, amount: 2500000, propertyValue: 4000000, city: 'Pune', employment: 'Salaried', note: 'Prefer evening calls' });
+check('it is saved (201)', a.s === 201, JSON.stringify(a.d));
+const lead = await Lead.findOne({ kind: 'home_loan' });
+check('name and number come from the account, and the agreement wording and time are kept', lead.name === 'Anita Rao' && lead.phone === '9876543210' && lead.source === 'app' && /may call, SMS or WhatsApp/.test(lead.consentText) && !!lead.consentAt && String(lead.userId) === String(cust._id) && lead.status === 'new');
+const again = await call('POST', '/leads', ct, { kind: 'home_loan', consent: true, amount: 2500000 });
+check('asking again the same day is one request, not two', again.s === 200 && (await Lead.countDocuments({ kind: 'home_loan' })) === 1);
+check('signing in is needed', (await call('POST', '/leads', null, { kind: 'home_loan', consent: true })).s === 401);
+check('the customer can read the wording before agreeing', /LIFC/.test((await call('GET', '/leads/consent', ct)).d.text));
+
+section('A VISITOR ON THE WEBSITE ASKS TO BE CALLED');
+const web = body => call('POST', '/public/leads', null, body);
+check('no agreement: refused', (await web({ name: 'Ravi', phone: '9812345678' })).s === 400);
+check('a bad mobile number is refused', (await web({ name: 'Ravi', phone: '12345', consent: true })).s === 400);
+check('a missing name is refused', (await web({ name: '', phone: '9812345678', consent: true })).s === 400);
+const bot = await web({ name: 'Bot', phone: '9812345670', consent: true, website: 'http://spam' });
+check('a bot filling the hidden field gets thanks and nothing is kept', bot.s === 200 && !(await Lead.findOne({ phone: '9812345670' })));
+const ok = await web({ name: 'Ravi Kumar', phone: '+91 98123 45678', consent: true, amount: 100000, page: '1-lakh-personal-loan' });
+check('a real request is saved, with the number tidied and the page noted', ok.s === 201 && (await Lead.findOne({ phone: '9812345678' })).page === '1-lakh-personal-loan' && (await Lead.findOne({ phone: '9812345678' })).source === 'web');
+let last = 0;
+for (let i = 0; i < 6; i++) last = (await web({ name: `Visitor ${i}`, phone: `98123456${String(i).padStart(2, '0')}`, consent: true })).s;
+check('one connection cannot flood the queue (429 after a few)', last === 429, String(last));
+check('the raw internet address is never stored', !(await Lead.findOne({ phone: '9812345678' })).ipHash.includes('.'));
+
+section('THE STAFF QUEUE');
+const list = await call('GET', '/admin/leads', admin);
+check('staff see the requests with counts per status', list.s === 200 && list.d.leads.length >= 2 && list.d.counts.new >= 2 && list.d.kinds.includes('home_loan'));
+check('a search finds a person by the start of the name or number', (await call('GET', '/admin/leads?q=anita', admin)).d.leads.length === 1 && (await call('GET', '/admin/leads?q=98123456', admin)).d.leads.length >= 1);
+check('and a filter by product', (await call('GET', '/admin/leads?kind=home_loan', admin)).d.leads.every(l => l.kind === 'home_loan'));
+const id = list.d.leads.find(l => l.kind === 'home_loan').id;
+check('passing it to a partner needs the partner named (400)', (await call('PUT', `/admin/leads/${id}`, admin, { status: 'with_partner' })).s === 400);
+const upd = await call('PUT', `/admin/leads/${id}`, admin, { status: 'with_partner', partner: 'Example Housing Finance', note: 'Sent the details on email' });
+check('status, partner and a note are saved, with who wrote the note', upd.s === 200 && upd.d.lead.status === 'with_partner' && upd.d.lead.partner === 'Example Housing Finance' && upd.d.lead.notes.length === 1 && /admin@lifc.in/.test(upd.d.lead.notes[0].by));
+check('an unknown status is refused', (await call('PUT', `/admin/leads/${id}`, admin, { status: 'maybe' })).s === 400);
+check('the change is in the audit log', !!(await AuditLog.findOne({ action: 'LEAD_UPDATED' })));
+await Lead.create({ kind: 'personal', source: 'web', name: '=HYPERLINK("http://x")', phone: '9811111111', consentAt: new Date(), consentText: 'x', ipHash: 'z' });
+const csv = await fetch(`${srv.base}/admin/leads/export/csv`, { headers: { Authorization: `Bearer ${admin}` } });
+const text = await csv.text();
+check('the spreadsheet export has a header and the rows', csv.status === 200 && /text\/csv/.test(csv.headers.get('content-type')) && text.split('\r\n')[0].includes('Phone') && text.includes('Anita Rao'));
+check('a name that starts like a formula cannot run in a spreadsheet', text.includes('"\'=HYPERLINK'));
+const viewer = await User.create({ firstName: 'Su', lastName: 'View', email: 'sup@x.in', phone: '9822222222', password: 'x12345678', role: 'supview', twoFactorEnabled: true });
+const vt = await tokenFor(viewer);
+check('a viewer can look but not change (403)', (await call('GET', '/admin/leads', vt)).s === 200 && (await call('PUT', `/admin/leads/${id}`, vt, { status: 'won' })).s === 403);
+check('a customer cannot open the queue', [401, 403].includes((await call('GET', '/admin/leads', ct)).s));
+
+section('THE WEBSITE PAGES ARE OFF UNTIL SWITCHED ON');
+check('a page is not found while the site is off', (await get('/loan/1-lakh-personal-loan')).status === 404);
+check('and neither are the index, the site map or robots.txt', (await get('/loan')).status === 404 && (await get('/sitemap.xml')).status === 404 && (await get('/robots.txt')).status === 404);
+const site = (await call('GET', '/admin/website', admin)).d;
+check('staff see the standard pages, all off until the whole site is on', site.config.enabled === false && site.config.pages.length === 5 && site.config.pages.every(p => p.enabled));
+
+section('SWITCHING THEM ON');
+check('a link that is not https is refused', (await call('PUT', '/admin/website', admin, { ...site.config, links: { android: 'http://x', ios: '', web: '' } })).s === 400);
+check('a bad address part is refused', (await call('PUT', '/admin/website', admin, { ...site.config, pages: [{ ...site.config.pages[0], slug: 'Bad Slug!' }] })).s === 400);
+check('the same address twice is refused', (await call('PUT', '/admin/website', admin, { ...site.config, pages: [site.config.pages[0], site.config.pages[0]] })).s === 400);
+check('an example amount that is not a whole number is refused', (await call('PUT', '/admin/website', admin, { ...site.config, pages: [{ ...site.config.pages[0], amount: 10.5 }] })).s === 400);
+const pages = site.config.pages.map(p => (p.slug === '10000-rupees-personal-loan' ? { ...p, enabled: false } : p));
+pages.push({ slug: 'tricky-page', product: 'personal', amount: 20000, enabled: true, title: 'Tricky <script>alert(1)</script>', h1: 'Heading "quoted" & <b>bold</b>', intro: 'Intro' });
+pages.push({ slug: 'huge-loan', product: 'personal', amount: 9000000, enabled: true, title: 'Huge', h1: 'Huge loan', intro: 'Beyond what we lend' });
+const on = await call('PUT', '/admin/website', admin, { enabled: true, baseUrl: 'https://www.example.in', links: { android: 'https://play.google.com/store/apps/details?id=x', ios: 'https://apps.apple.com/app/x', web: '' }, pages });
+check('the site can be switched on', on.s === 200 && /live/.test(on.d.message), JSON.stringify(on.d));
+check('it is in the audit log', !!(await AuditLog.findOne({ action: 'WEBSITE_PAGES_UPDATED' })));
+
+section('WHAT A PAGE SHOWS');
+const res = await get('/loan/1-lakh-personal-loan');
+const html = await res.text();
+const q = computeQuote(getPolicy(), { amount: 100000, planType: 'standard', tenureMonths: Math.min(getPolicy().maxTenureMonths, 12) }, {});
+check('the page is served as HTML', res.status === 200 && /text\/html/.test(res.headers.get('content-type')) && html.includes('<h1>'));
+check('it has the heading, a title, a description, a canonical address on the company\'s own domain', html.includes('Rs 1 lakh personal loan') && /<meta name="description"/.test(html) && html.includes('rel="canonical" href="https://www.example.in/loan/1-lakh-personal-loan"'));
+check('the worked example uses the real pricing: the same EMI and yearly cost as the app would show', html.includes(`Rs ${q.emi.toLocaleString('en-IN')}`) && html.includes(`${q.aprPercent}%`) && html.includes('A worked example'), `${q.emi} ${q.aprPercent}`);
+check('it says the example is only an example and that the offer depends on the person', /depend on your income and credit record/.test(html));
+check('app links show when set, and a missing one is not invented', html.includes('Get it on Android') && html.includes('Get it on iPhone') && !html.includes('Open in your browser'));
+check('the form carries the agreement wording and a hidden bot trap', /may call, SMS or WhatsApp/.test(html) && /class="hp"/.test(html));
+check('search engines get structured answers (FAQ)', html.includes('"@type":"FAQPage"'));
+check('it brings in no outside scripts, images or fonts', !/<script[^>]+src=/.test(html) && !/https?:\/\/(?!www\.example\.in|play\.google|apps\.apple|schema\.org|www\.w3\.org)/.test(html.replace(/https:\/\/schema\.org|http:\/\/www\.sitemaps\.org/g, '')));
+check('the same security headers apply to it', /default-src 'self'/.test(res.headers.get('content-security-policy') || ''));
+check('a page switched off is not found', (await get('/loan/10000-rupees-personal-loan')).status === 404);
+check('an unknown page is not found', (await get('/loan/nope')).status === 404);
+const tricky = await (await get('/loan/tricky-page')).text();
+check('words typed in the portal cannot inject script into a page', !tricky.includes('<script>alert(1)') && tricky.includes('&lt;script&gt;alert(1)') && tricky.includes('&quot;quoted&quot; &amp; &lt;b&gt;bold&lt;/b&gt;'));
+const huge = await (await get('/loan/huge-loan')).text();
+check('an amount the product does not lend has no example, instead of a made-up one', !huge.includes('A worked example'));
+check('the payday page is not found while the payday advance is off', (await get('/loan/salary-advance-loan')).status === 404);
+
+section('THE PAYDAY PAGE, THE INDEX, THE SITE MAP');
+await call('PUT', '/admin/payday/settings', admin, { enabled: true, minAmount: 1000, maxAmount: 25000, maxIncomePercent: 50, feePercent: 4, minDaysToPayday: 5, repayDaysAfterSalary: 1, requireVerifiedIncome: false, requireSalaried: true });
+const pd = await get('/loan/salary-advance-loan');
+const pdHtml = await pd.text();
+check('once the payday advance is on, its page shows the flat fee example', pd.status === 200 && pdHtml.includes('One flat fee, with GST') && pdHtml.includes('Rs 472') && pdHtml.includes('Rs 9,528'), pdHtml.slice(pdHtml.indexOf('worked example') - 20, pdHtml.indexOf('worked example') + 400));
+const index = await (await get('/loan')).text();
+check('the index lists the pages that are on and not the ones that are off', index.includes('/loan/1-lakh-personal-loan') && index.includes('/loan/salary-advance-loan') && !index.includes('10000-rupees'));
+const map = await (await get('/sitemap.xml')).text();
+check('the site map lists the same pages on the company\'s own address', map.includes('<loc>https://www.example.in/loan/1-lakh-personal-loan</loc>') && !map.includes('10000-rupees') && map.includes('<loc>https://www.example.in/loan</loc>'));
+const robots = await (await get('/robots.txt')).text();
+check('robots.txt keeps the API out and points to the site map', /Disallow: \/api\//.test(robots) && /Sitemap: https:\/\/www\.example\.in\/sitemap\.xml/.test(robots));
+check('the portal can switch the whole site off again', (await call('PUT', '/admin/website', admin, { ...(await call('GET', '/admin/website', admin)).d.config, enabled: false })).s === 200 && (await get('/loan/1-lakh-personal-loan')).status === 404);
+check('customers cannot change the pages', [401, 403].includes((await call('PUT', '/admin/website', ct, {})).s));
+
+srv.stop();
+await disconnect();
+finish();
