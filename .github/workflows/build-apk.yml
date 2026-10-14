@@ -144,8 +144,9 @@ jobs:
       # instead of fetched from Google (so the server's content policy can stay strict).
       run: cd mobile && flutter build web --release --base-href /app/ --pwa-strategy=none --no-web-resources-cdn
 
-    - name: Save the web app into the backend
+    - name: Save the web app into the backend (needs GitHub Actions to have write permission on the repository)
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      continue-on-error: true
       run: |
         rm -rf backend/public/app
         mkdir -p backend/public/app
