@@ -160,7 +160,7 @@ jobs:
         else
           git commit -m "Web app build [skip ci]"
           # Show the reason in the run summary if saving fails (most often: Actions has no write permission on the repository)
-          if ! (git pull --rebase origin main && git push origin HEAD:main) 2>&1 | tee push.log; then :; fi
+          if ! (git pull --rebase --autostash origin main && git push origin HEAD:main) 2>&1 | tee push.log; then :; fi
           if [ "${PIPESTATUS[0]}" != "0" ] || grep -qiE "fatal|denied|error" push.log; then
             while read -r line; do echo "::error::${line:0:300}"; done < <(tail -n 6 push.log)
             exit 1
