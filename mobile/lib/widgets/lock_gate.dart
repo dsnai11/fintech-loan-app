@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:async';
 import 'package:flutter/material.dart' hide Text;
 import 'package:provider/provider.dart';
@@ -76,7 +77,8 @@ class _LockGateState extends State<LockGate> with WidgetsBindingObserver {
     final lock = context.watch<AppLock>();
     final mode = context.watch<AppSettings>().appLockMode;
     Widget? overlay;
-    if (auth.isAuthenticated && mode != 'off') {
+    // On the website people sign in with their email and password only; the PIN is for the phone app
+    if (!kIsWeb && auth.isAuthenticated && mode != 'off') {
       if (lock.pinSet && lock.locked) {
         overlay = _EnterPin(onForgot: _signOut);
       } else if (!lock.pinSet && mode == 'required') {
@@ -272,7 +274,7 @@ class AppLockRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final mode = context.watch<AppSettings>().appLockMode;
     final lock = context.watch<AppLock>();
-    if (mode == 'off') return const SizedBox.shrink();
+    if (kIsWeb || mode == 'off') return const SizedBox.shrink();
     return Column(children: [_pinCard(context, lock, mode), if (lock.pinSet) const _BiometricRow()]);
   }
 
