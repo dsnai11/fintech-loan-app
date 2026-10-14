@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <base href="/app/">
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="LIFC - Laxmi India Finance. Apply for a loan online, see every charge first, and manage your loans.">
+  <meta name="theme-color" content="#7B0000">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="LIFC">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <link rel="icon" type="image/png" href="favicon.png"/>
+  <title>LIFC - Laxmi India Finance</title>
+  <link rel="manifest" href="manifest.json">
+  <style>
+    html, body { margin: 0; height: 100%; background: #FAF6F6; }
+    /* Shown while the app is loading */
+    #boot { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+            background: linear-gradient(135deg, #7B0000, #9B1B30); color: #fff; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    #boot b { font-size: 34px; letter-spacing: 3px; }
+    #boot span { font-size: 15px; opacity: .85; }
+    #boot i { width: 26px; height: 26px; border: 3px solid rgba(255,255,255,.35); border-top-color: #fff; border-radius: 50%; animation: spin 0.9s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+  <script>
+    const serviceWorkerVersion = "3456336996";
+  </script>
+  <script src="flutter.js" defer></script>
+</head>
+<body>
+  <div id="boot"><b>LIFC</b><span>Laxmi India Finance</span><i></i></div>
+  <script>
+    window.addEventListener('load', function () {
+      _flutter.loader.loadEntrypoint({
+        onEntrypointLoaded: function (engineInitializer) {
+          engineInitializer.initializeEngine().then(function (appRunner) {
+            appRunner.runApp();
+            // The app has drawn its first screen: take the loading cover away
+            var boot = document.getElementById('boot');
+            if (boot) setTimeout(function () { boot.remove(); }, 600);
+          });
+        }
+      });
+    });
+  </script>
+</body>
+</html>

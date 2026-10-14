@@ -1,0 +1,36 @@
+{
+    "name": "LIFC - Laxmi India Finance",
+    "short_name": "LIFC",
+    "start_url": ".",
+    "scope": ".",
+    "display": "standalone",
+    "background_color": "#7B0000",
+    "theme_color": "#7B0000",
+    "description": "Apply for a loan online, see every charge first, and manage your loans.",
+    "orientation": "portrait-primary",
+    "prefer_related_applications": false,
+    "icons": [
+        {
+            "src": "icons/Icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-maskable-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "icons/Icon-maskable-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ]
+}
