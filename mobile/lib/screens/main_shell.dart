@@ -11,6 +11,9 @@ import 'pay_hub_screen.dart';
 import 'loan_history_screen.dart';
 import 'profile_screen.dart';
 import 'support_screen.dart';
+import '../services/web_nav.dart';
+import '../utils/responsive.dart';
+import '../widgets/web_nav.dart';
 
 // The signed-in app: five tabs along the bottom (home, offers, pay, my loans, profile). Messages open from the home header and
 // shortcuts. Everything else opens on top of it.
@@ -29,11 +32,19 @@ class _MainShellState extends State<MainShell> {
   void initState() {
     super.initState();
     Future.microtask(_refreshOffers);
+    WebNav.tab.value = _tab;
+    WebNav.tab.addListener(_fromWebNav);
     NotificationWatcher.instance.start(context.read<ApiService>(), _banner);
+  }
+
+  // The website's top menu asked for another section
+  void _fromWebNav() {
+    if (WebNav.tab.value != _tab) _select(WebNav.tab.value);
   }
 
   @override
   void dispose() {
+    WebNav.tab.removeListener(_fromWebNav);
     NotificationWatcher.instance.stop();
     super.dispose();
   }
@@ -86,6 +97,7 @@ class _MainShellState extends State<MainShell> {
   void _select(int tab) {
     final leftOffers = _tab == 1 && tab != 1;
     setState(() { _tab = tab; if (tab == 1) _newOffers = 0; });
+    if (WebNav.tab.value != tab) WebNav.tab.value = tab;
     if (leftOffers || tab == 0) _refreshOffers();
   }
 
@@ -100,6 +112,16 @@ class _MainShellState extends State<MainShell> {
       _tab == 3 ? const LoanHistoryScreen(embedded: true) : const SizedBox.shrink(),
       _tab == 4 ? const ProfileScreen(embedded: true) : const SizedBox.shrink(),
     ];
+    // On the website: the top menu, with the section underneath in the middle of the page
+    if (isWide(context)) {
+      return Scaffold(
+        backgroundColor: kBg,
+        body: Column(children: [
+          WebTopNav(active: _tab),
+          Expanded(child: Align(alignment: Alignment.topCenter, child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: kWebContentMax), child: IndexedStack(index: _tab, children: pages)))),
+        ]),
+      );
+    }
     return Scaffold(
       body: IndexedStack(index: _tab, children: pages),
       bottomNavigationBar: NavigationBar(

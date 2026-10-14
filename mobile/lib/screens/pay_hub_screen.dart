@@ -9,6 +9,7 @@ import '../widgets/ui_kit.dart';
 import 'loan_detail_screen.dart';
 import 'pay_options_screen.dart';
 import 'products_screen.dart';
+import '../utils/responsive.dart';
 
 // The Pay tab: what is due, across every loan, and the quickest way to pay it.
 class PayHubScreen extends StatefulWidget {
@@ -94,6 +95,7 @@ class _PayHubScreenState extends State<PayHubScreen> {
     final overdueTotal = overdue.fold<num>(0, (a, d) => a + d.amount);
     final soonTotal = soon.fold<num>(0, (a, d) => a + d.amount);
     final next = _dues.isEmpty ? null : _dues.first;
+    if (isWide(context)) return _wideBuild(overdue, soon, overdueTotal, soonTotal, next);
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(statusBarColor: kNavy, statusBarIconBrightness: Brightness.light, statusBarBrightness: Brightness.dark),
       child: Scaffold(
@@ -112,6 +114,58 @@ class _PayHubScreenState extends State<PayHubScreen> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _statCard(String label, String value, String note, Color tone) => AppCard(
+        padding: const EdgeInsets.all(20),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label, style: const TextStyle(color: kMuted, fontSize: 12.5, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 6),
+          Text(value, style: TextStyle(color: tone, fontSize: 28, fontWeight: FontWeight.w800, height: 1.1)),
+          const SizedBox(height: 4),
+          Text(note, style: const TextStyle(color: kMuted, fontSize: 12)),
+        ]),
+      );
+
+  Widget _wideBuild(List<_Due> overdue, List<_Due> soon, num overdueTotal, num soonTotal, _Due? next) {
+    final hasOverdue = overdueTotal > 0;
+    return Scaffold(
+      backgroundColor: kBg,
+      body: RefreshIndicator(
+        color: kNavy,
+        onRefresh: _load,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(32, 32, 32, 40),
+          children: [
+            const Text('Pay', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: kInk)),
+            const SizedBox(height: 4),
+            const Text('Your instalments, in one place.', style: TextStyle(fontSize: 14.5, color: kMuted)),
+            const SizedBox(height: 24),
+            if (_loading) _skeleton()
+            else if (_error != null) _errorBox()
+            else if (_dues.isEmpty) Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 480), child: _allClear()))
+            else ...[
+              Row(children: [
+                Expanded(child: _statCard('Overdue', hasOverdue ? formatMoney(overdueTotal) : '₹0', hasOverdue ? '${overdue.length} instalment${overdue.length == 1 ? '' : 's'}' : 'Nothing late', hasOverdue ? const Color(0xFFB91C1C) : kGood)),
+                const SizedBox(width: 20),
+                Expanded(child: _statCard('Due in 30 days', formatMoney(soonTotal), soonTotal > 0 ? 'Plan ahead' : 'All clear', kInk)),
+              ]),
+              const SizedBox(height: 24),
+              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Expanded(flex: 5, child: _nextCard(next!)),
+                const SizedBox(width: 24),
+                Expanded(flex: 6, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  if (_dues.length > 1) _comingUp(_dues.skip(1).take(8).toList()),
+                  const SizedBox(height: 20),
+                  _autoDebitNote(),
+                ])),
+              ]),
+            ],
+          ],
         ),
       ),
     );
@@ -160,67 +214,78 @@ class _PayHubScreenState extends State<PayHubScreen> {
 
   Widget _content(_Due next, List<_Due> overdue, List<_Due> soon) {
     final rest = _dues.skip(1).take(8).toList();
-    final late = next.overdue;
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _nextCard(next),
+      if (rest.isNotEmpty) ...[const SizedBox(height: 24), _comingUp(rest)],
+      const SizedBox(height: 22),
+      _autoDebitNote(),
+    ]);
+  }
+
+  Widget _nextCard(_Due next) {
+    final late = next.overdue;
+    return AppCard(
+      padding: const EdgeInsets.all(18),
+      borderColor: late ? const Color(0xFFFECACA) : kLine,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(child: Text(late ? 'PAY THIS FIRST' : 'NEXT PAYMENT', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1, color: kMuted))),
+          Pill(_when(next), color: late ? const Color(0xFFB91C1C) : kGood),
+        ]),
+        const SizedBox(height: 8),
+        Text(formatMoney(next.amount), style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: kInk, height: 1.1)),
+        const SizedBox(height: 4),
+        Text('${next.loanName} · instalment ${next.emi['emiNumber'] ?? ''} · ${_date(next.date)}', style: const TextStyle(fontSize: 12.5, color: kMuted)),
+        if (asNum(next.emi['penaltyApplied'] ?? 0) > 0) ...[
+          const SizedBox(height: 6),
+          Text('Includes a late fee of ${formatMoney(asNum(next.emi['penaltyApplied']))}', style: const TextStyle(fontSize: 12, color: Color(0xFFB91C1C))),
+        ],
+        const SizedBox(height: 16),
+        SizedBox(width: double.infinity, child: ElevatedButton(onPressed: () => _pay(next), child: Text('Pay ${formatMoney(next.amount)}'))),
+        const SizedBox(height: 8),
+        SizedBox(width: double.infinity, child: OutlinedButton(onPressed: () => _more(next), child: const Text('More ways to pay'))),
+      ]),
+    );
+  }
+
+  Widget _comingUp(List<_Due> rest) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const SectionTitle('Coming up'),
+      const SizedBox(height: 12),
       AppCard(
-        padding: const EdgeInsets.all(18),
-        borderColor: late ? const Color(0xFFFECACA) : kLine,
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Expanded(child: Text(late ? 'PAY THIS FIRST' : 'NEXT PAYMENT', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1, color: kMuted))),
-            Pill(_when(next), color: late ? const Color(0xFFB91C1C) : kGood),
-          ]),
-          const SizedBox(height: 8),
-          Text(formatMoney(next.amount), style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: kInk, height: 1.1)),
-          const SizedBox(height: 4),
-          Text('${next.loanName} · instalment ${next.emi['emiNumber'] ?? ''} · ${_date(next.date)}', style: const TextStyle(fontSize: 12.5, color: kMuted)),
-          if (asNum(next.emi['penaltyApplied'] ?? 0) > 0) ...[
-            const SizedBox(height: 6),
-            Text('Includes a late fee of ${formatMoney(asNum(next.emi['penaltyApplied']))}', style: const TextStyle(fontSize: 12, color: Color(0xFFB91C1C))),
+        padding: EdgeInsets.zero,
+        child: Column(children: [
+          for (var i = 0; i < rest.length; i++) ...[
+            if (i > 0) const Divider(height: 1),
+            InkWell(
+              onTap: () => _pay(rest[i]),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                child: Row(children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(color: (rest[i].overdue ? const Color(0xFFB91C1C) : kNavy).withOpacity(0.09), borderRadius: BorderRadius.circular(13)),
+                    child: Icon(Icons.event_rounded, size: 20, color: rest[i].overdue ? const Color(0xFFB91C1C) : kNavy),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(formatMoney(rest[i].amount), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: kInk)),
+                      Text('${rest[i].loanName} · ${_date(rest[i].date)}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: kMuted)),
+                    ]),
+                  ),
+                  Text(_when(rest[i]), style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: rest[i].overdue ? const Color(0xFFB91C1C) : kMuted)),
+                ]),
+              ),
+            ),
           ],
-          const SizedBox(height: 16),
-          SizedBox(width: double.infinity, child: ElevatedButton(onPressed: () => _pay(next), child: Text('Pay ${formatMoney(next.amount)}'))),
-          const SizedBox(height: 8),
-          SizedBox(width: double.infinity, child: OutlinedButton(onPressed: () => _more(next), child: const Text('More ways to pay'))),
         ]),
       ),
-      if (rest.isNotEmpty) ...[
-        const SizedBox(height: 24),
-        const SectionTitle('Coming up'),
-        const SizedBox(height: 12),
-        AppCard(
-          padding: EdgeInsets.zero,
-          child: Column(children: [
-            for (var i = 0; i < rest.length; i++) ...[
-              if (i > 0) const Divider(height: 1),
-              InkWell(
-                onTap: () => _pay(rest[i]),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  child: Row(children: [
-                    Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(color: (rest[i].overdue ? const Color(0xFFB91C1C) : kNavy).withOpacity(0.09), borderRadius: BorderRadius.circular(13)),
-                      child: Icon(Icons.event_rounded, size: 20, color: rest[i].overdue ? const Color(0xFFB91C1C) : kNavy),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(formatMoney(rest[i].amount), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: kInk)),
-                        Text('${rest[i].loanName} · ${_date(rest[i].date)}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: kMuted)),
-                      ]),
-                    ),
-                    Text(_when(rest[i]), style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: rest[i].overdue ? const Color(0xFFB91C1C) : kMuted)),
-                  ]),
-                ),
-              ),
-            ],
-          ]),
-        ),
-      ],
-      const SizedBox(height: 22),
-      AppCard(
+    ]);
+  }
+
+  Widget _autoDebitNote() => AppCard(
         color: kNavy.withOpacity(0.05),
         borderColor: Colors.transparent,
         shadow: false,
@@ -229,9 +294,7 @@ class _PayHubScreenState extends State<PayHubScreen> {
           SizedBox(width: 12),
           Expanded(child: Text('Never miss a due date. Open a loan and switch on auto-debit, and the instalment is collected from your bank account on the day.', style: TextStyle(fontSize: 12.5, color: kInk, height: 1.45))),
         ]),
-      ),
-    ]);
-  }
+      );
 
   Widget _allClear() {
     return Column(children: [

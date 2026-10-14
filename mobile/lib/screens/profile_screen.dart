@@ -1,3 +1,4 @@
+import '../utils/responsive.dart';
 import 'income_check_screen.dart';
 import 'credit_score_screen.dart';
 import 'rewards_screen.dart';
@@ -117,10 +118,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final wide = isWide(context) && widget.embedded;
     return Scaffold(
       backgroundColor: kBg,
       body: Column(
         children: [
+          if (wide)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(32, 32, 32, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 880),
+                  child: Row(children: [
+                    const Expanded(child: Text('My profile', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: Color(0xFF111827)))),
+                    if (!_loading && !_editing) ElevatedButton.icon(onPressed: () => setState(() => _editing = true), icon: const Icon(Icons.edit_rounded, size: 16), label: const Text('Edit details')),
+                    if (_editing) ...[
+                      TextButton(onPressed: () => setState(() => _editing = false), child: const Text('Cancel')),
+                      const SizedBox(width: 8),
+                      ElevatedButton(onPressed: _saving ? null : _saveProfile, child: Text(_saving ? 'Saving...' : 'Save')),
+                    ],
+                  ]),
+                ),
+              ),
+            )
+          else
           // Header
           Container(
             decoration: const BoxDecoration(
@@ -203,7 +225,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ? const Center(child: CircularProgressIndicator(color: kNavy))
                 : _error != null && _profile == null
                     ? _buildError()
-                    : _buildContent(),
+                    : (wide ? Align(alignment: Alignment.topCenter, child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 880), child: _buildContent())) : _buildContent()),
           ),
         ],
       ),

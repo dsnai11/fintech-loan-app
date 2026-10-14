@@ -8,7 +8,8 @@ import '../utils/error_utils.dart';
 import '../services/notification_watcher.dart';
 
 class NotificationBell extends StatefulWidget {
-  const NotificationBell({Key? key}) : super(key: key);
+  final bool dark; // for a light background (the website's top menu)
+  const NotificationBell({Key? key, this.dark = false}) : super(key: key);
 
   @override
   State<NotificationBell> createState() => _NotificationBellState();
@@ -59,10 +60,10 @@ class _NotificationBellState extends State<NotificationBell> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
+              color: widget.dark ? kNavy.withOpacity(0.08) : Colors.white.withOpacity(0.1),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.notifications_rounded, color: Colors.white, size: 20),
+            child: Icon(Icons.notifications_rounded, color: widget.dark ? kNavy : Colors.white, size: 20),
           ),
           if (_unread > 0)
             Positioned(

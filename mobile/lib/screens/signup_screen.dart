@@ -1,3 +1,5 @@
+import '../widgets/auth_split.dart';
+import '../utils/responsive.dart';
 import 'package:flutter/material.dart' hide Text;
 import '../widgets/tr_text.dart';
 import '../widgets/language_picker.dart';
@@ -88,6 +90,8 @@ class _SignupScreenState extends State<SignupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final form = _form(context);
+    if (isWide(context)) return AuthSplit(title: 'Create your account', subtitle: 'One sign-up for every loan product.', child: form);
     final size = MediaQuery.of(context).size;
     return Scaffold(
       backgroundColor: kNavy,
@@ -130,7 +134,17 @@ class _SignupScreenState extends State<SignupScreen> {
               ),
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
-                child: Column(
+                child: form,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _form(BuildContext context) {
+    return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Name row
@@ -348,12 +362,6 @@ class _SignupScreenState extends State<SignupScreen> {
                       ),
                     ),
                   ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+                );
   }
 }

@@ -1,3 +1,5 @@
+import '../widgets/auth_split.dart';
+import '../utils/responsive.dart';
 import 'onboarding_flow.dart';
 import 'device_verify_screen.dart';
 import 'package:flutter/material.dart' hide Text;
@@ -91,6 +93,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final form = _form(context);
+    if (isWide(context)) return AuthSplit(title: 'Welcome back', subtitle: 'Good to see you again.', child: form);
     final size = MediaQuery.of(context).size;
     return Scaffold(
       backgroundColor: kNavy,
@@ -133,7 +137,17 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
-                child: Column(
+                child: form,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _form(BuildContext context) {
+    return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
@@ -289,12 +303,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                   ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+                );
   }
 }

@@ -28,6 +28,7 @@ import 'account_setup_flow.dart';
 import 'referral_screen.dart';
 import 'app_actions.dart';
 import '../services/push_service.dart';
+import '../utils/responsive.dart';
 
 // Home tab. Top to bottom: the branded header with the customer's offer, any notice, their own loan, shortcuts, the company's
 // offers, the loan products, why to trust the company, how it works, and who the lender is.
@@ -183,6 +184,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final top = brandColors(brand, kNavy, const Color(0xFF9B1B30)).first;
     final hasOffer = _myOffer != null && _myOffer!['status'] != 'DECLINED';
     final products = buildProducts(settingsProducts: settings.products, pricing: _pricing, payday: _payday, repeatMax: _repeatMax, offerMax: hasOffer ? asNum(_myOffer!['amount']) : null, marketplace: settings.marketplace);
+    if (isWide(context)) return _wideBuild(settings, first, hasOffer, products, banners, brand, autoplay, serverTime);
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(statusBarColor: top, statusBarIconBrightness: Brightness.light, statusBarBrightness: Brightness.dark),
       child: Scaffold(
@@ -281,6 +283,148 @@ class _HomeScreenState extends State<HomeScreen> {
         return [Padding(padding: pad, child: _helpCard(settings))];
     }
     return [];
+  }
+
+  // ── The website layout: a dashboard in two columns, then the products in a grid ──────────────────────────────────────────
+
+  Widget _wideBuild(AppSettings settings, String first, bool hasOffer, List<ProductInfo> products, List<Map<String, dynamic>> banners, Map<String, dynamic>? brand, int autoplay, DateTime serverTime) {
+    final ids = settings.homeSections;
+    final left = <Widget>[_offerHero(hasOffer)];
+    final right = <Widget>[];
+    final full = <Widget>[];
+    for (final id in ids) {
+      switch (id) {
+        case 'loan':
+          if (_loan != null) left.add(_loanCard(_loan!));
+          break;
+        case 'offers':
+          if (banners.isNotEmpty) {
+            left.add(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              SectionTitle(settings.homeText('offersTitle', 'Offers for you')),
+              const SizedBox(height: 12),
+              OfferBanners(
+                key: ValueKey(banners.map((b) => b['id']).join(',')),
+                banners: banners,
+                brand: brand,
+                autoplaySeconds: autoplay,
+                serverTime: serverTime,
+                onAction: _bannerAction,
+                onEvent: (i, type) => context.read<ApiService>().sendBannerEvent(i, type),
+              ),
+            ]));
+          }
+          break;
+        case 'shortcuts':
+          right.add(AppCard(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const SectionTitle('Quick actions'), const SizedBox(height: 16), _shortcuts(settings)])));
+          break;
+        case 'referral':
+          if (_referral != null) right.add(_referralCard(_referral!));
+          break;
+        case 'help':
+          right.add(_helpCard(settings));
+          break;
+        case 'products':
+          full.add(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            SectionTitle(settings.homeText('productsTitle', 'Loans made for you'), subtitle: settings.homeText('productsSubtitle', 'Pick what fits. Every charge is shown before you accept.'), action: products.length > 1 ? 'See all' : null, onAction: () => _push(const ProductsScreen())),
+            const SizedBox(height: 16),
+            _productGrid(products),
+          ]));
+          break;
+        case 'why':
+          full.add(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [SectionTitle(settings.homeText('whyTitle', 'Why customers choose LIFC')), const SizedBox(height: 16), _whyWide(settings)]));
+          break;
+        case 'how':
+          full.add(_howWide(settings));
+          break;
+      }
+    }
+    Widget stack(List<Widget> list) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [for (var i = 0; i < list.length; i++) ...[if (i > 0) const SizedBox(height: 24), list[i]]]);
+    return Scaffold(
+      backgroundColor: kBg,
+      body: RefreshIndicator(
+        color: kNavy,
+        onRefresh: _refresh,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(32, 32, 32, 40),
+          children: [
+            Text('Hi, ${first.isEmpty ? 'there' : first}', style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: kInk, height: 1.2)),
+            const SizedBox(height: 4),
+            const Text('Your offer, your loans and what to do next, in one place.', style: TextStyle(fontSize: 14.5, color: kMuted)),
+            const SizedBox(height: 24),
+            if (_phoneUnverified) _verifyPhoneCard(),
+            if (_setup != null && !setupComplete(_setup)) _setupCard(),
+            if (settings.banner != null) _banner(settings.banner!),
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(flex: 7, child: stack(left)),
+              if (right.isNotEmpty) ...[const SizedBox(width: 24), Expanded(flex: 4, child: stack(right))],
+            ]),
+            for (final w in full) ...[const SizedBox(height: 40), w],
+            const SizedBox(height: 40),
+            _footer(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // The products as a grid, three or four to a row
+  Widget _productGrid(List<ProductInfo> products) {
+    if (_pricing == null && products.isEmpty) return const Skeleton(height: 250, radius: 22);
+    return LayoutBuilder(builder: (context, c) {
+      const gap = 20.0;
+      final cols = c.maxWidth >= 1100 ? 4 : 3;
+      final w = (c.maxWidth - gap * (cols - 1)) / cols;
+      return Wrap(spacing: gap, runSpacing: gap, children: [
+        for (final p in products)
+          SizedBox(
+            height: 330,
+            width: w,
+            child: ProductCard(name: p.name, tagline: p.tagline, upTo: p.upTo, facts: p.facts, icon: p.look.icon, colors: p.look.colors, badge: p.badge, cta: p.cta, width: w, onTap: () => openProduct(context, p)),
+          ),
+      ]);
+    });
+  }
+
+  Widget _whyWide(AppSettings settings) {
+    final tiles = settings.homeList('whyTiles', _whyDefault);
+    return LayoutBuilder(builder: (context, c) {
+      const gap = 20.0;
+      final cols = tiles.length >= 4 ? 4 : tiles.length;
+      final w = (c.maxWidth - gap * (cols - 1)) / cols;
+      return Wrap(spacing: gap, runSpacing: gap, children: [
+        for (var i = 0; i < tiles.length; i++) SizedBox(width: w, child: TrustTile(icon: homeIcon('${tiles[i]['icon']}'), title: '${tiles[i]['title'] ?? ''}', subtitle: '${tiles[i]['text'] ?? ''}', color: _whyColors[i % _whyColors.length])),
+      ]);
+    });
+  }
+
+  Widget _howWide(AppSettings settings) {
+    final list = settings.homeList('howSteps', _howDefault);
+    return AppCard(
+      padding: const EdgeInsets.fromLTRB(28, 24, 28, 28),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        SectionTitle(settings.homeText('howTitle', 'How it works')),
+        const SizedBox(height: 22),
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          for (var i = 0; i < list.length; i++) ...[
+            if (i > 0) const SizedBox(width: 20),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Container(width: 44, height: 44, decoration: BoxDecoration(color: kNavy.withOpacity(0.09), shape: BoxShape.circle), child: Icon(homeIcon('${list[i]['icon']}'), color: kNavy, size: 22)),
+                  const SizedBox(width: 10),
+                  Text('${i + 1}', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: kNavy.withOpacity(0.25))),
+                ]),
+                const SizedBox(height: 12),
+                Text('${list[i]['title'] ?? ''}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: kInk)),
+                const SizedBox(height: 4),
+                Text('${list[i]['text'] ?? ''}', style: const TextStyle(fontSize: 12.5, color: kMuted, height: 1.45)),
+              ]),
+            ),
+          ],
+        ]),
+      ]),
+    );
   }
 
   // ── Header card: the customer's offer ──────────────────────────────────────

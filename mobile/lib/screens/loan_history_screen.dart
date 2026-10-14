@@ -1,3 +1,4 @@
+import '../utils/responsive.dart';
 import 'package:flutter/material.dart' hide Text;
 import '../widgets/tr_text.dart';
 import 'package:provider/provider.dart';
@@ -81,10 +82,24 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final wide = isWide(context) && widget.embedded;
     return Scaffold(
       backgroundColor: kBg,
       body: Column(
         children: [
+          if (wide)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(32, 32, 32, 8),
+              child: Row(children: [
+                const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('My loans', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: Color(0xFF111827))),
+                  SizedBox(height: 4),
+                  Text('All your loan applications and loans.', style: TextStyle(fontSize: 14.5, color: Color(0xFF6B7280))),
+                ])),
+                IconButton(onPressed: _fetchLoans, icon: const Icon(Icons.refresh_rounded, color: kNavy)),
+              ]),
+            )
+          else
           // Header
           Container(
             decoration: const BoxDecoration(
@@ -143,11 +158,22 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
                         : RefreshIndicator(
                             onRefresh: _fetchLoans,
                             color: kNavy,
-                            child: ListView.builder(
-                              padding: const EdgeInsets.all(16),
-                              itemCount: _loans.length,
-                              itemBuilder: (_, i) => _buildCard(_loans[i]),
-                            ),
+                            child: wide
+                                ? ListView(
+                                    padding: const EdgeInsets.fromLTRB(32, 16, 32, 40),
+                                    children: [
+                                      LayoutBuilder(builder: (context, c) {
+                                        const gap = 20.0;
+                                        final w = (c.maxWidth - gap) / 2;
+                                        return Wrap(spacing: gap, children: [for (final l in _loans) SizedBox(width: w, child: _buildCard(l))]);
+                                      }),
+                                    ],
+                                  )
+                                : ListView.builder(
+                                    padding: const EdgeInsets.all(16),
+                                    itemCount: _loans.length,
+                                    itemBuilder: (_, i) => _buildCard(_loans[i]),
+                                  ),
                           ),
           ),
         ],

@@ -1,3 +1,4 @@
+import '../utils/responsive.dart';
 import 'dart:async';
 import 'package:flutter/material.dart' hide Text;
 import 'package:flutter/services.dart';
@@ -88,21 +89,30 @@ class _OffersScreenState extends State<OffersScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final wide = isWide(context) && widget.embedded;
     return Scaffold(
       backgroundColor: kBg,
-      appBar: AppBar(
-        backgroundColor: kNavy,
-        foregroundColor: Colors.white,
-        automaticallyImplyLeading: !widget.embedded,
-        title: const Text('Offers'),
-      ),
+      appBar: wide
+          ? null
+          : AppBar(
+              backgroundColor: kNavy,
+              foregroundColor: Colors.white,
+              automaticallyImplyLeading: !widget.embedded,
+              title: const Text('Offers'),
+            ),
       body: RefreshIndicator(
         color: kNavy,
         onRefresh: _load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16),
+          padding: wide ? const EdgeInsets.fromLTRB(32, 32, 32, 40) : const EdgeInsets.all(16),
           children: [
+            if (wide) ...[
+              const Text('Offers', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: Color(0xFF111827))),
+              const SizedBox(height: 4),
+              const Text('Deals and rewards for you.', style: TextStyle(fontSize: 14.5, color: Color(0xFF6B7280))),
+              const SizedBox(height: 24),
+            ],
             if (_loading) const Padding(padding: EdgeInsets.only(top: 80), child: Center(child: CircularProgressIndicator())),
             if (_error != null) Padding(padding: const EdgeInsets.only(top: 60), child: Center(child: Text(_error!, textAlign: TextAlign.center))),
             if (!_loading && _error == null && _offers.isEmpty)
@@ -116,7 +126,14 @@ class _OffersScreenState extends State<OffersScreen> {
                   Text('Check back soon. We will tell you when there is something new.', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
                 ]),
               ),
-            for (final o in _offers) Padding(padding: const EdgeInsets.only(bottom: 14), child: _OfferCard(offer: o, onTap: () => _open(o))),
+            if (wide)
+              LayoutBuilder(builder: (context, c) {
+                const gap = 20.0;
+                final w = (c.maxWidth - gap) / 2;
+                return Wrap(spacing: gap, runSpacing: gap, children: [for (final o in _offers) SizedBox(width: w, child: _OfferCard(offer: o, onTap: () => _open(o)))]);
+              })
+            else
+              for (final o in _offers) Padding(padding: const EdgeInsets.only(bottom: 14), child: _OfferCard(offer: o, onTap: () => _open(o))),
           ],
         ),
       ),

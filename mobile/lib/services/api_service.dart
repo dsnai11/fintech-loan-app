@@ -9,7 +9,8 @@ import 'app_settings.dart' show kAppVersion;
 
 class ApiService {
   late Dio _dio;
-  static const String baseUrl = 'https://fintech-loan-app-production.up.railway.app/api';
+  // Builds for testing against another server can set API_BASE (flutter build web --dart-define=API_BASE=http://localhost:5100/api)
+  static const String baseUrl = String.fromEnvironment('API_BASE', defaultValue: 'https://fintech-loan-app-production.up.railway.app/api');
   String? _token;
   String? _installId;
 
