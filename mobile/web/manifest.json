@@ -1,11 +1,12 @@
 {
-    "name": "FinTech Loan",
-    "short_name": "FinTech Loan",
+    "name": "LIFC - Laxmi India Finance",
+    "short_name": "LIFC",
     "start_url": ".",
+    "scope": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "FinTech Instant Loan Application",
+    "background_color": "#7B0000",
+    "theme_color": "#7B0000",
+    "description": "Apply for a loan online, see every charge first, and manage your loans.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

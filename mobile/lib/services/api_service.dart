@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'device_risk.dart';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -32,7 +33,7 @@ class ApiService {
           options.headers['X-Install-Id'] = await _installIdValue();
           options.headers['X-App-Version'] = kAppVersion;
           options.headers['X-Device-Rooted'] = DeviceRisk.rooted ? '1' : '0';
-          try { options.headers['X-Platform'] = Platform.isAndroid ? 'android' : Platform.isIOS ? 'ios' : 'other'; } catch (_) {}
+          try { options.headers['X-Platform'] = kIsWeb ? 'web' : Platform.isAndroid ? 'android' : Platform.isIOS ? 'ios' : 'other'; } catch (_) {}
           return handler.next(options);
         },
         onError: (error, handler) {
@@ -962,6 +963,16 @@ class ApiService {
   Future<Map<String, dynamic>> livenessChallenge() async {
     try {
       final response = await _dio.post('/onboarding/selfie/challenge');
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  // One photo (base64), for the web app, where the blink check cannot run. A person at the company looks at it.
+  Future<Map<String, dynamic>> submitSelfieUpload(String photo) async {
+    try {
+      final response = await _dio.post('/onboarding/selfie/upload', data: {'photo': photo}, options: Options(sendTimeout: const Duration(seconds: 60), receiveTimeout: const Duration(seconds: 60)));
       return Map<String, dynamic>.from(response.data);
     } on DioException catch (e) {
       throw _handleError(e);

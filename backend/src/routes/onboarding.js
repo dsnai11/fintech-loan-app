@@ -107,6 +107,34 @@ router.post('/selfie', async (req, res) => {
   }
 });
 
+// The web app cannot watch the eyes (that runs on the phone), so it sends one photo and a person at the company looks at it.
+// It never passes by itself: the selfie goes to "review", and the photo is checked against photos on other accounts.
+router.post('/selfie/upload', async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId);
+    if (!user) return bad(res, 404, 'User not found');
+    const now = Date.now();
+    const w = user.selfieAttempts || {};
+    const inWindow = w.windowStart && now - new Date(w.windowStart).getTime() < 3600 * 1000;
+    const count = inWindow ? w.count || 0 : 0;
+    if (count >= ATTEMPTS_PER_HOUR) return bad(res, 429, 'Too many attempts in the last hour. Please wait a little and try again.');
+    await User.updateOne({ _id: user._id }, { selfieAttempts: { count: count + 1, windowStart: inWindow ? w.windowStart : new Date(now) } });
+
+    const f = readFrame(req.body?.photo, 'selfie');
+    if (f.error) return bad(res, 422, f.error, { code: 'PHOTO_INVALID' });
+    const dupe = await KycMedia.findOne({ sha256: f.sha256, userId: { $ne: user._id } }).select('userId');
+    await KycMedia.deleteMany({ userId: user._id });
+    await KycMedia.create({ userId: user._id, kind: 'selfie_before', data: f.data, sha256: f.sha256, size: f.data.length, width: f.width, height: f.height });
+    const selfie = { status: 'review', capturedAt: new Date(), method: 'photo_upload', flag: dupe ? 'same_photo_on_another_account' : 'no_blink_check' };
+    const updated = await User.findByIdAndUpdate(user._id, { selfie }, { new: true });
+    if (dupe) await AmlAlert.create({ rule: 'DUPLICATE_SELFIE', severity: 'MEDIUM', userId: user._id, detail: 'The selfie photo is the same picture as one on another account.' });
+    await audit(req.user, 'SELFIE_UPLOADED', { type: 'User', id: user._id }, { status: 'review', duplicate: !!dupe }, req);
+    res.json({ message: 'Thank you. Our team will look at your photo.', selfie: { status: 'review' }, steps: setupStatus(updated) });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // The customer's own photo, for their profile
 router.get('/selfie/image', async (req, res) => {
   try {

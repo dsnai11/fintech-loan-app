@@ -122,6 +122,9 @@ jobs:
   build-web:
     name: Build Web
     runs-on: ubuntu-latest
+    # The finished web app is saved back into the repository (backend/public/app), where the server picks it up
+    permissions:
+      contents: write
 
     steps:
     - uses: actions/checkout@v4
@@ -137,7 +140,26 @@ jobs:
       run: cd mobile && flutter pub get
 
     - name: Build Web
-      run: cd mobile && flutter build web --release
+      # Served at /app/ by the backend. No service worker (so a new release shows at once), and the drawing engine is bundled
+      # instead of fetched from Google (so the server's content policy can stay strict).
+      run: cd mobile && flutter build web --release --base-href /app/ --pwa-strategy=none --no-web-resources-cdn
+
+    - name: Save the web app into the backend
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      run: |
+        rm -rf backend/public/app
+        mkdir -p backend/public/app
+        cp -r mobile/build/web/. backend/public/app/
+        git config user.name "LIFC build"
+        git config user.email "build@lifc.in"
+        git add -A backend/public/app
+        if git diff --cached --quiet; then
+          echo "The web app did not change."
+        else
+          git commit -m "Web app build [skip ci]"
+          git pull --rebase origin main
+          git push origin HEAD:main
+        fi
 
     - name: Upload Web
       uses: actions/upload-artifact@v4

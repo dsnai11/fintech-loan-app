@@ -11,22 +11,33 @@ import '../main.dart';
 import '../services/api_service.dart';
 import '../utils/error_utils.dart';
 import 'setup_scaffold.dart';
+import 'web_selfie_screen.dart';
 
 // The selfie, with a check that a real person is in front of the camera. The front camera watches the face. The
 // customer holds still until a photo is taken, then blinks twice. The app records how open the eyes are while
 // they blink, takes a second photo, and sends both photos and the eye readings to the server, which checks them.
-class SelfieLivenessScreen extends StatefulWidget {
+class NativeSelfieScreen extends StatefulWidget {
+  final int step;
+  final bool fromProfile;
+  const NativeSelfieScreen({Key? key, this.step = 3, this.fromProfile = false}) : super(key: key);
+
+  @override
+  State<NativeSelfieScreen> createState() => _SelfieLivenessScreenState();
+}
+
+// On a phone: the camera watches for blinks. In a web browser that cannot be done, so one photo is sent for a person to look at.
+class SelfieLivenessScreen extends StatelessWidget {
   final int step;
   final bool fromProfile;
   const SelfieLivenessScreen({Key? key, this.step = 3, this.fromProfile = false}) : super(key: key);
 
   @override
-  State<SelfieLivenessScreen> createState() => _SelfieLivenessScreenState();
+  Widget build(BuildContext context) => kIsWeb ? WebSelfieScreen(step: step, fromProfile: fromProfile) : NativeSelfieScreen(step: step, fromProfile: fromProfile);
 }
 
 enum _Phase { starting, noCamera, aligning, blinking, uploading, failed, done }
 
-class _SelfieLivenessScreenState extends State<SelfieLivenessScreen> {
+class _SelfieLivenessScreenState extends State<NativeSelfieScreen> {
   static const _openAt = 0.6;
   static const _closedAt = 0.3;
   static const _blinksNeeded = 2;

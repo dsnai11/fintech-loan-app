@@ -127,7 +127,8 @@ app.use(helmet({
 app.use(cors({
   origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Install-Id', 'X-App-Version', 'X-Platform', 'X-Device-Rooted', 'X-Request-Id'],
+  exposedHeaders: ['X-Request-Id'],
 }));
 
 // Counters live in the database when there is more than one server copy (WEB_CONCURRENCY above 1, or RATE_LIMIT_STORE=shared),
@@ -254,6 +255,23 @@ app.get('/api/health/ready', async (req, res) => {
   const db = await ping();
   res.status(db.ok ? 200 : 503).json({ status: db.ok ? 'ready' : 'database unavailable', databaseMs: db.ms });
 });
+
+// The customer web app (the same Flutter app as on the phone, built for the browser by the build workflow and kept in public/app).
+// It needs a looser content policy than the staff portal: WebAssembly for drawing, and fonts for languages the app does not bundle.
+const webAppDir = process.env.WEB_APP_DIR || join(__dirname, '..', 'public', 'app');
+const WEB_APP_CSP = "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' blob: data: https://fonts.gstatic.com; worker-src 'self' blob:; media-src 'self' blob:; object-src 'none'; frame-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
+app.use('/app', (req, res, next) => {
+  res.setHeader('Content-Security-Policy', WEB_APP_CSP);
+  next();
+});
+app.get('/app', (req, res, next) => (req.originalUrl.split('?')[0] === '/app' ? res.redirect(301, '/app/') : next())); // without the slash only; with it the app is served below
+app.use('/app', express.static(webAppDir, {
+  index: 'index.html',
+  setHeaders: (res, file) => {
+    // The engine files never change for a given build; everything else is checked again each time, so a new release shows at once
+    res.setHeader('Cache-Control', /[\\/]canvaskit[\\/]/.test(file) ? 'public, max-age=604800' : 'no-cache');
+  },
+}));
 
 // The public loan pages (off until switched on in the portal)
 app.use(landingRoutes);

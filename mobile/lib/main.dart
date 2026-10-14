@@ -1,4 +1,5 @@
 import 'services/device_risk.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -66,7 +67,7 @@ class MyApp extends StatelessWidget {
       ],
       child: MaterialApp(
         navigatorKey: navigatorKey,
-        builder: (context, child) => LockGate(child: child ?? const SizedBox.shrink()),
+        builder: (context, child) => LockGate(child: _webFrame(context, child ?? const SizedBox.shrink())),
         title: 'LIFC - Laxmi India Finance',
         debugShowCheckedModeBanner: false,
         theme: _theme(),
@@ -79,6 +80,28 @@ class MyApp extends StatelessWidget {
       ),
     );
   }
+}
+
+// In a web browser on a wide screen, keep the app at phone width in the middle of the page, as on a phone, so every screen looks as designed
+Widget _webFrame(BuildContext context, Widget child) {
+  if (!kIsWeb) return child;
+  return LayoutBuilder(builder: (context, box) {
+    if (box.maxWidth <= 720) return child;
+    const width = 460.0;
+    final mq = MediaQuery.of(context);
+    return ColoredBox(
+      color: const Color(0xFFEFE6E7),
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: Container(
+          width: width,
+          height: box.maxHeight,
+          decoration: BoxDecoration(boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 30)]),
+          child: ClipRect(child: MediaQuery(data: mq.copyWith(size: Size(width, box.maxHeight)), child: child)),
+        ),
+      ),
+    );
+  });
 }
 
 ThemeData _theme() {
