@@ -36,6 +36,7 @@
     { href: 'decisions.html', label: 'Decisions', icon: 'scale', any: ['decisions.view'] },
     { href: 'product-rules.html', label: 'Rules by product', icon: 'scale', any: ['decisions.view'] },
     { href: 'employers.html', label: 'Employers', icon: 'users', any: ['decisions.view'] },
+    { href: 'salary-checks.html', label: 'Salary checks', icon: 'tick', any: ['kyc.view'] },
     { href: 'customers.html', label: 'Customers', icon: 'users', any: ['customers.view'] },
     { group: 'Customer care' },
     { href: 'support.html', label: 'Messages', icon: 'chat', any: ['support.view', 'announcements.send'] },

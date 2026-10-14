@@ -180,6 +180,8 @@ export function incomeBasis(user) {
   const c = user?.incomeCheck;
   const fresh = c && c.at && Date.now() - new Date(c.at).getTime() <= 90 * DAY;
   if (fresh && c.estimatedMonthlyIncome > 0) return { amount: c.estimatedMonthlyIncome, source: 'bank statements' };
+  const sp = user?.salaryProof;
+  if (sp && sp.income > 0 && sp.until && new Date(sp.until) > new Date()) return { amount: sp.income, source: 'salary slip' };
   const declared = user?.employment?.monthlyIncome || 0;
   return declared > 0 ? { amount: declared, source: 'declared' } : { amount: 0, source: 'none' };
 }

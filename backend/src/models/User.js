@@ -57,6 +57,7 @@ const userSchema = new mongoose.Schema(
     kycDigilocker: mongoose.Schema.Types.Mixed,
     selfieAttempts: mongoose.Schema.Types.Mixed,
     offer: mongoose.Schema.Types.Mixed,
+    salaryProof: mongoose.Schema.Types.Mixed, // an approved salary slip: { income, employer, approvedAt, until, slipId }
     incomeCheck: mongoose.Schema.Types.Mixed, // what the customer's shared bank statements showed (a summary only; the statements are not kept)
     bankVerification: mongoose.Schema.Types.Mixed, // the bank account check: { status, fingerprint, nameAtBank, mode, at }
     bureauReport: mongoose.Schema.Types.Mixed, // { enquiries90, maxDpd, activeLoans, at } from the credit bureau, when it gives them

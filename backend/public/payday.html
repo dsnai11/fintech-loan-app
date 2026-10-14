@@ -62,12 +62,12 @@ async function api(path, method = 'GET', body) {
   if (!r.ok) throw new Error(d.errors ? d.errors.join(String.fromCharCode(10)) : d.error || 'Something went wrong');
   return d;
 }
-const FIELDS = [['minAmount', 'Smallest advance (₹)'], ['maxAmount', 'Largest advance (₹)'], ['maxIncomePercent', 'Most, as % of monthly income'], ['feePercent', 'Fee (% of the amount, before GST)'], ['minDaysToPayday', 'Fewest days before payday'], ['repayDaysAfterSalary', 'Due this many days after payday']];
+const FIELDS = [['minAmount', 'Smallest advance (₹)'], ['maxAmount', 'Largest advance (₹)'], ['maxIncomePercent', 'Most, as % of monthly income'], ['feePercent', 'Fee (% of the amount, before GST)'], ['minDaysToPayday', 'Fewest days before payday'], ['repayDaysAfterSalary', 'Due this many days after payday'], ['slipMaxAmount', 'Most to lend when salary is proved by a slip only (₹, 0 = no extra limit)']];
 const table = (rows, cols) => rows.length ? `<table><thead><tr>${cols.map(c => `<th${c[2] ? ' class="n"' : ''}>${c[0]}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr>${cols.map(c => `<td${c[2] ? ' class="n"' : ''}>${c[1](r)}</td>`).join('')}</tr>`).join('')}</tbody></table>` : '<div class="note">None.</div>';
 const base = [['Customer', r => esc(r.who) + (r.phone ? `<div class="note">${esc(r.phone)}</div>` : '')], ['Advance', r => inr(r.amount), 1], ['Due', r => fmt(r.dueDate)], ['Status', r => `<span class="tag ${r.status === 'PAID' ? 'processed' : r.status === 'OVERDUE' || r.status === 'FAILED' ? 'failed' : ''}">${esc(r.status)}</span>`]];
 function draw() {
   const s = D.settings, dis = D.canEdit ? '' : 'disabled';
-  $('rules').innerHTML = `<label class="row" style="margin:0"><input type="checkbox" id="f-enabled" ${s.enabled ? 'checked' : ''} ${dis}> <b>Payday advance is on</b></label>` + FIELDS.map(([k, l]) => `<div><label for="f-${k}">${l}</label><input id="f-${k}" type="number" step="any" value="${s[k]}" ${dis}></div>`).join('') + `<label class="row" style="margin:0"><input type="checkbox" id="f-salaried" ${s.requireSalaried ? 'checked' : ''} ${dis}> Only people who say they are salaried</label><label class="row" style="margin:0"><input type="checkbox" id="f-verified" ${s.requireVerifiedIncome ? 'checked' : ''} ${dis}> Only income seen in their bank statements</label>`;
+  $('rules').innerHTML = `<label class="row" style="margin:0"><input type="checkbox" id="f-enabled" ${s.enabled ? 'checked' : ''} ${dis}> <b>Payday advance is on</b></label>` + FIELDS.map(([k, l]) => `<div><label for="f-${k}">${l}</label><input id="f-${k}" type="number" step="any" value="${s[k]}" ${dis}></div>`).join('') + `<label class="row" style="margin:0"><input type="checkbox" id="f-salaried" ${s.requireSalaried ? 'checked' : ''} ${dis}> Only people who say they are salaried</label><label class="row" style="margin:0"><input type="checkbox" id="f-verified" ${s.requireVerifiedIncome ? 'checked' : ''} ${dis}> Salary must be proved (bank statements or a checked salary slip)</label><label class="row" style="margin:0"><input type="checkbox" id="f-slip" ${s.acceptSalarySlip ? 'checked' : ''} ${dis}> A salary slip that staff checked counts as proof</label>`;
   $('actions').innerHTML = D.canEdit ? '<button class="btn primary" onclick="save()">Save</button>' : '<span class="note">Your role can look but not change these.</span>';
   $('overdue').innerHTML = table(D.overdue, base);
   $('today').innerHTML = table(D.dueToday, base);
@@ -77,7 +77,7 @@ function draw() {
 }
 async function load() { try { D = await api('/admin/payday'); draw(); } catch (e) { msg(e.message, 'err'); } }
 async function save() {
-  const b = { enabled: $('f-enabled').checked, requireSalaried: $('f-salaried').checked, requireVerifiedIncome: $('f-verified').checked };
+  const b = { enabled: $('f-enabled').checked, requireSalaried: $('f-salaried').checked, requireVerifiedIncome: $('f-verified').checked, acceptSalarySlip: $('f-slip').checked };
   FIELDS.forEach(([k]) => (b[k] = Number($('f-' + k).value)));
   if (b.enabled && !D.settings.enabled && !confirm('Customers will see the payday advance in the app and can apply. Has compliance confirmed the fee and wording?')) return;
   try { await api('/admin/payday/settings', 'PUT', b); msg('Saved.', 'ok'); load(); } catch (e) { msg(e.message, 'err'); }

@@ -1,5 +1,6 @@
 import Loan from '../models/Loan.js';
 import { levelOf, categoryOf } from './employerService.js';
+import { proofOf } from './salaryProofService.js';
 import DeviceBinding from '../models/DeviceBinding.js';
 import EMIPayment from '../models/EMIPayment.js';
 import AmlAlert from '../models/AmlAlert.js';
@@ -46,6 +47,8 @@ export const CUSTOM_FIELDS = {
   bankObligations: { label: 'Monthly loan repayments seen in bank statements (Rs)', type: 'number' },
   avgBankBalance: { label: 'Average bank balance (Rs, 0 if not checked)', type: 'number' },
   bankRisk: { label: 'Bank statement risk (0 = no statements, 1 = higher risk, 2 = lower risk)', type: 'number' },
+  salarySlipVerified: { label: 'Salary confirmed from a salary slip checked by staff', type: 'boolean' },
+  salaryProofIncome: { label: 'Monthly salary confirmed from a salary slip (Rs, 0 if none)', type: 'number' },
   rootedDevice: { label: 'The phone looks rooted or jailbroken (reported by the app)', type: 'boolean' },
   employerCategory: { label: 'Employer category (3 = A, 2 = B, 1 = C, 0 = not on your employer list)', type: 'number' },
 };
@@ -520,6 +523,8 @@ export function bankRiskSegment(check, ic = DEFAULTS.incomeCheck) {
 function incomeFor(user, rules) {
   const b = bankFacts(user, rules);
   if (rules.incomeCheck?.enabled && rules.incomeCheck.useVerifiedIncome && b.incomeVerified && b.verifiedMonthlyIncome > 0) return b.verifiedMonthlyIncome;
+  const sp = proofOf(user);
+  if (rules.incomeCheck?.enabled && rules.incomeCheck.useVerifiedIncome && sp) return sp.income;
   return user.employment?.monthlyIncome || 0;
 }
 
@@ -563,6 +568,8 @@ export async function gatherFacts(loan, user, rules = getRules()) {
     bureauMaxDpd: report?.maxDpd || 0,
     bureauActiveLoans: report?.activeLoans || 0,
     rootedDevice: !!rootedDevice,
+    salarySlipVerified: !!proofOf(user),
+    salaryProofIncome: proofOf(user)?.income || 0,
     employerName: String(user.employment?.company || ''),
     employerCategory: levelOf(user.employment?.company),
   };

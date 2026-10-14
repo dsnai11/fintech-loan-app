@@ -25,7 +25,9 @@ export const DEFAULTS = {
   feePercent: 4, // one flat fee on the amount, before GST, whatever the number of days
   minDaysToPayday: 5, // if payday is closer than this, the advance is due on the payday after
   repayDaysAfterSalary: 1, // due the day after the salary arrives
-  requireVerifiedIncome: false, // true: only income seen in the customer's bank statements counts
+  requireVerifiedIncome: false, // true: income must be proved, by bank statements or (when acceptSalarySlip) a salary slip staff checked
+  acceptSalarySlip: true, // a checked salary slip counts as proof, until bank statements are used for everyone
+  slipMaxAmount: 10000, // the most to lend when the proof is a salary slip (0 = no extra limit); bigger advances need bank statements
   requireSalaried: true,
 };
 
@@ -59,6 +61,8 @@ export function validateSettings(input) {
   };
   s.enabled = input?.enabled === true || input?.enabled === 'true';
   s.requireVerifiedIncome = input?.requireVerifiedIncome === true || input?.requireVerifiedIncome === 'true';
+  s.acceptSalarySlip = input?.acceptSalarySlip !== false && input?.acceptSalarySlip !== 'false';
+  s.slipMaxAmount = num(input?.slipMaxAmount ?? DEFAULTS.slipMaxAmount, 0, 1000000, 'Most to lend on a salary slip', true);
   s.requireSalaried = input?.requireSalaried !== false && input?.requireSalaried !== 'false';
   s.minAmount = num(input?.minAmount ?? DEFAULTS.minAmount, 100, 1000000, 'Smallest advance', true);
   s.maxAmount = num(input?.maxAmount ?? DEFAULTS.maxAmount, 100, 1000000, 'Largest advance', true);
@@ -134,7 +138,8 @@ export async function eligibility(user, now = new Date()) {
   add('terms', 'Latest terms accepted', !termsRequiredFor(user), 'Accept the updated terms and conditions.');
   if (s.requireSalaried) add('salaried', 'Salaried', user.employment?.status === 'Employed', 'This advance is for people who receive a monthly salary.');
   add('salaryDay', 'Salary day added', !!salaryDay, 'Tell us the day of the month your salary arrives.');
-  add('income', s.requireVerifiedIncome ? 'Income checked from your bank statements' : 'Monthly income added', s.requireVerifiedIncome ? inc.source === 'bank statements' : inc.amount > 0, s.requireVerifiedIncome ? 'Share your bank statements in Income check.' : 'Add your monthly income.');
+  const proofOk = inc.source === 'bank statements' || (s.acceptSalarySlip && inc.source === 'salary slip');
+  add('income', s.requireVerifiedIncome ? (s.acceptSalarySlip ? 'Salary proved by bank statements or a checked salary slip' : 'Income checked from your bank statements') : 'Monthly income added', s.requireVerifiedIncome ? proofOk : inc.amount > 0, s.requireVerifiedIncome ? (s.acceptSalarySlip ? 'Share your bank statements, or upload your latest salary slip, to prove your salary.' : 'Share your bank statements in Income check.') : 'Add your monthly income.');
 
   const loans = await Loan.find({ userId: user._id, status: { $in: LIVE } }).select('status productKey monthlyEMI loanAmount').lean();
   const livePayday = loans.find(l => l.productKey === 'payday');
@@ -152,6 +157,8 @@ export async function eligibility(user, now = new Date()) {
     const { cap: offerLimit, offer } = await offerCap(user, getPolicy());
     declined = !!offer && offer.status === 'DECLINED';
     cap = Math.max(0, Math.min(s.maxAmount, share, Number.isFinite(offerLimit) ? Math.floor(offerLimit / 100) * 100 : s.maxAmount));
+    // Proved by a salary slip only: lend less than bank statements would allow
+    if (s.requireVerifiedIncome && inc.source === 'salary slip' && s.slipMaxAmount > 0) cap = Math.min(cap, Math.floor(s.slipMaxAmount / 100) * 100);
   }
   add('offer', 'Credit check passed', !declined, 'We are not able to offer you a loan at this time.');
   add('room', 'Room to borrow', cap >= s.minAmount || checks.some(c => !c.ok), running > 0 ? 'Your income, after the instalments you already pay, leaves too little room.' : 'Your income leaves too little room for an advance.');
@@ -165,6 +172,7 @@ export async function eligibility(user, now = new Date()) {
     salaryDay, income: inc, running,
     nextPayday: p ? { salaryDate: p.salary, dueDate: p.due, days: p.days } : null,
     feePercent: s.feePercent, livePaydayLoanId: livePayday?._id || null,
+    incomeSource: inc.source, needsProof: s.requireVerifiedIncome && !proofOk, acceptSalarySlip: s.acceptSalarySlip, slipMaxAmount: s.slipMaxAmount,
   };
 }
 

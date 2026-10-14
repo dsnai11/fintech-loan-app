@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%93%84%3C/text%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Salary checks - LIFC Admin</title>
+<style>
+* { box-sizing: border-box; }
+.card { padding: 16px; margin-bottom: 14px; }
+.card h2 { margin: 0 0 4px; font-size: 15px; }
+.sub { font-size: 12px; color: var(--e-muted); margin-bottom: 12px; line-height: 1.6; }
+.note { font-size: 12px; color: var(--e-muted); }
+.alert { display: none; padding: 12px 16px; margin-bottom: 14px; white-space: pre-line; }
+.alert.show { display: block; }
+.warn { background: var(--e-warn-soft); color: var(--e-warn); border-radius: 8px; padding: 10px 14px; font-size: 12.5px; line-height: 1.5; margin-bottom: 14px; }
+.danger { background: var(--e-danger-soft); color: var(--e-danger); border-radius: 8px; padding: 8px 12px; font-size: 12.5px; margin-bottom: 10px; font-weight: 600; }
+.cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+@media (max-width: 800px) { .cols { grid-template-columns: 1fr; } }
+.facts { display: grid; grid-template-columns: 150px 1fr; gap: 6px 10px; font-size: 13px; margin-bottom: 10px; }
+.facts b { color: var(--e-muted); font-weight: 600; }
+.thumbs { display: flex; gap: 8px; flex-wrap: wrap; }
+.thumbs img { width: 110px; height: 140px; object-fit: cover; border: 1px solid var(--e-border); border-radius: 8px; cursor: zoom-in; background: var(--e-surface-2); }
+.big { position: fixed; inset: 0; background: rgba(0,0,0,.8); display: none; align-items: center; justify-content: center; z-index: 50; padding: 20px; }
+.big.on { display: flex; }
+.big img { max-width: 100%; max-height: 100%; border-radius: 8px; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+.row input { width: 150px; }
+.row input.wide { width: 240px; }
+.pill { display: inline-block; padding: 1px 9px; border-radius: 99px; font-size: 11px; font-weight: 700; background: var(--e-surface-2); border: 1px solid var(--e-border); }
+.pill.approved { background: var(--e-good-soft); color: var(--e-good); border-color: transparent; }
+.pill.rejected { background: var(--e-danger-soft); color: var(--e-danger); border-color: transparent; }
+</style>
+<link rel="stylesheet" href="assets/portal.css">
+</head>
+<body data-shell="app" data-title="Salary checks" data-sub="Salary slips customers uploaded. Confirm the take-home salary, or send the slip back with a reason.">
+<div class="container">
+  <div id="alert" class="alert" role="alert"></div>
+  <div class="warn"><b>What to check on each slip:</b> the name matches the customer; the employer is the one they gave; the month is recent; the take-home (net) salary is the figure they wrote; the totals add up; and nothing looks edited (different fonts, uneven lines, blurred numbers). A slip is easy to fake, so a confirmed slip counts as lighter proof than bank statements. Do not confirm more than the customer claimed.</div>
+  <div class="tabs"><button id="t-pending" class="on" onclick="load('pending')">Waiting</button><button id="t-approved" onclick="load('approved')">Confirmed</button><button id="t-rejected" onclick="load('rejected')">Sent back</button></div>
+  <div id="list"></div>
+</div>
+<div class="big" id="big" onclick="this.classList.remove('on')"><img id="bigimg" alt="Salary slip"></div>
+<script>
+const API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
+const token = localStorage.getItem('admin_token');
+if (!token) location.href = 'admin-config.html';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const inr = n => n ? '₹' + Math.round(n).toLocaleString('en-IN') : 'not given';
+const when = d => new Date(d).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+let STATUS = 'pending', D = null;
+function msg(text, kind) { const a = $('alert'); a.textContent = text; a.className = 'alert show ' + (kind === 'ok' ? 'ok' : 'err'); window.scrollTo({ top: 0, behavior: 'smooth' }); if (kind === 'ok') setTimeout(() => a.classList.remove('show'), 5000); }
+async function api(path, method = 'GET', body) {
+  const r = await fetch(API + path, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.errors ? d.errors.join('\n') : d.error || 'Something went wrong');
+  return d;
+}
+// Photos need the staff sign-in, so they are fetched with it and shown from memory
+async function photo(img, id, n) {
+  try {
+    const r = await fetch(`${API}/admin/salary-proof/${id}/photo/${n}`, { headers: { Authorization: 'Bearer ' + token } });
+    if (!r.ok) { img.alt = 'Photo deleted'; return; }
+    img.src = URL.createObjectURL(await r.blob());
+    img.onclick = () => { $('bigimg').src = img.src; $('big').classList.add('on'); };
+  } catch (e) { img.alt = 'Could not load'; }
+}
+async function load(status) {
+  STATUS = status || STATUS;
+  for (const k of ['pending', 'approved', 'rejected']) $('t-' + k).classList.toggle('on', k === STATUS);
+  try { D = await api('/admin/salary-proof?status=' + STATUS); draw(); } catch (e) { msg(e.message, 'err'); }
+}
+function draw() {
+  const dis = D.canDecide ? '' : 'disabled';
+  $('list').innerHTML = D.slips.map((s, i) => `<div class="card">
+    ${s.duplicate ? '<div class="danger">An identical photo was also uploaded by another customer. Look closely before confirming.</div>' : ''}
+    <div class="cols"><div>
+      <h2>${esc(s.customer)} <span class="pill ${esc(s.status)}">${esc(s.status === 'pending' ? 'waiting' : s.status === 'approved' ? 'confirmed' : 'sent back')}</span></h2>
+      <div class="sub">${esc(s.phone)} · sent ${when(s.at)}</div>
+      <div class="facts">
+        <b>Take-home on the slip</b><span>${inr(s.claimedIncome)} (what the customer wrote)</span>
+        <b>Income they declared</b><span>${inr(s.declaredIncome)}</span>
+        ${s.statementIncome ? `<b>Seen in bank statements</b><span>${inr(s.statementIncome)}</span>` : ''}
+        <b>Employer on the slip</b><span>${esc(s.employer || 'not given')}</span>
+        <b>Employer they declared</b><span>${esc(s.declaredEmployer || 'not given')}</span>
+        <b>Month of the slip</b><span>${esc(s.slipMonth || 'not given')}</span>
+        ${s.status === 'approved' ? `<b>Confirmed</b><span>${inr(s.verifiedIncome)} by ${esc(s.reviewedBy)}, valid until ${when(s.validUntil)}</span>` : ''}
+        ${s.status === 'rejected' ? `<b>Reason given</b><span>${esc(s.reason)} (${esc(s.reviewedBy)})</span>` : ''}
+      </div></div>
+      <div><div class="thumbs">${Array.from({ length: s.images }, (_, n) => `<img id="ph-${i}-${n}" alt="Photo ${n + 1}">`).join('')}</div><div class="note" style="margin-top:6px">Click a photo to enlarge it. Photos are deleted a few weeks after the decision.</div></div></div>
+    ${s.status === 'pending' ? `<div class="row"><input id="vi-${i}" type="number" value="${esc(s.claimedIncome)}" aria-label="Confirmed take-home salary" ${dis}><input id="ve-${i}" class="wide" value="${esc(s.employer || s.declaredEmployer)}" placeholder="Employer" aria-label="Employer" ${dis}><button class="btn primary" onclick="decide(${i}, 'approve')" ${dis}>Confirm this salary</button></div>
+    <div class="row"><input id="rs-${i}" class="wide" placeholder="Reason the customer will see" maxlength="200" aria-label="Reason" ${dis}><button class="btn" onclick="decide(${i}, 'reject')" ${dis}>Send it back</button></div>` : ''}
+  </div>`).join('') || '<div class="card note">Nothing here.</div>';
+  D.slips.forEach((s, i) => { for (let n = 0; n < s.images; n++) photo($(`ph-${i}-${n}`), s.id, n); });
+}
+async function decide(i, decision) {
+  const s = D.slips[i];
+  const body = decision === 'approve' ? { decision, verifiedIncome: Number($('vi-' + i).value), verifiedEmployer: $('ve-' + i).value } : { decision, reason: $('rs-' + i).value };
+  try { const r = await api('/admin/salary-proof/' + s.id, 'PUT', body); msg(r.message, 'ok'); load(); } catch (e) { msg(e.message, 'err'); }
+}
+load('pending');
+</script>
+<script src="assets/portal.js"></script>
+</body>
+</html>

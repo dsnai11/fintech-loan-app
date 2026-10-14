@@ -118,6 +118,7 @@ const RULES = [
   [/^\/api\/admin\/employers(\/|$)/, 'decisions.view', 'decisions.edit'],
   [/^\/api\/admin\/leads(\/|$)/, 'support.view', 'support.reply'],
   [/^\/api\/admin\/website(\/|$)/, 'banners.edit', 'banners.edit'],
+  [/^\/api\/admin\/salary-proof(\/|$)/, 'kyc.view', 'kyc.decide'],
   [/^\/api\/admin\/decisions(\/|$)/, 'decisions.view', 'decisions.view'],
   [/^\/api\/admin\/support(\/|$)/, 'support.view', 'support.reply'],
   [/^\/api\/admin\/callbacks(\/|$)/, 'support.view', 'support.view'], // changes are checked in the route

@@ -126,6 +126,30 @@ class ApiService {
     }
   }
 
+  // Proving a salary with a salary slip
+  Future<Map<String, dynamic>> getSalaryProofStatus() async {
+    try {
+      final response = await _dio.get('/salary-proof/status');
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> submitSalarySlip({required List<String> images, required int monthlyIncome, String? employer, String? slipMonth}) async {
+    try {
+      final response = await _dio.post('/salary-proof', data: {
+        'images': [for (final i in images) {'data': i}],
+        'monthlyIncome': monthlyIncome,
+        if (employer != null && employer.isNotEmpty) 'employer': employer,
+        if (slipMonth != null && slipMonth.isNotEmpty) 'slipMonth': slipMonth,
+      });
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   // "Talk to an expert" for products partners provide
   Future<String> getLeadConsent() async {
     try {

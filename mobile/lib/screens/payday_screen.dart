@@ -1,3 +1,4 @@
+import 'salary_slip_screen.dart';
 import '../widgets/employer_field.dart';
 import 'package:flutter/material.dart' hide Text;
 import 'package:provider/provider.dart';
@@ -136,6 +137,19 @@ class _PaydayScreenState extends State<PaydayScreen> {
         SizedBox(width: double.infinity, child: ElevatedButton(onPressed: _busy ? null : _saveDetails, child: const Text('Save'))),
       ]);
 
+  // Salary has to be proved before an advance: by bank statements, or (when allowed) a salary slip that staff check
+  Widget _proofCard(Map<String, dynamic> s) {
+    final slipOk = s['acceptSalarySlip'] == true;
+    return _card([
+      const Text('Prove your salary', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+      const SizedBox(height: 4),
+      Text(slipOk ? 'Before we can lend, we need to see your salary. Upload your latest salary slip and our team will check it.' : 'Before we can lend, we need to see your salary. Share your bank statements with us.', style: const TextStyle(fontSize: 12.5, color: Color(0xFF6B7280), height: 1.4)),
+      if (slipOk && asNum(s['slipMaxAmount'] ?? 0) > 0) Padding(padding: const EdgeInsets.only(top: 6), child: Text('With a salary slip you can borrow up to ${formatMoney(asNum(s['slipMaxAmount']))}. Bank statements allow more.', style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)))),
+      const SizedBox(height: 12),
+      if (slipOk) SizedBox(width: double.infinity, child: ElevatedButton(onPressed: () async { await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SalarySlipScreen())); _load(); }, child: const Text('Upload a salary slip'))),
+    ]);
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = _s;
@@ -165,8 +179,10 @@ class _PaydayScreenState extends State<PaydayScreen> {
   List<Widget> _body(Map<String, dynamic> s) {
     final checks = List<Map<String, dynamic>>.from((s['checks'] ?? []).map((e) => Map<String, dynamic>.from(e as Map)));
     final undone = checks.where((c) => c['ok'] != true).toList();
-    final needsDetails = undone.any((c) => ['salaryDay', 'income', 'salaried'].contains(c['key']));
-    final others = undone.where((c) => !['salaryDay', 'income', 'salaried'].contains(c['key'])).toList();
+    final needsProof = s['needsProof'] == true;
+    bool isDetail(Map<String, dynamic> c) => ['salaryDay', 'salaried'].contains(c['key']) || (c['key'] == 'income' && !needsProof);
+    final needsDetails = undone.any(isDetail);
+    final others = undone.where((c) => !isDetail(c) && !(c['key'] == 'income' && needsProof)).toList();
     final eligible = s['eligible'] == true;
     final lo = asNum(s['minAmount']).toDouble();
     final hi = asNum(s['maxAmount']).toDouble();
@@ -188,6 +204,7 @@ class _PaydayScreenState extends State<PaydayScreen> {
             const SizedBox(height: 8),
             for (final c in others) Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [const Icon(Icons.radio_button_unchecked, size: 18, color: Color(0xFFB45309)), const SizedBox(width: 8), Expanded(child: Text('${c['hint']}', style: const TextStyle(fontSize: 13.5, height: 1.4)))])),
           ]),
+        if (needsProof && !needsDetails && s['livePaydayLoanId'] == null) _proofCard(s),
         if ((needsDetails || _editing) && s['livePaydayLoanId'] == null) _detailsForm(),
         if (eligible && !needsDetails && !_editing) ...[
           _card([
@@ -197,6 +214,7 @@ class _PaydayScreenState extends State<PaydayScreen> {
             ]),
             _row('Arrives on day', '${s['salaryDay']} of the month'),
             _row('Monthly income', formatMoney(asNum((s['income'] as Map)['amount']))),
+            if ('${s['incomeSource']}' == 'salary slip') const Padding(padding: EdgeInsets.only(top: 2), child: Text('Confirmed from your salary slip', style: TextStyle(fontSize: 11.5, color: Color(0xFF15803D)))),
           ]),
           _card([
             const Text('How much do you need?', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
