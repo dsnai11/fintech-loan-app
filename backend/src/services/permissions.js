@@ -137,8 +137,8 @@ const RULES = [
   [/^\/api\/admin\/charges\/preview(\/|$)/, 'pricing.view', 'pricing.view'],
   [/^\/api\/admin\/charges(\/|$)/, 'pricing.view', 'pricing.edit'],
   [/^\/api\/admin\/customers\/[^/]+\/bank-verification(\/|$)/, 'kyc.decide', 'kyc.decide'],
-  [/^\/api\/admin\/customers\/[^/]+\/selfie-decision(\/|$)/, 'kyc.decide', 'kyc.decide'],
-  [/^\/api\/admin\/customers\/[^/]+\/selfie(\/|$)/, 'kyc.view', 'kyc.view'],
+  [/^\/api\/admin\/customers\/[^/]+\/(selfie|aadhaar)-decision(\/|$)/, 'kyc.decide', 'kyc.decide'],
+  [/^\/api\/admin\/customers\/[^/]+\/(selfie|aadhaar-card)(\/|$)/, 'kyc.view', 'kyc.view'],
   [/^\/api\/admin\/customers(\/|$)/, 'customers.view', 'customers.view'],
   [/^\/api\/admin\/reports(\/|$)/, 'reports.view', 'reports.view'],
   [/^\/api\/admin\/referrals(\/|$)/, 'referrals.view', 'referrals.view'], // changes are checked in the route

@@ -15,13 +15,14 @@ router.use(authMiddleware);
 
 const CHALLENGE_SECONDS = 180;
 const ATTEMPTS_PER_HOUR = 6;
+const SELFIE_KINDS = ['selfie_before', 'selfie_after'];
 const bad = (res, status, error, extra = {}) => res.status(status).json({ error, ...extra });
 
 router.get('/status', async (req, res) => {
   try {
     const user = await User.findById(req.user.userId);
     if (!user) return bad(res, 404, 'User not found');
-    res.json({ steps: setupStatus(user), selfie: user.selfie ? { status: user.selfie.status, capturedAt: user.selfie.capturedAt } : null });
+    res.json({ steps: setupStatus(user), selfie: user.selfie ? { status: user.selfie.status, capturedAt: user.selfie.capturedAt } : null, aadhaarCard: user.aadhaarCard ? { status: user.aadhaarCard.status, capturedAt: user.aadhaarCard.capturedAt, reviewNote: user.aadhaarCard.status === 'rejected' ? user.aadhaarCard.reviewNote || null : null } : null });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -92,7 +93,7 @@ router.post('/selfie', async (req, res) => {
 
     // The same photo on another account is a sign of a stolen or reused picture.
     const dupe = await KycMedia.findOne({ sha256: { $in: [f1.sha256, f2.sha256] }, userId: { $ne: user._id } }).select('userId');
-    await KycMedia.deleteMany({ userId: user._id });
+    await KycMedia.deleteMany({ userId: user._id, kind: { $in: SELFIE_KINDS } });
     await KycMedia.create([
       { userId: user._id, kind: 'selfie_before', data: f1.data, sha256: f1.sha256, size: f1.data.length, width: f1.width, height: f1.height, challengeId: String(c._id) },
       { userId: user._id, kind: 'selfie_after', data: f2.data, sha256: f2.sha256, size: f2.data.length, width: f2.width, height: f2.height, challengeId: String(c._id) },
@@ -123,13 +124,45 @@ router.post('/selfie/upload', async (req, res) => {
     const f = readFrame(req.body?.photo, 'selfie');
     if (f.error) return bad(res, 422, f.error, { code: 'PHOTO_INVALID' });
     const dupe = await KycMedia.findOne({ sha256: f.sha256, userId: { $ne: user._id } }).select('userId');
-    await KycMedia.deleteMany({ userId: user._id });
+    await KycMedia.deleteMany({ userId: user._id, kind: { $in: SELFIE_KINDS } });
     await KycMedia.create({ userId: user._id, kind: 'selfie_before', data: f.data, sha256: f.sha256, size: f.data.length, width: f.width, height: f.height });
     const selfie = { status: 'review', capturedAt: new Date(), method: 'photo_upload', flag: dupe ? 'same_photo_on_another_account' : 'no_blink_check' };
     const updated = await User.findByIdAndUpdate(user._id, { selfie }, { new: true });
     if (dupe) await AmlAlert.create({ rule: 'DUPLICATE_SELFIE', severity: 'MEDIUM', userId: user._id, detail: 'The selfie photo is the same picture as one on another account.' });
     await audit(req.user, 'SELFIE_UPLOADED', { type: 'User', id: user._id }, { status: 'review', duplicate: !!dupe }, req);
     res.json({ message: 'Thank you. Our team will look at your photo.', selfie: { status: 'review' }, steps: setupStatus(updated) });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// The Aadhaar card photo. Compulsory for every customer. It is never passed by the machine alone: with no
+// face-matching provider connected a person at the company compares the face on the card with the selfie.
+// The same card photo on another account is a sign of a borrowed identity, so it raises an alert.
+router.post('/aadhaar-card', async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId);
+    if (!user) return bad(res, 404, 'User not found');
+    const now = Date.now();
+    const w = user.aadhaarAttempts || {};
+    const inWindow = w.windowStart && now - new Date(w.windowStart).getTime() < 3600 * 1000;
+    const count = inWindow ? w.count || 0 : 0;
+    if (count >= ATTEMPTS_PER_HOUR) return bad(res, 429, 'Too many attempts in the last hour. Please wait a little and try again.');
+    await User.updateOne({ _id: user._id }, { aadhaarAttempts: { count: count + 1, windowStart: inWindow ? w.windowStart : new Date(now) } });
+
+    const f = readFrame(req.body?.photo, 'Aadhaar card');
+    if (f.error) return bad(res, 422, f.error, { code: 'PHOTO_INVALID' });
+    // The card photo must not be the selfie itself
+    const own = await KycMedia.findOne({ userId: user._id, kind: { $in: SELFIE_KINDS }, sha256: f.sha256 }).select('_id');
+    if (own) return bad(res, 422, 'This is the same picture as your selfie. Please take a photo of your Aadhaar card.', { code: 'PHOTO_INVALID' });
+    const dupe = await KycMedia.findOne({ sha256: f.sha256, userId: { $ne: user._id } }).select('userId');
+    await KycMedia.deleteMany({ userId: user._id, kind: 'aadhaar_card' });
+    await KycMedia.create({ userId: user._id, kind: 'aadhaar_card', data: f.data, sha256: f.sha256, size: f.data.length, width: f.width, height: f.height });
+    const aadhaarCard = { status: 'review', capturedAt: new Date(), faceMatch: { mode: 'staff', note: 'A person at the company compares the face on the card with the selfie' }, flag: dupe ? 'same_photo_on_another_account' : null };
+    const updated = await User.findByIdAndUpdate(user._id, { aadhaarCard }, { new: true });
+    if (dupe) await AmlAlert.create({ rule: 'DUPLICATE_AADHAAR_PHOTO', severity: 'MEDIUM', userId: user._id, detail: 'The Aadhaar card photo is the same picture as one on another account.' });
+    await audit(req.user, 'AADHAAR_CARD_UPLOADED', { type: 'User', id: user._id }, { status: 'review', duplicate: !!dupe }, req);
+    res.json({ message: 'Thank you. Our team will compare it with your selfie.', aadhaarCard: { status: 'review' }, steps: setupStatus(updated) });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

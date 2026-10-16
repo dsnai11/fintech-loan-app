@@ -76,6 +76,7 @@ router.get('/:id', async (req, res) => {
         incomeCheck: incomeView(user.incomeCheck),
         bankVerification: bankView(user),
         devices: await devicesOf(user._id),
+        aadhaarCard: user.aadhaarCard ? { status: user.aadhaarCard.status, capturedAt: user.aadhaarCard.capturedAt, flag: user.aadhaarCard.flag || null, faceMatch: user.aadhaarCard.faceMatch || null, reviewedBy: user.aadhaarCard.reviewedBy || null, reviewNote: user.aadhaarCard.reviewNote || null } : null,
         selfie: user.selfie ? { status: user.selfie.status, capturedAt: user.selfie.capturedAt, blinks: user.selfie.blinks, method: user.selfie.method, flag: user.selfie.flag || null, reviewedBy: user.selfie.reviewedBy || null, reviewNote: user.selfie.reviewNote || null } : null,
       },
       summary: {
@@ -103,6 +104,39 @@ router.post('/:id/bank-verification', async (req, res) => {
     const user = await User.findById(req.params.id);
     if (!user?.bankAccount?.accountNumber) return res.status(409).json({ error: 'This customer has no bank account saved.' });
     res.json({ bankVerification: bankView({ ...user.toObject(), bankVerification: await markManually(user, req.user.email, note) }) });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.get('/:id/aadhaar-card', async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid customer id' });
+    const m = await KycMedia.findOne({ userId: req.params.id, kind: 'aadhaar_card' }).select('+data mime');
+    if (!m) return res.status(404).json({ error: 'This customer has not uploaded an Aadhaar card photo yet' });
+    await audit(req.user, 'AADHAAR_CARD_VIEWED', { type: 'User', id: req.params.id }, {}, req);
+    res.setHeader('Content-Type', m.mime);
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.send(m.data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// A reviewer says the face on the card is the same person as the selfie, or asks for a clearer photo.
+router.post('/:id/aadhaar-decision', async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid customer id' });
+    const decision = req.body?.decision;
+    if (!['accept', 'reject'].includes(decision)) return res.status(400).json({ error: 'Choose accept or reject' });
+    const user = await User.findById(req.params.id);
+    if (!user?.aadhaarCard) return res.status(404).json({ error: 'This customer has no Aadhaar card photo to review' });
+    const note = String(req.body?.note ?? '').trim().slice(0, 300);
+    if (decision === 'reject' && !note) return res.status(400).json({ error: 'Say why, so the customer knows what to fix' });
+    const aadhaarCard = { ...user.aadhaarCard, status: decision === 'accept' ? 'passed' : 'rejected', reviewedBy: req.user.email, reviewedAt: new Date(), reviewNote: note };
+    await User.updateOne({ _id: user._id }, { aadhaarCard });
+    await audit(req.user, decision === 'accept' ? 'AADHAAR_CARD_ACCEPTED' : 'AADHAAR_CARD_REJECTED_BY_STAFF', { type: 'User', id: user._id }, { note }, req);
+    res.json({ aadhaarCard: { status: aadhaarCard.status } });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

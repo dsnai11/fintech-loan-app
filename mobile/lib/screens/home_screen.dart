@@ -810,7 +810,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _setupCard() {
     final s = _setup!;
-    final left = ['kyc', 'profile', 'selfie', 'bank'].where((k) => s[k] != true).length;
+    final left = ['kyc', 'profile', 'selfie', 'aadhaarCard', 'bank'].where((k) => s[k] != true).length;
     return GestureDetector(
       onTap: () async {
         await runAccountSetup(context, s);
@@ -824,7 +824,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Row(children: [
           const Icon(Icons.assignment_ind_outlined, color: Color(0xFF92400E), size: 22),
           const SizedBox(width: 12),
-          Expanded(child: Text('Finish setting up your account: $left step${left == 1 ? '' : 's'} left (identity, details, selfie, bank). You need this before you can apply.', style: const TextStyle(color: Color(0xFF92400E), fontSize: 13, height: 1.4))),
+          Expanded(child: Text('Finish setting up your account: $left step${left == 1 ? '' : 's'} left (identity, details, selfie, Aadhaar card photo, bank). You need this before you can apply.', style: const TextStyle(color: Color(0xFF92400E), fontSize: 13, height: 1.4))),
           const Icon(Icons.chevron_right_rounded, color: Color(0xFF92400E)),
         ]),
       ),

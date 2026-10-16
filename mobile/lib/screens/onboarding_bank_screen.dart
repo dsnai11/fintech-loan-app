@@ -10,7 +10,7 @@ import 'setup_scaffold.dart';
 class OnboardingBankScreen extends StatefulWidget {
   final int step;
   final bool fromProfile;
-  const OnboardingBankScreen({Key? key, this.step = 4, this.fromProfile = false}) : super(key: key);
+  const OnboardingBankScreen({Key? key, this.step = 5, this.fromProfile = false}) : super(key: key);
 
   @override
   State<OnboardingBankScreen> createState() => _OnboardingBankScreenState();

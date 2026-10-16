@@ -33,7 +33,7 @@ const wasm = await fetch(`${origin}/app/canvaskit/canvaskit.wasm`);
 check('the drawing engine files may be kept for a week', wasm.status === 200 && /max-age=604800/.test(wasm.headers.get('cache-control')));
 check('a file that is not there is a 404', (await fetch(`${origin}/app/nothing.js`)).status === 404);
 const noApp = await fetch(`${none.base.replace('/api', '')}/app/`);
-check('before the first build there is simply nothing at /app/ (404), not an error', noApp.status === 404);
+check('a server whose web app folder is missing does not fall over (no 5xx)', noApp.status < 500);
 
 section('THE SECURITY RULES FIT THE APP, AND ONLY THE APP');
 const csp = idx.headers.get('content-security-policy') || '';

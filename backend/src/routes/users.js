@@ -9,7 +9,7 @@ const router = express.Router();
 
 router.get('/profile', authMiddleware, async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId).select('-password -selfieAttempts -kycDigilocker.key');
+    const user = await User.findById(req.user.userId).select('-password -selfieAttempts -aadhaarAttempts -kycDigilocker.key');
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });

@@ -5,7 +5,7 @@ import mongoose from 'mongoose';
 const schema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
-    kind: { type: String, enum: ['selfie_before', 'selfie_after'], required: true },
+    kind: { type: String, enum: ['selfie_before', 'selfie_after', 'aadhaar_card'], required: true },
     mime: { type: String, default: 'image/jpeg' },
     data: { type: Buffer, required: true, select: false },
     sha256: { type: String, required: true, index: true },

@@ -970,6 +970,16 @@ class ApiService {
     }
   }
 
+  // The Aadhaar card photo (base64). Every customer sends one; a person at the company compares it with the selfie.
+  Future<Map<String, dynamic>> submitAadhaarCard(String photo) async {
+    try {
+      final response = await _dio.post('/onboarding/aadhaar-card', data: {'photo': photo}, options: Options(sendTimeout: const Duration(seconds: 60), receiveTimeout: const Duration(seconds: 60)));
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   // One photo (base64), for the web app, where the blink check cannot run. A person at the company looks at it.
   Future<Map<String, dynamic>> submitSelfieUpload(String photo) async {
     try {

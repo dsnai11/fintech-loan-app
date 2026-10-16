@@ -4,6 +4,7 @@ import '../widgets/tr_text.dart';
 import 'package:provider/provider.dart';
 import '../main.dart';
 import '../services/api_service.dart';
+import 'aadhaar_card_screen.dart';
 import 'onboarding_bank_screen.dart';
 import 'onboarding_kyc_screen.dart';
 import 'onboarding_profile_screen.dart';
@@ -26,6 +27,7 @@ class _AccountSetupCardState extends State<AccountSetupCard> {
 
   Map get _kyc => (widget.profile['kycDigilocker'] as Map?) ?? const {};
   Map get _selfie => (widget.profile['selfie'] as Map?) ?? const {};
+  Map get _aadhaar => (widget.profile['aadhaarCard'] as Map?) ?? const {};
   Map get _bank => (widget.profile['bankAccount'] as Map?) ?? const {};
 
   @override
@@ -59,6 +61,7 @@ class _AccountSetupCardState extends State<AccountSetupCard> {
     final detailsDone = p['dateOfBirth'] != null && (p['gender'] ?? '').toString().isNotEmpty && (a['street'] ?? '').toString().isNotEmpty && (a['zipCode'] ?? '').toString().isNotEmpty && (e['status'] ?? '').toString().isNotEmpty;
     final kycStatus = (_kyc['status'] ?? '').toString();
     final selfieStatus = (_selfie['status'] ?? '').toString();
+    final aadhaarStatus = (_aadhaar['status'] ?? '').toString();
     final acct = (_bank['accountNumber'] ?? '').toString();
 
     return Container(
@@ -74,6 +77,7 @@ class _AccountSetupCardState extends State<AccountSetupCard> {
           _row(Icons.badge_outlined, 'Identity (DigiLocker)', kycStatus == 'verified' ? 'Verified' : kycStatus == 'review' ? 'Under review' : 'Not done', kycStatus == 'verified', kycStatus.isEmpty ? 'Verify' : null, () => _open(const OnboardingKycScreen())),
           _row(Icons.person_outline_rounded, 'Personal details', detailsDone ? 'Done' : 'Not done', detailsDone, detailsDone ? 'Edit' : 'Add', () => _open(const OnboardingProfileScreen(fromProfile: true))),
           _row(Icons.face_retouching_natural_rounded, 'Photo and blink check', selfieStatus == 'passed' ? 'Verified' : selfieStatus == 'review' ? 'Under review' : selfieStatus == 'rejected' ? 'Please retake' : 'Not done', selfieStatus == 'passed', selfieStatus.isEmpty ? 'Take' : 'Retake', () => _open(const SelfieLivenessScreen(fromProfile: true)), leading: _photo != null ? ClipOval(child: Image.memory(_photo!, width: 36, height: 36, fit: BoxFit.cover)) : null),
+          _row(Icons.badge_outlined, 'Aadhaar card photo', aadhaarStatus == 'passed' ? 'Verified' : aadhaarStatus == 'review' ? 'Under review' : aadhaarStatus == 'rejected' ? 'Please send a clearer photo' : 'Not done', aadhaarStatus == 'passed', aadhaarStatus.isEmpty ? 'Upload' : 'Replace', () => _open(const AadhaarCardScreen(fromProfile: true))),
           _row(Icons.account_balance_outlined, 'Bank account', acct.isEmpty ? 'Not done' : '${(_bank['bankName'] ?? 'Bank')} ····${acct.length > 4 ? acct.substring(acct.length - 4) : acct}', acct.isNotEmpty, acct.isEmpty ? 'Add' : 'Change', () => _open(const OnboardingBankScreen(fromProfile: true))),
           if (_photoTried && _selfie.isNotEmpty && _photo == null) const SizedBox.shrink(),
         ],

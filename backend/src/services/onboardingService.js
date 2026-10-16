@@ -8,17 +8,19 @@ const GENDERS = ['Male', 'Female', 'Other'];
 
 const ageOn = d => Math.floor((Date.now() - new Date(d).getTime()) / (365.25 * 86400000));
 
-// What is still to do. A selfie waiting for staff to look at it counts as done; a rejected one does not.
+// What is still to do. The Aadhaar card photo is compulsory for every customer: it is compared with the selfie.
+// A selfie waiting for staff to look at it counts as done; a rejected one does not.
 export function setupStatus(user) {
   const a = user.address || {};
   const e = user.employment || {};
   const earns = e.status === 'Employed' || e.status === 'Self-Employed';
   const profile = !!(user.dateOfBirth && user.gender && a.street && a.city && a.state && /^\d{6}$/.test(String(a.zipCode || '')) && e.status && (!earns || e.monthlyIncome > 0));
   const selfie = !!user.selfie && ['passed', 'review'].includes(user.selfie.status);
+  const aadhaarCard = !!user.aadhaarCard && ['passed', 'review'].includes(user.aadhaarCard.status);
   const b = user.bankAccount || {};
   const bank = !!(b.accountNumber && b.ifscCode && b.accountHolder);
   const kyc = !!user.kycDigilocker && ['verified', 'review'].includes(user.kycDigilocker.status);
-  return { kyc, profile, selfie, bank, complete: kyc && profile && selfie && bank };
+  return { kyc, profile, selfie, aadhaarCard, bank, complete: kyc && profile && selfie && aadhaarCard && bank };
 }
 
 // Checks what the customer typed and turns it into the fields to save. Returns { errors, update }.

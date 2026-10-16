@@ -176,6 +176,11 @@ export const INTEGRATIONS = [
     fields: [],
     status: () => ({ mode: 'device', note: 'The blink check runs on the phone and staff review the photos. A certified liveness provider can replace it later.' }),
   },
+  {
+    id: 'face_match', label: 'Aadhaar photo and selfie match', purpose: 'Checks the face on the customer\'s Aadhaar card photo is the person in the selfie.',
+    fields: [],
+    status: () => ({ mode: 'staff', note: 'Every customer uploads an Aadhaar card photo. With no face-matching provider connected, a person at the company compares it with the selfie in the customer page. A certified face-match provider can replace this later.' }),
+  },
 ];
 
 const isSet = k => !!getConfig(k);

@@ -5,7 +5,7 @@ import '../main.dart';
 // The frame shared by the account set-up steps: a step counter with a progress bar, the step's content, and a
 // "Not now" link, since the customer can finish setting up later (they must before they can apply for a loan).
 class SetupScaffold extends StatelessWidget {
-  final int step; // 1 to 4
+  final int step; // 1 to 5
   final String title;
   final String subtitle;
   final Widget body;
@@ -23,13 +23,13 @@ class SetupScaffold extends StatelessWidget {
         foregroundColor: const Color(0xFF111827),
         elevation: 0,
         automaticallyImplyLeading: false,
-        title: Text('Step $step of 4', style: const TextStyle(fontSize: 14, color: Color(0xFF6B7280), fontWeight: FontWeight.w600)),
+        title: Text('Step $step of 5', style: const TextStyle(fontSize: 14, color: Color(0xFF6B7280), fontWeight: FontWeight.w600)),
         actions: [
           if (canSkip) TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Not now', style: TextStyle(color: Color(0xFF6B7280)))),
         ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(4),
-          child: LinearProgressIndicator(value: step / 4, minHeight: 4, backgroundColor: const Color(0xFFF3F4F6), color: kNavy),
+          child: LinearProgressIndicator(value: step / 5, minHeight: 4, backgroundColor: const Color(0xFFF3F4F6), color: kNavy),
         ),
       ),
       body: SafeArea(

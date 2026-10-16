@@ -133,7 +133,7 @@ async function openCustomer(id) {
         [date(n.at), esc(n.type), esc(n.text), n.promiseDate ? date(n.promiseDate) + (n.promiseAmount ? ' / ' + inr(n.promiseAmount) : '') : '', esc(n.by)]))}</div>
       <div class="card"><h2>Data requests</h2>${table(['Type', 'Status', 'Raised'], d.dataRequests.map(q => [esc(q.type), pill(q.status), date(q.at)]))}</div>`;
     $('detail').scrollIntoView({ behavior: 'smooth' });
-    if (c.selfie && (!window.PortalShell || PortalShell.can('kyc.view'))) loadSelfie(c.id);
+    if ((c.selfie || c.aadhaarCard) && (!window.PortalShell || PortalShell.can('kyc.view'))) loadSelfie(c.id);
   } catch (err) { fail(err.message); }
 }
 
@@ -183,7 +183,16 @@ function setupCard(c) {
           ${s.reviewedBy ? `<div class="muted">Reviewed by ${esc(s.reviewedBy)}${s.reviewNote ? ': ' + esc(s.reviewNote) : ''}</div>` : ''}
           <div class="muted" style="margin-top:6px">Compare the two photos with the person on the Aadhaar record. The blink check runs on the phone, so look at the photos too.</div>
           ${decide ? `<div style="margin-top:10px;display:flex;gap:8px"><button class="btn primary" onclick="selfieDecision('${esc(c.id)}','accept')">Accept photo</button><button class="btn" onclick="selfieDecision('${esc(c.id)}','reject')">Ask them to retake</button></div>` : ''}
-        </div></div>` : '<div class="muted" style="margin-top:6px">No photo yet</div>'}</div>`;
+        </div></div>` : '<div class="muted" style="margin-top:6px">No photo yet</div>'}
+    <div style="margin-top:18px"><b style="font-size:11px;color:var(--muted);text-transform:uppercase">Aadhaar card photo and selfie match</b>
+    ${c.aadhaarCard ? `<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;margin-top:8px">
+        <div><img id="aadhaar-card-img" alt="Aadhaar card photo" style="width:260px;height:170px;object-fit:cover;border-radius:10px;background:#e5e7eb"><div class="muted">Aadhaar card</div></div>
+        <div><img id="selfie-match" alt="Selfie" style="width:130px;height:170px;object-fit:cover;border-radius:10px;background:#e5e7eb"><div class="muted">Selfie</div></div>
+        <div style="flex:1;min-width:220px">${pill(c.aadhaarCard.status === 'passed' ? 'approved' : c.aadhaarCard.status === 'rejected' ? 'rejected' : 'pending')} <span class="muted">uploaded ${date(c.aadhaarCard.capturedAt)}</span>${flagList(c.aadhaarCard.flag ? [c.aadhaarCard.flag] : [])}
+          ${c.aadhaarCard.reviewedBy ? `<div class="muted">Reviewed by ${esc(c.aadhaarCard.reviewedBy)}${c.aadhaarCard.reviewNote ? ': ' + esc(c.aadhaarCard.reviewNote) : ''}</div>` : ''}
+          <div class="muted" style="margin-top:6px">No face-matching service is connected, so please compare the face on the card with the selfie yourself. Check also that the name on the card matches the account.</div>
+          ${decide ? `<div style="margin-top:10px;display:flex;gap:8px"><button class="btn primary" onclick="aadhaarDecision('${esc(c.id)}','accept')">Same person, accept</button><button class="btn" onclick="aadhaarDecision('${esc(c.id)}','reject')">Ask for a clearer photo</button></div>` : ''}
+        </div></div>` : '<div class="muted" style="margin-top:6px">The customer has not uploaded an Aadhaar card photo yet. It is compulsory before they can apply for a loan.</div>'}</div></div>`;
 }
 async function verifyBankByHand(id) {
   const note = prompt('How did you check the account (for example, a cancelled cheque or passbook page)?');
@@ -196,12 +205,29 @@ async function verifyBankByHand(id) {
   } catch (err) { fail(err.message); }
 }
 async function loadSelfie(id) {
+  try {
+    const r = await fetch(API + `/admin/customers/${encodeURIComponent(id)}/aadhaar-card`, { headers: { Authorization: 'Bearer ' + token } });
+    if (r.ok && $('aadhaar-card-img')) $('aadhaar-card-img').src = URL.createObjectURL(await r.blob());
+    const s2 = await fetch(API + `/admin/customers/${encodeURIComponent(id)}/selfie?frame=before`, { headers: { Authorization: 'Bearer ' + token } });
+    if (s2.ok && $('selfie-match')) $('selfie-match').src = URL.createObjectURL(await s2.blob());
+  } catch (e) { /* the images stay grey */ }
   for (const frame of ['before', 'after']) {
     try {
       const r = await fetch(API + `/admin/customers/${encodeURIComponent(id)}/selfie?frame=${frame}`, { headers: { Authorization: 'Bearer ' + token } });
       if (r.ok && $('selfie-' + frame)) $('selfie-' + frame).src = URL.createObjectURL(await r.blob());
     } catch (e) { /* the image stays grey */ }
   }
+}
+async function aadhaarDecision(id, decision) {
+  let note = '';
+  if (decision === 'reject') { note = prompt('What should they fix? The customer will see this.') || ''; if (!note.trim()) return; }
+  else note = prompt('Note (optional):') || '';
+  try {
+    const r = await fetch(API + `/admin/customers/${encodeURIComponent(id)}/aadhaar-decision`, { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify({ decision, note }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) return fail(d.error || 'Could not save');
+    openCustomer(id);
+  } catch (err) { fail(err.message); }
 }
 async function selfieDecision(id, decision) {
   let note = '';
