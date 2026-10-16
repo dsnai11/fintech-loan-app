@@ -158,6 +158,7 @@ const root = await fetch(srv.base.replace('/api', '/'));
 const csp = root.headers.get('content-security-policy') || '';
 check('the portal is served with a content security policy', root.status === 200 && csp.length > 0);
 check("no framing, no plugins, scripts and connections only from this site", ["frame-ancestors 'none'", "object-src 'none'", "default-src 'self'", "connect-src 'self'", "base-uri 'self'", "form-action 'self'"].every(d => csp.includes(d)), csp);
+check('the portal may show photos it fetched with the staff login (selfie, Aadhaar card), and still no pictures from other sites', /img-src[^;]*blob:/.test(csp) && !/img-src[^;]*https?:/.test(csp));
 check('no eval and no outside script sources', !csp.includes('unsafe-eval') && !/script-src[^;]*https?:/.test(csp));
 const api = await fetch(`${srv.base}/health`);
 check('API responses also carry the headers', (api.headers.get('content-security-policy') || '').includes("frame-ancestors 'none'") && api.headers.get('x-content-type-options') === 'nosniff');
