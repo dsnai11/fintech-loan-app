@@ -25,6 +25,8 @@ allprojects {
             force "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
             force "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
             force "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
+            // The newest Google location library cannot be turned into an app by these build tools either
+            force 'com.google.android.gms:play-services-location:21.0.1'
         }
     }
 }
