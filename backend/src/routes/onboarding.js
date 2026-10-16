@@ -170,7 +170,8 @@ router.post('/aadhaar-card', async (req, res) => {
         return bad(res, 422, MESSAGES[verdict.reason] || MESSAGES.not_an_aadhaar_card, { code: 'NOT_AADHAAR', reason: verdict.reason });
       }
       // And is it the customer's own? The last 4 digits must match the Aadhaar they verified with DigiLocker.
-      const verified = user.kycDigilocker?.aadhaarLast4;
+      // Only a real DigiLocker result is compared: the test-mode page makes up its Aadhaar number, so it would never match a real card
+      const verified = user.kycDigilocker?.mode === 'digilocker' ? user.kycDigilocker.aadhaarLast4 : null;
       if (verified && verified !== verdict.last4) {
         await AmlAlert.create({ rule: 'AADHAAR_MISMATCH', severity: 'HIGH', userId: user._id, detail: 'The Aadhaar card photo shows a different Aadhaar number from the one verified with DigiLocker.' });
         await audit(req.user, 'AADHAAR_CARD_NOT_THEIRS', { type: 'User', id: user._id }, {}, req);

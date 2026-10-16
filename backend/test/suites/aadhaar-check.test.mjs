@@ -55,13 +55,17 @@ const u1 = await User.findById(c1.user._id);
 check('only the last 4 digits are kept, never the whole number', u1.aadhaarCard.documentCheck.checked === true && u1.aadhaarCard.documentCheck.last4 === '0124' && !JSON.stringify(u1.aadhaarCard).includes('234567890124') && !JSON.stringify(u1.aadhaarCard).includes('2345 6789'));
 
 section("IS IT THE CUSTOMER'S OWN CARD?");
-const c2 = await customer({ kycDigilocker: { status: 'verified', aadhaarLast4: '9999' } });
+const c2 = await customer({ kycDigilocker: { status: 'verified', mode: 'digilocker', aadhaarLast4: '9999' } });
 const notTheirs = await card(c2, aadhaarPhoto);
 check('a card whose last 4 digits differ from their DigiLocker Aadhaar is refused (422)', notTheirs.s === 422 && notTheirs.d.code === 'NOT_YOUR_AADHAAR', JSON.stringify(notTheirs.d));
 check('and a high-priority alert is raised', (await AmlAlert.countDocuments({ rule: 'AADHAAR_MISMATCH', userId: c2.user._id, severity: 'HIGH' })) === 1);
-const c3 = await customer({ kycDigilocker: { status: 'verified', aadhaarLast4: '0124' } });
+const c3 = await customer({ kycDigilocker: { status: 'verified', mode: 'digilocker', aadhaarLast4: '0124' } });
 const theirs = await card(c3, aadhaarPhoto);
 check('their own card is accepted, and the match with DigiLocker is recorded', theirs.s === 200 && (await User.findById(c3.user._id)).aadhaarCard.documentCheck.numberMatchesDigilocker === true);
+
+const c3b = await customer({ kycDigilocker: { status: 'verified', mode: 'sandbox', aadhaarLast4: '9999' } });
+const testMode = await card(c3b, aadhaarPhoto);
+check('with the test-mode DigiLocker (made-up Aadhaar number) the card is not compared, so a real card is accepted', testMode.s === 200 && (await User.findById(c3b.user._id)).aadhaarCard.documentCheck.numberMatchesDigilocker === null, JSON.stringify(testMode.d));
 
 section('WHEN THE TEXT READER IS SWITCHED OFF IT DOES NOT GUESS');
 const offSrv = await startServer(DB, { AADHAAR_TEXT_READER: 'off' });
