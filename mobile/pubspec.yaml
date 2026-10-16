@@ -18,6 +18,8 @@ dependencies:
   crypto: ^3.0.3
   # Face ID / fingerprint unlock. Pinned: newer releases need a newer Android build toolchain than this app uses.
   local_auth: 2.3.0
+  # The phone's location when applying (checks for many customers at one place and for faked locations). Pinned for the Android toolchain.
+  geolocator: 12.0.0
   intl: ^0.19.0
   email_validator: ^2.1.17
   font_awesome_flutter: ^10.6.0

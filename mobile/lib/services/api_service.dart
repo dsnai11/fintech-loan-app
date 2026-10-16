@@ -1,3 +1,4 @@
+import 'package:geolocator/geolocator.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'device_risk.dart';
 import 'package:dio/dio.dart';
@@ -235,6 +236,7 @@ class ApiService {
     required String purpose,
     String loanType = 'Personal Loan',
   }) async {
+    await shareLocation('apply');
     try {
       final response = await _dio.post(
         '/loans/apply',
@@ -930,6 +932,7 @@ class ApiService {
     Map<String, dynamic>? personalDetails,
     List<String> optionalCharges = const [],
   }) async {
+    await shareLocation('apply');
     try {
       final response = await _dio.post(
         '/loans/apply-full',
@@ -970,8 +973,22 @@ class ApiService {
     }
   }
 
+  // Tells the server where the phone is, if the customer allows it. Never throws and never holds the customer up for long:
+  // no permission, no location service or no answer in a few seconds simply means no location is shared.
+  Future<void> shareLocation(String purpose) async {
+    try {
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) return;
+      if (!await Geolocator.isLocationServiceEnabled()) return;
+      final p = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium, timeLimit: const Duration(seconds: 8));
+      await _dio.post('/location', data: {'lat': p.latitude, 'lon': p.longitude, 'accuracy': p.accuracy, 'mocked': p.isMocked, 'purpose': purpose}, options: Options(sendTimeout: const Duration(seconds: 8), receiveTimeout: const Duration(seconds: 8)));
+    } catch (_) {}
+  }
+
   // The Aadhaar card photo (base64). Every customer sends one; a person at the company compares it with the selfie.
   Future<Map<String, dynamic>> submitAadhaarCard(String photo) async {
+    await shareLocation('kyc');
     try {
       final response = await _dio.post('/onboarding/aadhaar-card', data: {'photo': photo}, options: Options(sendTimeout: const Duration(seconds: 60), receiveTimeout: const Duration(seconds: 60)));
       return Map<String, dynamic>.from(response.data);

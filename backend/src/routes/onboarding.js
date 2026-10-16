@@ -7,6 +7,7 @@ import { authMiddleware } from '../middleware/auth.js';
 import { audit } from '../services/auditService.js';
 import { setupStatus, checkProfile } from '../services/onboardingService.js';
 import { runFaceMatch, selfieChanged } from '../services/faceMatchService.js';
+import { readCard, judgeText, readerName, MESSAGES } from '../services/aadhaarCardCheck.js';
 import { analyseBlinks, readFrame, REQUIRED_BLINKS } from '../services/livenessService.js';
 
 // Account setup for the signed-in customer: personal details, a selfie with a blink check, and (through the
@@ -158,10 +159,29 @@ router.post('/aadhaar-card', async (req, res) => {
     // The card photo must not be the selfie itself
     const own = await KycMedia.findOne({ userId: user._id, kind: { $in: SELFIE_KINDS }, sha256: f.sha256 }).select('_id');
     if (own) return bad(res, 422, 'This is the same picture as your selfie. Please take a photo of your Aadhaar card.', { code: 'PHOTO_INVALID' });
+    // Is it an Aadhaar card at all? Anything else is turned away here, before it is kept.
+    const read = await readCard(f.data);
+    let documentCheck;
+    if (read.error) documentCheck = { checked: false, reason: 'text_reader_unavailable' };
+    else {
+      const verdict = judgeText(read.text);
+      if (!verdict.ok) {
+        await audit(req.user, 'AADHAAR_CARD_TURNED_AWAY', { type: 'User', id: user._id }, { reason: verdict.reason }, req);
+        return bad(res, 422, MESSAGES[verdict.reason] || MESSAGES.not_an_aadhaar_card, { code: 'NOT_AADHAAR', reason: verdict.reason });
+      }
+      // And is it the customer's own? The last 4 digits must match the Aadhaar they verified with DigiLocker.
+      const verified = user.kycDigilocker?.aadhaarLast4;
+      if (verified && verified !== verdict.last4) {
+        await AmlAlert.create({ rule: 'AADHAAR_MISMATCH', severity: 'HIGH', userId: user._id, detail: 'The Aadhaar card photo shows a different Aadhaar number from the one verified with DigiLocker.' });
+        await audit(req.user, 'AADHAAR_CARD_NOT_THEIRS', { type: 'User', id: user._id }, {}, req);
+        return bad(res, 422, 'This Aadhaar card is not the one you verified with DigiLocker. Please send your own Aadhaar card.', { code: 'NOT_YOUR_AADHAAR' });
+      }
+      documentCheck = { checked: true, last4: verdict.last4, reader: readerName(), numberMatchesDigilocker: verified ? true : null };
+    }
     const dupe = await KycMedia.findOne({ sha256: f.sha256, userId: { $ne: user._id } }).select('userId');
     await KycMedia.deleteMany({ userId: user._id, kind: 'aadhaar_card' });
     await KycMedia.create({ userId: user._id, kind: 'aadhaar_card', data: f.data, sha256: f.sha256, size: f.data.length, width: f.width, height: f.height });
-    const aadhaarCard = { status: 'review', capturedAt: new Date(), faceMatch: { mode: 'staff', note: 'A person at the company compares the face on the card with the selfie' }, flag: dupe ? 'same_photo_on_another_account' : null, autoRejects: user.aadhaarCard?.autoRejects || 0 };
+    const aadhaarCard = { status: 'review', capturedAt: new Date(), faceMatch: { mode: 'staff', note: 'A person at the company compares the face on the card with the selfie' }, flag: dupe ? 'same_photo_on_another_account' : documentCheck.checked ? null : 'document_not_checked', documentCheck, autoRejects: user.aadhaarCard?.autoRejects || 0 };
     const updated = await User.findByIdAndUpdate(user._id, { aadhaarCard }, { new: true });
     if (dupe) await AmlAlert.create({ rule: 'DUPLICATE_AADHAAR_PHOTO', severity: 'MEDIUM', userId: user._id, detail: 'The Aadhaar card photo is the same picture as one on another account.' });
     await audit(req.user, 'AADHAAR_CARD_UPLOADED', { type: 'User', id: user._id }, { status: 'review', duplicate: !!dupe }, req);

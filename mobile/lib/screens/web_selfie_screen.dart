@@ -14,7 +14,7 @@ import 'setup_scaffold.dart';
 class WebSelfieScreen extends StatefulWidget {
   final int step;
   final bool fromProfile;
-  const WebSelfieScreen({Key? key, this.step = 3, this.fromProfile = false}) : super(key: key);
+  const WebSelfieScreen({Key? key, this.step = 4, this.fromProfile = false}) : super(key: key);
 
   @override
   State<WebSelfieScreen> createState() => _WebSelfieScreenState();

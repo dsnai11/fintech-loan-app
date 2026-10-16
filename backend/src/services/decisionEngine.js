@@ -2,6 +2,7 @@ import Loan from '../models/Loan.js';
 import { levelOf, categoryOf } from './employerService.js';
 import { proofOf } from './salaryProofService.js';
 import DeviceBinding from '../models/DeviceBinding.js';
+import LocationEvent from '../models/LocationEvent.js';
 import EMIPayment from '../models/EMIPayment.js';
 import AmlAlert from '../models/AmlAlert.js';
 import { getConfig, setConfig } from './configService.js';
@@ -101,6 +102,12 @@ export const DEFAULTS = {
   incomeMultiple: { enabled: false, maxMonths: 3 }, // the loan as months of monthly income
   serviceArea: { enabled: false, blockedStates: [], blockedPincodes: [] }, // places we do not lend
   accountAge: { enabled: false, minDays: 1 }, // a brand-new account goes to a person
+  // Where the customer applied from (the phone's location, shared with permission). Needs the app to send it.
+  location: { enabled: false, requireLocation: true, referOnMocked: true, maxOtherAccounts: 1, days: 7, rejectAtOtherAccounts: null }, // other customers who applied from within about 100 m in the last N days
+  // The documents must be the customer's own: names, date of birth and PAN match, no photo reused on another account, face matches the card
+  ownDocument: { enabled: false },
+  // How the customer has paid us before (0 to 100), worked out from earlier instalments. Only runs for customers who have some.
+  historyScore: { enabled: false, referBelow: 60, rejectBelow: null },
   // Checks that use the credit bureau's report. They only run when the bureau returns these details.
   bureauReport: { enabled: false, maxEnquiries90: 5, maxDpd: 30, rejectDpd: null, maxActiveLoans: 4 },
   // Income seen in the customer's bank statements (shared by the customer through Account Aggregator).
@@ -126,7 +133,7 @@ function overlay(base, input) {
 }
 
 // The parts of the rules a product may change for itself
-export const OVERRIDABLE = ['age', 'kyc', 'selfie', 'foir', 'phone', 'amount', 'bureau', 'history', 'aml', 'velocity', 'rejections', 'lateHistory', 'incomeMultiple', 'serviceArea', 'accountAge', 'bureauReport', 'incomeCheck'];
+export const OVERRIDABLE = ['age', 'kyc', 'selfie', 'foir', 'phone', 'amount', 'bureau', 'history', 'aml', 'velocity', 'rejections', 'lateHistory', 'incomeMultiple', 'serviceArea', 'accountAge', 'location', 'ownDocument', 'historyScore', 'bureauReport', 'incomeCheck'];
 export const productKeyOf = k => String(k || 'personal').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 30);
 
 // The rules as they apply to one product: the shared rules, with that product's own changes laid over them, its own mode if it
@@ -277,6 +284,21 @@ export function validateRules(candidate, inner = false) {
   out.accountAge.enabled = bool(ac.enabled);
   out.accountAge.minDays = num(ac.minDays ?? DEFAULTS.accountAge.minDays, 1, 365, 'Days an account must be old', errors, { int: true });
 
+  const lc = r.location || {};
+  out.location.enabled = bool(lc.enabled);
+  out.location.requireLocation = lc.requireLocation === undefined ? DEFAULTS.location.requireLocation : bool(lc.requireLocation);
+  out.location.referOnMocked = lc.referOnMocked === undefined ? DEFAULTS.location.referOnMocked : bool(lc.referOnMocked);
+  out.location.maxOtherAccounts = num(lc.maxOtherAccounts ?? DEFAULTS.location.maxOtherAccounts, 0, 100, 'Other customers allowed at the same place', errors, { int: true });
+  out.location.days = num(lc.days ?? DEFAULTS.location.days, 1, 90, 'Days to look back for the same place', errors, { int: true });
+  out.location.rejectAtOtherAccounts = num(lc.rejectAtOtherAccounts, 1, 1000, 'Other customers at the same place that reject', errors, { int: true, allowNull: true });
+  if (!errors.length && out.location.rejectAtOtherAccounts !== null && out.location.rejectAtOtherAccounts <= out.location.maxOtherAccounts) errors.push('The number of other customers that rejects must be above the number allowed');
+  out.ownDocument.enabled = bool((r.ownDocument || {}).enabled);
+  const hs = r.historyScore || {};
+  out.historyScore.enabled = bool(hs.enabled);
+  out.historyScore.referBelow = num(hs.referBelow ?? DEFAULTS.historyScore.referBelow, 1, 100, 'Payment history score below which a person decides', errors, { int: true });
+  out.historyScore.rejectBelow = num(hs.rejectBelow, 1, 100, 'Payment history score below which we reject', errors, { int: true, allowNull: true });
+  if (!errors.length && out.historyScore.rejectBelow !== null && out.historyScore.rejectBelow >= out.historyScore.referBelow) errors.push('The history score that rejects must be below the score that sends to a person');
+
   const br = r.bureauReport || {};
   out.bureauReport.enabled = bool(br.enabled);
   out.bureauReport.maxEnquiries90 = num(br.maxEnquiries90 ?? DEFAULTS.bureauReport.maxEnquiries90, 0, 100, 'Most credit enquiries in 90 days', errors, { int: true });
@@ -419,6 +441,23 @@ export function evaluate(rules, f) {
     else if (state && sa.blockedStates.some(s => s.toLowerCase() === state)) add('SERVICE_AREA', 'Where the customer lives', 'reject', `We do not lend in ${f.state}`);
     else if (pin && sa.blockedPincodes.some(p => pin.startsWith(p))) add('SERVICE_AREA', 'Where the customer lives', 'reject', `We do not lend in pincode ${pin}`);
     else add('SERVICE_AREA', 'Where the customer lives', 'pass', `${f.state || ''} ${pin}`.trim());
+  }
+  if (rules.location.enabled) {
+    const lc = rules.location;
+    if (!f.locationKnown) { if (lc.requireLocation) add('LOCATION', 'Where the customer applied from', 'refer', 'The phone did not share its location'); else add('LOCATION', 'Where the customer applied from', 'skip', 'No location shared, and it is not required'); }
+    else if (f.locationMocked && lc.referOnMocked) add('LOCATION', 'Where the customer applied from', 'refer', 'The phone says its location is set by an app, not real');
+    else if (lc.rejectAtOtherAccounts && f.accountsAtPlace >= lc.rejectAtOtherAccounts) add('LOCATION', 'Where the customer applied from', 'reject', `${f.accountsAtPlace} other customer(s) applied from the same place in the last ${lc.days} day(s)`);
+    else if (f.accountsAtPlace > lc.maxOtherAccounts) add('LOCATION', 'Where the customer applied from', 'refer', `${f.accountsAtPlace} other customer(s) applied from the same place (within about 100 m) in the last ${lc.days} day(s). A shop or an office is possible.`);
+    else add('LOCATION', 'Where the customer applied from', 'pass', f.accountsAtPlace ? `${f.accountsAtPlace} other customer(s) at the same place, up to ${lc.maxOtherAccounts} allowed` : 'Location shared, no other customer at the same place');
+  }
+  if (rules.ownDocument.enabled) {
+    const m = f.identityMismatches || [];
+    add('OWN_DOCUMENT', 'Documents are the customer\'s own', m.length ? 'refer' : 'pass', m.length ? m.join('; ') : 'Names, date of birth, PAN, Aadhaar card and face all agree');
+  }
+  if (rules.historyScore.enabled) {
+    if (f.historyScore === null || f.historyScore === undefined) add('HISTORY_SCORE', 'Payment history with us', 'skip', 'No earlier instalments to judge, so this rule is not running');
+    else if (rules.historyScore.rejectBelow && f.historyScore < rules.historyScore.rejectBelow) add('HISTORY_SCORE', 'Payment history with us', 'reject', `Score ${f.historyScore} out of 100, below ${rules.historyScore.rejectBelow}`);
+    else add('HISTORY_SCORE', 'Payment history with us', f.historyScore < rules.historyScore.referBelow ? 'refer' : 'pass', `Score ${f.historyScore} out of 100 (${rules.historyScore.referBelow} needed)`);
   }
   if (rules.accountAge.enabled) {
     const d = f.accountAgeDays ?? 0;
@@ -572,7 +611,52 @@ export async function gatherFacts(loan, user, rules = getRules()) {
     salaryProofIncome: proofOf(user)?.income || 0,
     employerName: String(user.employment?.company || ''),
     employerCategory: levelOf(user.employment?.company),
+    ...(await locationFacts(user, rules)),
+    identityMismatches: identityMismatchesOf(user),
+    historyScore: historyScoreOf(emis, others),
   };
+}
+
+// Where the customer applied from, and whether others did too. The place is the phone's location: the newest one shared in the last hour.
+async function locationFacts(user, rules) {
+  const out = { locationKnown: false, locationMocked: false, accountsAtPlace: 0 };
+  if (!rules.location?.enabled) return out;
+  const last = await LocationEvent.findOne({ userId: user._id, at: { $gte: new Date(Date.now() - 3600 * 1000) } }).sort({ at: -1 }).lean();
+  if (!last) return out;
+  out.locationKnown = true;
+  out.locationMocked = !!last.mocked;
+  const since = new Date(Date.now() - rules.location.days * DAY);
+  const others = await LocationEvent.distinct('userId', { userId: { $ne: user._id }, at: { $gte: since }, lat: { $gte: last.lat - 0.001, $lte: last.lat + 0.001 }, lon: { $gte: last.lon - 0.001, $lte: last.lon + 0.001 } });
+  out.accountsAtPlace = others.length;
+  return out;
+}
+
+// Everything that says a document may not be the customer's own, in plain words
+export function identityMismatchesOf(user) {
+  const out = [];
+  const flags = user.kycDigilocker?.flags || [];
+  const say = { name_differs: 'Name on Aadhaar differs from the account', date_of_birth_differs: 'Date of birth on Aadhaar differs', pan_differs: 'PAN differs from the account', pan_on_another_account: 'PAN is on another account', same_aadhaar_on_another_account: 'Same Aadhaar on another account' };
+  for (const f of flags) if (say[f]) out.push(say[f]);
+  const bv = user.bankVerification;
+  if (bv && bv.current !== false && bv.status === 'name_mismatch') out.push('Name at the bank differs from the account');
+  if (user.aadhaarCard?.flag === 'same_photo_on_another_account') out.push('Aadhaar card photo is on another account');
+  if (user.selfie?.flag === 'same_photo_on_another_account') out.push('Selfie is on another account');
+  if (user.aadhaarCard?.faceMatch?.result === 'no_match') out.push('Face on the Aadhaar card does not match the selfie');
+  if (user.aadhaarCard?.documentCheck?.numberMatchesDigilocker === false) out.push('Aadhaar card number differs from DigiLocker');
+  return out;
+}
+
+// How well the customer has paid us before, 0 to 100, or null when there are no instalments yet. 100 is every instalment on time.
+export function historyScoreOf(emis, loans = []) {
+  const due = (emis || []).filter(e => e.status === 'PAID' || e.status === 'OVERDUE' || (e.dueDate && new Date(e.dueDate).getTime() < Date.now()));
+  if (!due.length) return null;
+  const onTime = due.filter(e => e.status === 'PAID' && e.paidDate && new Date(e.paidDate).getTime() <= new Date(e.dueDate).getTime() + 2 * DAY).length;
+  let score = (onTime / due.length) * 100;
+  const late = daysLate(emis, Date.now());
+  if (late >= 90) score -= 30; else if (late >= 30) score -= 20; else if (late >= 7) score -= 8;
+  score -= 40 * loans.filter(l => ['defaulted', 'written_off'].includes(l.status)).length;
+  score += Math.min(10, 5 * loans.filter(l => l.status === 'closed' && l.closureType !== 'cooling_off').length);
+  return Math.max(0, Math.min(100, Math.round(score)));
 }
 
 // Decide on a new application. Records what the engine found on the loan, and in "auto" mode acts on it.
@@ -669,6 +753,10 @@ export const SUGGESTED_START = {
   lateHistory: { enabled: true, referDays: 15 },
   incomeMultiple: { enabled: true, maxMonths: 3 },
   accountAge: { enabled: true, minDays: 1 },
+  location: { enabled: true, requireLocation: true, referOnMocked: true, maxOtherAccounts: 1, days: 7, rejectAtOtherAccounts: null },
+  ownDocument: { enabled: true },
+  historyScore: { enabled: true, referBelow: 60, rejectBelow: null },
+  serviceArea: { enabled: true, blockedStates: ['Jammu and Kashmir', 'Ladakh'], blockedPincodes: ['180', '181', '182', '183', '184', '185', '190', '191', '192', '193', '194'] },
   bureauReport: { enabled: true, maxEnquiries90: 5, maxDpd: 30, rejectDpd: 90, maxActiveLoans: 4 },
   incomeCheck: { enabled: true, requireAbove: 50000, maxBounces: 2, maxDeclaredGapPercent: 30, minVerifiedIncome: null, maxObligationShare: 60, useVerifiedIncome: true },
 };

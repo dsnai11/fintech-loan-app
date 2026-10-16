@@ -79,6 +79,21 @@ export async function compareFaces(selfieBytes, cardBytes) {
   return { ok: true, similarity: Math.round(similarity * 10) / 10 };
 }
 
+// Reads the printed text in a photo (used to check a photo really is an Aadhaar card). Returns { ok, text } or { ok: false }.
+export async function readTextWithRekognition(bytes) {
+  const body = JSON.stringify({ Image: { Bytes: bytes.toString('base64') } });
+  const target = 'RekognitionService.DetectText';
+  try {
+    const r = await fetch(endpoint(), { method: 'POST', headers: sign(endpoint(), body, target), body, signal: AbortSignal.timeout(20000) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) return { ok: false, detail: `${r.status} ${d.__type || ''}` };
+    const lines = (d.TextDetections || []).filter(t => t.Type === 'LINE').map(t => t.DetectedText);
+    return { ok: true, text: lines.join(String.fromCharCode(10)) };
+  } catch (e) {
+    return { ok: false, detail: e.message };
+  }
+}
+
 // Runs the comparison for one customer if both pictures are there. Safe to call after either upload.
 export async function runFaceMatch(userId, req = null) {
   if (!automaticOn()) return { ran: false, reason: 'not_connected' };

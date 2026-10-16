@@ -9,7 +9,7 @@ import { analyseBlinks, jpegInfo } from '../../src/services/livenessService.js';
 
 const DB = 'fintech-test-setup';
 await connect(DB);
-const srv = await startServer(DB, { REQUIRE_ONBOARDING: 'true' });
+const srv = await startServer(DB, { REQUIRE_ONBOARDING: 'true', AADHAAR_TEXT_READER: 'off' });
 const base = srv.base;
 const call = client(base);
 const { token: admin } = await makeAdmin();

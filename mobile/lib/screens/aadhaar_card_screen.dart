@@ -14,7 +14,7 @@ import 'setup_scaffold.dart';
 class AadhaarCardScreen extends StatefulWidget {
   final int step;
   final bool fromProfile;
-  const AadhaarCardScreen({Key? key, this.step = 4, this.fromProfile = false}) : super(key: key);
+  const AadhaarCardScreen({Key? key, this.step = 3, this.fromProfile = false}) : super(key: key);
 
   @override
   State<AadhaarCardScreen> createState() => _AadhaarCardScreenState();
@@ -64,7 +64,7 @@ class _AadhaarCardScreenState extends State<AadhaarCardScreen> {
       step: widget.step,
       canSkip: !widget.fromProfile && !_done && !_busy,
       title: 'Photo of your Aadhaar card',
-      subtitle: 'Place the card on a plain surface in good light, with your photo and all four corners in view. We compare the face on the card with your selfie.',
+      subtitle: 'Place the card on a plain surface in good light, with your photo and all four corners in view. We check it is an Aadhaar card, then the camera opens for a quick blink check and we compare your face with the card.',
       bottom: _done
           ? ElevatedButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Continue'))
           : (_photo == null ? null : ElevatedButton(onPressed: _busy ? null : _send, child: Text(_busy ? 'Sending...' : 'Use this photo'))),
@@ -83,7 +83,7 @@ class _AadhaarCardScreenState extends State<AadhaarCardScreen> {
         ),
         const SizedBox(height: 18),
         if (_done)
-          Text(_result == 'passed' ? 'Your Aadhaar card photo is verified.' : 'Thank you. Our team will compare it with your selfie. You can carry on in the meantime.', textAlign: TextAlign.center, style: TextStyle(fontSize: 15, height: 1.5, fontWeight: FontWeight.w600, color: kGreen))
+          Text(_result == 'passed' ? 'Your Aadhaar card photo is verified.' : 'Thank you. Next we take your selfie and compare it with the card.', textAlign: TextAlign.center, style: TextStyle(fontSize: 15, height: 1.5, fontWeight: FontWeight.w600, color: kGreen))
         else ...[
           if (_error != null) Padding(padding: const EdgeInsets.only(bottom: 12), child: Text(_error!, textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, color: Color(0xFFB91C1C)))),
           Wrap(alignment: WrapAlignment.center, spacing: 10, runSpacing: 8, children: [

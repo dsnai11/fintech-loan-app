@@ -12,6 +12,7 @@
     "sync-portal": "node scripts/sync-portal.mjs"
   },
   "dependencies": {
+    "@tesseract.js-data/eng": "^1.0.0",
     "axios": "^1.6.2",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
@@ -24,6 +25,7 @@
     "nodemailer": "^10.0.14",
     "pdfkit": "^0.15.0",
     "qrcode": "^1.5.4",
+    "tesseract.js": "^5.1.1",
     "validator": "^13.11.0"
   },
   "devDependencies": {

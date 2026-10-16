@@ -19,7 +19,7 @@ import 'web_selfie_screen.dart';
 class NativeSelfieScreen extends StatefulWidget {
   final int step;
   final bool fromProfile;
-  const NativeSelfieScreen({Key? key, this.step = 3, this.fromProfile = false}) : super(key: key);
+  const NativeSelfieScreen({Key? key, this.step = 4, this.fromProfile = false}) : super(key: key);
 
   @override
   State<NativeSelfieScreen> createState() => _SelfieLivenessScreenState();
@@ -29,7 +29,7 @@ class NativeSelfieScreen extends StatefulWidget {
 class SelfieLivenessScreen extends StatelessWidget {
   final int step;
   final bool fromProfile;
-  const SelfieLivenessScreen({Key? key, this.step = 3, this.fromProfile = false}) : super(key: key);
+  const SelfieLivenessScreen({Key? key, this.step = 4, this.fromProfile = false}) : super(key: key);
 
   @override
   Widget build(BuildContext context) => kIsWeb ? WebSelfieScreen(step: step, fromProfile: fromProfile) : NativeSelfieScreen(step: step, fromProfile: fromProfile);

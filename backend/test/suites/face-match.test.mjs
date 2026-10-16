@@ -16,6 +16,11 @@ const mock = http.createServer((req, res) => {
   let body = '';
   req.on('data', c => (body += c));
   req.on('end', () => {
+    // Reading the text on the card photo (the document check) is a different request from comparing faces
+    if (req.headers['x-amz-target'] === 'RekognitionService.DetectText') {
+      res.setHeader('Content-Type', 'application/x-amz-json-1.1');
+      return res.end(JSON.stringify({ TextDetections: ['Government of India', 'Anita Rao', '2345 6789 0124'].map(t => ({ Type: 'LINE', DetectedText: t })) }));
+    }
     seen.push({ headers: req.headers, body: body ? JSON.parse(body) : {} });
     res.statusCode = answer.status;
     res.setHeader('Content-Type', 'application/x-amz-json-1.1');
@@ -33,7 +38,7 @@ function jpeg(w = 480, h = 640, kb = 20) {
 }
 const KEYS = { AWS_ACCESS_KEY_ID: 'AKIATESTTESTTEST', AWS_SECRET_ACCESS_KEY: 'secretsecret', AWS_REGION: 'ap-south-1', AWS_REKOGNITION_ENDPOINT: MOCK };
 const on = await startServer(DB, KEYS);
-const off = await startServer(DB, {});
+const off = await startServer(DB, { AADHAAR_TEXT_READER: 'off' });
 const manual = await startServer(DB, { ...KEYS, FACE_MATCH_AUTO: 'false' });
 const callOn = client(on.base), callOff = client(off.base), callManual = client(manual.base);
 const { token: admin } = await makeAdmin();

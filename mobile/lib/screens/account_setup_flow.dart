@@ -15,8 +15,9 @@ Future<bool> runAccountSetup(BuildContext context, Map<String, dynamic> setup) a
 
   if (setup['kyc'] != true && !await go(const OnboardingKycScreen())) return false;
   if (setup['profile'] != true && !await go(const OnboardingProfileScreen(step: 2))) return false;
-  if (setup['selfie'] != true && !await go(const SelfieLivenessScreen(step: 3))) return false;
-  if (setup['aadhaarCard'] != true && !await go(const AadhaarCardScreen(step: 4))) return false;
+  // First the Aadhaar card (a photo that is not an Aadhaar card is turned away), then the camera and the blink check
+  if (setup['aadhaarCard'] != true && !await go(const AadhaarCardScreen(step: 3))) return false;
+  if (setup['selfie'] != true && !await go(const SelfieLivenessScreen(step: 4))) return false;
   if (setup['bank'] != true && !await go(const OnboardingBankScreen(step: 5))) return false;
   return true;
 }

@@ -12,6 +12,9 @@ import KycMedia from '../models/KycMedia.js';
 import { adminMiddleware } from '../middleware/auth.js';
 import { audit } from '../services/auditService.js';
 import { setupStatus } from '../services/onboardingService.js';
+import { historyScoreOf, identityMismatchesOf } from '../services/decisionEngine.js';
+import EMIPayment from '../models/EMIPayment.js';
+import LocationEvent from '../models/LocationEvent.js';
 
 // One place to see everything about a customer: profile, KYC, loans, alerts and collection history.
 const router = express.Router();
@@ -61,8 +64,16 @@ router.get('/:id', async (req, res) => {
       DataRequest.find({ userId: user._id }).sort({ createdAt: -1 }).limit(10),
     ]);
     const live = ['submitted', 'under_review', 'approved', 'disbursed', 'defaulted'];
+    // How this customer has paid us before, and where their phone has been when they used the app
+    const emis = await EMIPayment.find({ userId: user._id }).select('dueDate paidDate status').lean();
+    const dueEmis = emis.filter(e => e.status === 'PAID' || e.status === 'OVERDUE' || (e.dueDate && new Date(e.dueDate).getTime() < Date.now()));
+    const paidOnTime = dueEmis.filter(e => e.status === 'PAID' && e.paidDate && new Date(e.paidDate).getTime() <= new Date(e.dueDate).getTime() + 2 * 864e5).length;
+    const places = await LocationEvent.find({ userId: user._id }).sort({ at: -1 }).limit(5).select('purpose lat lon accuracy mocked at').lean();
     res.json({
       customer: {
+        paymentHistory: { score: historyScoreOf(emis, loans), instalmentsDue: dueEmis.length, paidOnTime, overdueNow: emis.filter(e => e.status === 'OVERDUE').length, loansClosed: loans.filter(l => l.status === 'closed').length, defaulted: loans.filter(l => ['defaulted', 'written_off'].includes(l.status)).length },
+        locations: places.map(p => ({ purpose: p.purpose, lat: p.lat, lon: p.lon, accuracy: p.accuracy ?? null, mocked: !!p.mocked, at: p.at })),
+        documentChecks: identityMismatchesOf(user),
         ...card(user),
         pan: mask(user.panNumber),
         bankAccount: user.bankAccount?.accountNumber ? { holder: user.bankAccount.accountHolder, number: mask(user.bankAccount.accountNumber), ifsc: user.bankAccount.ifscCode } : null,
