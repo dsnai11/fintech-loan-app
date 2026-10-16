@@ -494,6 +494,7 @@ export function evaluate(rules, f) {
     else add('INCOME', 'Income check (bank statements)', 'skip', 'The customer has not shared their bank statements, so income is as they declared it.');
   } else {
     const reasons = [];
+    if ((f.statementFlags || []).length) reasons.push(`the uploaded statement may have been changed (${f.statementFlags.join('; ')})`);
     const income = f.verifiedMonthlyIncome;
     if (f.bankBounces > ic.maxBounces) reasons.push(`${f.bankBounces} bounced or returned payments in the statements`);
     if (income > 0 && f.declaredIncome > income * (1 + ic.maxDeclaredGapPercent / 100)) reasons.push(`declared income Rs ${Math.round(f.declaredIncome).toLocaleString('en-IN')} is well above the Rs ${Math.round(income).toLocaleString('en-IN')} seen in the statements`);
@@ -502,7 +503,7 @@ export function evaluate(rules, f) {
       const share = Math.round(((f.emi + (f.bankObligations || 0)) / income) * 1000) / 10;
       if (share > ic.maxObligationShare) reasons.push(`repayments including this loan would be ${share}% of income, against a limit of ${ic.maxObligationShare}%`);
     }
-    add('INCOME', 'Income check (bank statements)', reasons.length ? 'refer' : 'pass', reasons.length ? reasons.join('; ') : `The bank statements support the income${f.incomeCheckTest ? ' (test data)' : ''}`);
+    add('INCOME', 'Income check (bank statements)', reasons.length ? 'refer' : 'pass', reasons.length ? reasons.join('; ') : `The bank statements support the income${f.incomeCheckTest ? ' (test data)' : f.statementFromPdf ? ' (uploaded PDF, no flags)' : ''}`);
   }
 
   const rejects = checks.filter(c => c.result === 'reject');
@@ -540,6 +541,8 @@ function bankFacts(user, rules = DEFAULTS) {
   return {
     incomeVerified: !!fresh,
     incomeCheckTest: !!(fresh && c.mode === 'sandbox'),
+    statementFlags: fresh && Array.isArray(c.flags) ? c.flags : [],
+    statementFromPdf: !!(fresh && c.mode === 'pdf_upload'),
     verifiedMonthlyIncome: fresh ? c.estimatedMonthlyIncome || 0 : 0,
     bankBounces: fresh ? c.bounces || 0 : 0,
     bankObligations: fresh ? c.monthlyObligations || 0 : 0,

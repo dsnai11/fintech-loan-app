@@ -56,6 +56,7 @@ const userSchema = new mongoose.Schema(
     // The photo of the Aadhaar card the customer uploaded, to compare with their selfie (the picture itself lives in KycMedia)
     aadhaarCard: mongoose.Schema.Types.Mixed,
     // The last place the phone shared its location from (every one is kept in LocationEvent)
+    statementAttempts: mongoose.Schema.Types.Mixed,
     lastLocation: mongoose.Schema.Types.Mixed,
     // The KYC outcome from DigiLocker: status, whether name and date of birth matched, last 4 digits of the Aadhaar
     kycDigilocker: mongoose.Schema.Types.Mixed,

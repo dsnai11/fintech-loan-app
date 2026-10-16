@@ -202,6 +202,7 @@ export function view(c) {
     at: c.at, mode: c.mode, bank: c.bank || '', months: c.months, from: c.from, to: c.to,
     salaryDetected: !!c.salaryDetected, estimatedMonthlyIncome: c.estimatedMonthlyIncome, avgMonthlyCredits: c.avgMonthlyCredits, incomeStabilityPercent: c.incomeStabilityPercent,
     monthlyObligations: c.monthlyObligations, bounces: c.bounces, avgBalance: c.avgBalance, minBalance: c.minBalance, lowBalancePercent: c.lowBalancePercent,
+    source: c.mode === 'pdf_upload' ? 'pdf' : c.mode, flags: Array.isArray(c.flags) ? c.flags : [],
     stale: !!c.at && Date.now() - new Date(c.at).getTime() > 90 * DAY,
   };
 }

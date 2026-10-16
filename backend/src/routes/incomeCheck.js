@@ -3,6 +3,9 @@ import mongoose from 'mongoose';
 import User from '../models/User.js';
 import AaSession from '../models/AaSession.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { readStatementPdf } from '../services/statementPdf.js';
+import { analyse } from '../services/aaService.js';
+import { audit } from '../services/auditService.js';
 import { startSession, completeSession, finishWithProvider, sandboxAllowed, modeNow, sampleStatement, withdraw, view } from '../services/aaService.js';
 
 // Sharing bank statements to check income (Account Aggregator). The app starts a session and opens the link; the customer
@@ -27,7 +30,38 @@ router.get('/mine', authMiddleware, async (req, res) => {
   try {
     const user = await User.findById(req.user.userId).select('incomeCheck');
     const mode = modeNow();
-    res.json({ available: mode !== 'unavailable', mode, check: view(user?.incomeCheck) });
+    res.json({ available: mode !== 'unavailable', mode, pdfUpload: true, check: view(user?.incomeCheck) });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// The customer uploads a bank statement PDF instead of using the Account Aggregator. We read it ourselves, keep only the
+// summary (never the PDF), and mark anything that looks changed so a person looks at it.
+router.post('/pdf', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const now = Date.now();
+    const w = user.statementAttempts || {};
+    const inWindow = w.windowStart && now - new Date(w.windowStart).getTime() < 3600 * 1000;
+    const count = inWindow ? w.count || 0 : 0;
+    if (count >= 6) return res.status(429).json({ error: 'Too many tries in the last hour. Please wait a little and try again.' });
+    await User.updateOne({ _id: user._id }, { statementAttempts: { count: count + 1, windowStart: inWindow ? w.windowStart : new Date(now) } });
+
+    const raw = String(req.body?.pdf ?? '').replace(/^data:application\/pdf;base64,/, '');
+    if (!raw || !/^[A-Za-z0-9+/=\r\n]+$/.test(raw)) return res.status(400).json({ error: 'Please choose a PDF file.', code: 'PDF_INVALID' });
+    const buf = Buffer.from(raw, 'base64');
+    if (buf.length > 3.5 * 1024 * 1024) return res.status(413).json({ error: 'This PDF is too large (3.5 MB at most). Please download a statement for fewer months.', code: 'PDF_INVALID' });
+    const read = await readStatementPdf(buf);
+    if (!read.ok) return res.status(422).json({ error: read.message, code: 'PDF_INVALID', reason: read.reason });
+    const summary = analyse(read.transactions);
+    if (!summary) return res.status(422).json({ error: 'We could not read any transactions from this PDF.', code: 'PDF_INVALID' });
+    user.incomeCheck = { ...summary, at: new Date(), mode: 'pdf_upload', bank: read.bank || '', flags: read.flags };
+    user.markModified('incomeCheck');
+    await user.save();
+    await audit({ email: user.email, role: 'customer' }, 'INCOME_CHECK_PDF', { type: 'User', id: user._id }, { months: summary.months, entries: summary.entries, flags: read.flags.length }, req);
+    res.json({ message: read.flags.length ? 'Thank you. Our team will look at your statement.' : 'Thank you. Your statement has been read.', check: view(user.incomeCheck) });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
