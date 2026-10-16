@@ -6,6 +6,7 @@ import AmlAlert from '../models/AmlAlert.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { audit } from '../services/auditService.js';
 import { setupStatus, checkProfile } from '../services/onboardingService.js';
+import { runFaceMatch, selfieChanged } from '../services/faceMatchService.js';
 import { analyseBlinks, readFrame, REQUIRED_BLINKS } from '../services/livenessService.js';
 
 // Account setup for the signed-in customer: personal details, a selfie with a blink check, and (through the
@@ -102,7 +103,8 @@ router.post('/selfie', async (req, res) => {
     const updated = await User.findByIdAndUpdate(user._id, { selfie }, { new: true });
     if (dupe) await AmlAlert.create({ rule: 'DUPLICATE_SELFIE', severity: 'MEDIUM', userId: user._id, detail: 'The selfie photo is the same picture as one on another account.' });
     await audit(req.user, 'SELFIE_CAPTURED', { type: 'User', id: user._id }, { blinks: result.blinks, status: selfie.status }, req);
-    res.json({ message: dupe ? 'Thank you. Our team will look at your photo.' : 'Photo verified', selfie: { status: selfie.status }, steps: setupStatus(updated) });
+    await selfieChanged(user._id, req).catch(() => {});
+    res.json({ message: dupe ? 'Thank you. Our team will look at your photo.' : 'Photo verified', selfie: { status: selfie.status }, steps: setupStatus(await User.findById(user._id)) });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -130,7 +132,8 @@ router.post('/selfie/upload', async (req, res) => {
     const updated = await User.findByIdAndUpdate(user._id, { selfie }, { new: true });
     if (dupe) await AmlAlert.create({ rule: 'DUPLICATE_SELFIE', severity: 'MEDIUM', userId: user._id, detail: 'The selfie photo is the same picture as one on another account.' });
     await audit(req.user, 'SELFIE_UPLOADED', { type: 'User', id: user._id }, { status: 'review', duplicate: !!dupe }, req);
-    res.json({ message: 'Thank you. Our team will look at your photo.', selfie: { status: 'review' }, steps: setupStatus(updated) });
+    await selfieChanged(user._id, req).catch(() => {});
+    res.json({ message: 'Thank you. Our team will look at your photo.', selfie: { status: 'review' }, steps: setupStatus(await User.findById(user._id)) });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -158,11 +161,14 @@ router.post('/aadhaar-card', async (req, res) => {
     const dupe = await KycMedia.findOne({ sha256: f.sha256, userId: { $ne: user._id } }).select('userId');
     await KycMedia.deleteMany({ userId: user._id, kind: 'aadhaar_card' });
     await KycMedia.create({ userId: user._id, kind: 'aadhaar_card', data: f.data, sha256: f.sha256, size: f.data.length, width: f.width, height: f.height });
-    const aadhaarCard = { status: 'review', capturedAt: new Date(), faceMatch: { mode: 'staff', note: 'A person at the company compares the face on the card with the selfie' }, flag: dupe ? 'same_photo_on_another_account' : null };
+    const aadhaarCard = { status: 'review', capturedAt: new Date(), faceMatch: { mode: 'staff', note: 'A person at the company compares the face on the card with the selfie' }, flag: dupe ? 'same_photo_on_another_account' : null, autoRejects: user.aadhaarCard?.autoRejects || 0 };
     const updated = await User.findByIdAndUpdate(user._id, { aadhaarCard }, { new: true });
     if (dupe) await AmlAlert.create({ rule: 'DUPLICATE_AADHAAR_PHOTO', severity: 'MEDIUM', userId: user._id, detail: 'The Aadhaar card photo is the same picture as one on another account.' });
     await audit(req.user, 'AADHAAR_CARD_UPLOADED', { type: 'User', id: user._id }, { status: 'review', duplicate: !!dupe }, req);
-    res.json({ message: 'Thank you. Our team will compare it with your selfie.', aadhaarCard: { status: 'review' }, steps: setupStatus(updated) });
+    const match = await runFaceMatch(user._id, req).catch(() => ({ ran: false }));
+    const after = await User.findById(user._id);
+    const st = after.aadhaarCard.status;
+    res.json({ message: st === 'passed' ? 'Your Aadhaar card photo is verified' : st === 'rejected' ? after.aadhaarCard.reviewNote : 'Thank you. Our team will compare it with your selfie.', aadhaarCard: { status: st, automatic: !!match.ran }, steps: setupStatus(after) });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

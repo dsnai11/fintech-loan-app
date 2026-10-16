@@ -7,6 +7,7 @@ import { availability as mandateAvailability } from './mandateService.js';
 import { availability as bankAvailability } from './bankVerifyService.js';
 import { signingMethod, esignMode, providerName as esignProvider, PROVIDERS as ESIGNS } from './signingService.js';
 import { modeNow as aaMode, providerName as aaProvider, PROVIDERS as AAS } from './aaService.js';
+import { modeNow as faceMatchMode } from './faceMatchService.js';
 import { modeNow as digilockerMode, providerName as digilockerProvider, PROVIDERS as DIGILOCKERS } from './digilockerService.js';
 
 // One place that says, for every outside service, whether the app is using the real thing or its test mode, and
@@ -177,9 +178,16 @@ export const INTEGRATIONS = [
     status: () => ({ mode: 'device', note: 'The blink check runs on the phone and staff review the photos. A certified liveness provider can replace it later.' }),
   },
   {
-    id: 'face_match', label: 'Aadhaar photo and selfie match', purpose: 'Checks the face on the customer\'s Aadhaar card photo is the person in the selfie.',
-    fields: [],
-    status: () => ({ mode: 'staff', note: 'Every customer uploads an Aadhaar card photo. With no face-matching provider connected, a person at the company compares it with the selfie in the customer page. A certified face-match provider can replace this later.' }),
+    id: 'face_match', label: 'Aadhaar photo and selfie match', purpose: 'Compares the face on the Aadhaar card photo with their selfie, by machine (Amazon Rekognition).',
+    fields: [
+      field('AWS_ACCESS_KEY_ID', 'AWS access key ID', { secret: true }),
+      field('AWS_SECRET_ACCESS_KEY', 'AWS secret access key', { secret: true }),
+      field('AWS_REGION', 'AWS region (for India: ap-south-1)'),
+      field('FACE_MATCH_PASS_AT', 'Pass at this similarity or more (default 90)'),
+      field('FACE_MATCH_REJECT_BELOW', 'Ask for a clearer photo below this similarity (default 50)'),
+      field('FACE_MATCH_AUTO', 'Automatic check', { options: ['', 'true', 'false'], hint: 'Leave empty or true to use it. false sends every card photo to a person.' }),
+    ],
+    status: () => faceMatchMode(),
   },
 ];
 

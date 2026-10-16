@@ -25,6 +25,7 @@ class _AadhaarCardScreenState extends State<AadhaarCardScreen> {
   bool _busy = false;
   bool _done = false;
   String? _error;
+  String _result = '';
 
   Future<void> _pick(ImageSource source) async {
     try {
@@ -42,8 +43,15 @@ class _AadhaarCardScreenState extends State<AadhaarCardScreen> {
     if (photo == null) return;
     setState(() { _busy = true; _error = null; });
     try {
-      await context.read<ApiService>().submitAadhaarCard(base64Encode(photo));
-      if (mounted) setState(() => _done = true);
+      final r = await context.read<ApiService>().submitAadhaarCard(base64Encode(photo));
+      final status = ((r['aadhaarCard'] as Map?)?['status'] ?? '').toString();
+      if (!mounted) return;
+      if (status == 'rejected') {
+        // The automatic check could not match the card with the selfie: say why, and let them try again
+        setState(() { _error = (r['message'] ?? 'Please send a clearer photo of your Aadhaar card.').toString(); _photo = null; });
+      } else {
+        setState(() { _done = true; _result = status; });
+      }
     } catch (e) {
       if (mounted) setState(() => _error = friendlyError(e));
     }
@@ -75,7 +83,7 @@ class _AadhaarCardScreenState extends State<AadhaarCardScreen> {
         ),
         const SizedBox(height: 18),
         if (_done)
-          const Text('Thank you. Our team will compare it with your selfie. You can carry on in the meantime.', textAlign: TextAlign.center, style: TextStyle(fontSize: 15, height: 1.5, fontWeight: FontWeight.w600, color: kGreen))
+          Text(_result == 'passed' ? 'Your Aadhaar card photo is verified.' : 'Thank you. Our team will compare it with your selfie. You can carry on in the meantime.', textAlign: TextAlign.center, style: TextStyle(fontSize: 15, height: 1.5, fontWeight: FontWeight.w600, color: kGreen))
         else ...[
           if (_error != null) Padding(padding: const EdgeInsets.only(bottom: 12), child: Text(_error!, textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, color: Color(0xFFB91C1C)))),
           Wrap(alignment: WrapAlignment.center, spacing: 10, runSpacing: 8, children: [
