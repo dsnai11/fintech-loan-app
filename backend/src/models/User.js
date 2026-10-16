@@ -57,6 +57,11 @@ const userSchema = new mongoose.Schema(
     aadhaarCard: mongoose.Schema.Types.Mixed,
     // The last place the phone shared its location from (every one is kept in LocationEvent)
     statementAttempts: mongoose.Schema.Types.Mixed,
+    // Email ownership, proved with a code sent to the address (emailVerifiedFor is the address it was proved for)
+    emailVerified: { type: Boolean, default: false },
+    emailVerifiedFor: String,
+    emailVerifiedAt: Date,
+    emailOtp: mongoose.Schema.Types.Mixed,
     lastLocation: mongoose.Schema.Types.Mixed,
     // The KYC outcome from DigiLocker: status, whether name and date of birth matched, last 4 digits of the Aadhaar
     kycDigilocker: mongoose.Schema.Types.Mixed,

@@ -78,6 +78,7 @@ router.get('/:id', async (req, res) => {
         pan: mask(user.panNumber),
         bankAccount: user.bankAccount?.accountNumber ? { holder: user.bankAccount.accountHolder, number: mask(user.bankAccount.accountNumber), ifsc: user.bankAccount.ifscCode } : null,
         twoFactorEnabled: !!user.twoFactorEnabled,
+        emailVerified: !!user.emailVerified && user.emailVerifiedFor === String(user.email || '').toLowerCase(),
         gender: user.gender || '',
         dateOfBirth: user.dateOfBirth || null,
         address: user.address ? { street: user.address.street, city: user.address.city, state: user.address.state, zipCode: user.address.zipCode } : null,

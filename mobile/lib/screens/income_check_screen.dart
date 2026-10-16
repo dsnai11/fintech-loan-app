@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart' hide Text;
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -57,6 +59,23 @@ class _IncomeCheckScreenState extends State<IncomeCheckScreen> with WidgetsBindi
       if (!ok) messenger.showSnackBar(const SnackBar(content: Text('Could not open the page')));
       _poll?.cancel();
       _poll = Timer.periodic(const Duration(seconds: 3), (_) => _check());
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(friendlyError(e))));
+    }
+    if (mounted) setState(() => _busy = false);
+  }
+
+  // The customer picks a statement PDF from their phone or computer; the server reads it
+  Future<void> _pickPdf() async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final picked = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['pdf'], withData: true);
+      final bytes = picked?.files.single.bytes;
+      if (bytes == null) return;
+      setState(() => _busy = true);
+      final r = await context.read<ApiService>().uploadStatementPdf(base64Encode(bytes));
+      await _load();
+      messenger.showSnackBar(SnackBar(content: Text((r['message'] ?? 'Thank you.').toString())));
     } catch (e) {
       messenger.showSnackBar(SnackBar(content: Text(friendlyError(e))));
     }
@@ -145,7 +164,9 @@ class _IncomeCheckScreenState extends State<IncomeCheckScreen> with WidgetsBindi
                     const SizedBox(height: 8),
                     Text(check['salaryDetected'] == true ? 'Income seen: about ${_money(check['estimatedMonthlyIncome'])} a month' : 'No regular salary seen. Money in: about ${_money(check['avgMonthlyCredits'])} a month', style: const TextStyle(fontSize: 14)),
                     const SizedBox(height: 4),
-                    Text('${check['months']} months checked${check['stale'] == true ? ' · this is old, please share again' : ''}', style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+                    Text('${check['months']} months checked${check['stale'] == true ? ' · this is old, please share again' : ''}${check['source'] == 'pdf' ? ' · from your uploaded PDF' : ''}', style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+                    if (check['flags'] is List && (check['flags'] as List).isNotEmpty)
+                      const Padding(padding: EdgeInsets.only(top: 6), child: Text('Our team will take a look at this statement before we use it.', style: TextStyle(fontSize: 12, color: Color(0xFF92400E)))),
                     const SizedBox(height: 8),
                     Wrap(spacing: 8, children: [
                       if (available) OutlinedButton(onPressed: _busy ? null : _start, child: const Text('Share again')),
@@ -157,6 +178,11 @@ class _IncomeCheckScreenState extends State<IncomeCheckScreen> with WidgetsBindi
                 ElevatedButton(onPressed: _busy ? null : _start, child: const Text('Share my bank statements'))
               else
                 const Text('This is not available right now.', textAlign: TextAlign.center, style: TextStyle(color: Color(0xFF6B7280))),
+              if (d['pdfUpload'] == true) ...[
+                const SizedBox(height: 12),
+                OutlinedButton.icon(onPressed: _busy ? null : _pickPdf, icon: const Icon(Icons.picture_as_pdf_rounded, size: 18), label: Text(check == null ? (available ? 'Or upload a statement PDF' : 'Upload a statement PDF') : 'Upload a newer statement PDF')),
+                const Padding(padding: EdgeInsets.only(top: 6), child: Text('Download the full account statement as a PDF from your bank app or net banking, and upload it here. We read it on our server and keep only a short summary.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Color(0xFF6B7280), height: 1.4))),
+              ],
               if (_sessionId != null) ...[
                 const SizedBox(height: 12),
                 const Text('Waiting for you to finish at your bank... then come back here.', textAlign: TextAlign.center, style: TextStyle(color: Color(0xFF6B7280), fontSize: 13)),

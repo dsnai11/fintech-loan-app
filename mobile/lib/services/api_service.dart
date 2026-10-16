@@ -478,6 +478,44 @@ class ApiService {
     }
   }
 
+  // A bank statement PDF (base64), read by the server instead of going through the Account Aggregator
+  Future<Map<String, dynamic>> uploadStatementPdf(String pdf) async {
+    try {
+      final response = await _dio.post('/income-check/pdf', data: {'pdf': pdf}, options: Options(sendTimeout: const Duration(seconds: 90), receiveTimeout: const Duration(seconds: 90)));
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  // Proving the email address with a code
+  Future<Map<String, dynamic>> emailVerifyStatus() async {
+    try {
+      final response = await _dio.get('/email-verify/status');
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> sendEmailCode() async {
+    try {
+      final response = await _dio.post('/email-verify/send');
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> verifyEmailCode(String code) async {
+    try {
+      final response = await _dio.post('/email-verify/verify', data: {'code': code});
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   Future<Map<String, dynamic>> startIncomeCheck() async {
     try {
       final response = await _dio.post('/income-check/start');

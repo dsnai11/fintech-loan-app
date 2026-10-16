@@ -212,7 +212,7 @@ router.post('/device/verify', async (req, res) => {
 // What the app must still ask this customer to do before they can use it: accept the terms, verify the phone.
 router.get('/onboarding', authMiddleware, async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId).select('role email phone phoneVerified termsVersion dateOfBirth gender address employment bankAccount selfie aadhaarCard kycDigilocker');
+    const user = await User.findById(req.user.userId).select('role email emailVerified emailVerifiedFor phone phoneVerified termsVersion dateOfBirth gender address employment bankAccount selfie aadhaarCard kycDigilocker');
     if (!user) return res.status(404).json({ error: 'User not found' });
     const customer = !isStaffRole(user.role) && user.email !== (process.env.ADMIN_EMAIL || 'admin@lifc.in').toLowerCase();
     res.json({

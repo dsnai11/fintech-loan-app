@@ -1,3 +1,4 @@
+import '../widgets/email_verify_row.dart';
 import '../utils/responsive.dart';
 import 'income_check_screen.dart';
 import 'credit_score_screen.dart';
@@ -318,6 +319,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 12),
 
           const CallbackRow(),
+          const EmailVerifyRow(),
           const AppLockRow(),
           const RewardsRow(),
           const CreditScoreRow(),
