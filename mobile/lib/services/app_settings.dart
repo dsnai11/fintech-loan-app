@@ -69,6 +69,12 @@ class AppSettings extends ChangeNotifier {
     return ['off', 'optional', 'required'].contains(v) ? v : 'optional';
   }
 
+  // Whether the app blocks screenshots and screen recording (on unless the company switches it off)
+  bool get blockScreenshots {
+    final s = _data['security'];
+    return !(s is Map && s['screenshots'] == 'allow');
+  }
+
   int get lockAfterSeconds {
     final s = _data['security'];
     final v = s is Map ? s['lockAfterSeconds'] : null;

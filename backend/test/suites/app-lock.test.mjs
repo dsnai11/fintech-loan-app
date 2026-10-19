@@ -10,6 +10,8 @@ section('THE APP READS THE LOCK RULES');
 const pub = await call('GET', '/app-settings', null);
 check('by default customers may choose a PIN, the app locks after 30 seconds and signs out after 15 idle minutes', pub.s === 200 && pub.d.security.appLock === 'optional' && pub.d.security.lockAfterSeconds === 30 && pub.d.security.idleLogoutMinutes === 15, JSON.stringify(pub.d.security));
 
+check('screenshots and screen recording are blocked by default', pub.d.security.screenshots === 'block');
+
 section('STAFF CHANGE THEM');
 const cur = (await call('GET', '/app-settings/admin', admin)).d.settings;
 const save = security => call('PUT', '/app-settings/admin', admin, { ...cur, security });
@@ -20,6 +22,12 @@ check('a silly value is refused (400)', (await save({ appLock: 'required', lockA
 check('an unknown mode falls back to the default', (await save({ appLock: 'sometimes', lockAfterSeconds: 30, idleLogoutMinutes: 15 })).d.settings.security.appLock === 'optional');
 check('"never sign out" is allowed (0)', (await save({ appLock: 'off', lockAfterSeconds: 30, idleLogoutMinutes: 0 })).d.settings.security.idleLogoutMinutes === 0);
 check('a customer cannot change it (403)', (await call('PUT', '/app-settings/admin', null, { ...cur })).s === 401);
+
+section('SCREENSHOTS');
+const shotsOff = await save({ appLock: 'optional', lockAfterSeconds: 30, idleLogoutMinutes: 15, screenshots: 'allow' });
+check('staff can allow screenshots, and the app sees it at once', shotsOff.s === 200 && (await call('GET', '/app-settings', null)).d.security.screenshots === 'allow');
+check('a made-up value falls back to blocking', (await save({ appLock: 'optional', lockAfterSeconds: 30, idleLogoutMinutes: 15, screenshots: 'maybe' })).d.settings.security.screenshots === 'block');
+check('leaving it out keeps it blocked', (await save({ appLock: 'optional', lockAfterSeconds: 30, idleLogoutMinutes: 15 })).d.settings.security.screenshots === 'block');
 
 await disconnect();
 finish();

@@ -43,7 +43,7 @@ export const DEFAULTS = {
   maintenance: { enabled: false, message: 'We are updating the app. Please try again in a little while.' },
   minAppVersion: '',
   // How the app protects itself on the customer's phone: a PIN, locking after the app was left, and signing out when idle
-  security: { appLock: 'optional', lockAfterSeconds: 30, idleLogoutMinutes: 15, newDevice: 'off', rootedDevice: 'allow', otpChannel: 'sms' }, // rootedDevice: 'block' stops the app opening on a phone that looks rooted or jailbroken; otpChannel: 'whatsapp_first' sends codes on WhatsApp when it is connected, with SMS as the backup // newDevice: 'otp' asks for an SMS code when a customer signs in from a phone they have not used before
+  security: { appLock: 'optional', lockAfterSeconds: 30, idleLogoutMinutes: 15, newDevice: 'off', rootedDevice: 'allow', otpChannel: 'sms', screenshots: 'block' }, // rootedDevice: 'block' stops the app opening on a phone that looks rooted or jailbroken; otpChannel: 'whatsapp_first' sends codes on WhatsApp when it is connected, with SMS as the backup // newDevice: 'otp' asks for an SMS code when a customer signs in from a phone they have not used before
   baseProduct: { name: 'Personal Loan', description: 'Quick personal loan with the charges shown up front.' },
   products: [], // extra products: { key, name, description, enabled, overrides }
   home: HOME_DEFAULTS,
@@ -132,6 +132,7 @@ export function validateSettings(candidate) {
   out.security.appLock = ['off', 'optional', 'required'].includes(sec.appLock) ? sec.appLock : DEFAULTS.security.appLock;
   out.security.newDevice = ['off', 'otp'].includes(sec.newDevice) ? sec.newDevice : DEFAULTS.security.newDevice;
   out.security.rootedDevice = ['allow', 'block'].includes(sec.rootedDevice) ? sec.rootedDevice : DEFAULTS.security.rootedDevice;
+  out.security.screenshots = ['block', 'allow'].includes(sec.screenshots) ? sec.screenshots : DEFAULTS.security.screenshots;
   out.security.otpChannel = ['sms', 'whatsapp_first'].includes(sec.otpChannel) ? sec.otpChannel : DEFAULTS.security.otpChannel;
   const secNum = (v, def, min, max, label) => {
     const n = v === undefined || v === null || v === '' ? def : Number(v);

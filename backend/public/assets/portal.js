@@ -213,5 +213,35 @@
     }
   }, 30000);
 
+  // Screenshot deterrents. A web page cannot truly block a screenshot (the computer or a second phone can always take one),
+  // so this does what a page can: it puts the signed-in person's email and the time across everything, so any picture that
+  // leaks can be traced; it hides customer photos whenever the window is not in front (which is when screenshot tools take over);
+  // and it switches off printing and saving the page as a PDF.
+  (function protect() {
+    var st = document.createElement('style');
+    st.textContent = '@media print{body *{display:none!important}body::before{content:"Printing is switched off for this page";display:block;padding:40px;font:16px sans-serif}}' +
+      '.ent-wm{position:fixed;left:0;top:0;right:0;bottom:0;pointer-events:none;z-index:2147483000}' +
+      '.ent-away .private-img{filter:blur(30px)!important}.private-img{-webkit-user-drag:none;user-select:none}';
+    document.head.appendChild(st);
+    var wm = document.createElement('div'); wm.className = 'ent-wm'; document.body.appendChild(wm);
+    function stamp() {
+      if (!signedIn()) { wm.style.backgroundImage = 'none'; return; }
+      var d = new Date(), pad = function (n) { return (n < 10 ? '0' : '') + n; };
+      var text = esc(store('admin_user') || '') + '  ' + d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+      var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="340" height="190"><text x="20" y="110" fill="#000" fill-opacity="0.07" font-family="Arial" font-size="15" transform="rotate(-22 170 95)">' + text + '</text></svg>';
+      wm.style.backgroundImage = 'url("data:image/svg+xml,' + encodeURIComponent(svg) + '")';
+    }
+    stamp(); setInterval(stamp, 30000);
+    var root = document.documentElement;
+    function away() { root.classList.add('ent-away'); }
+    function back() { root.classList.remove('ent-away'); }
+    window.addEventListener('blur', away); window.addEventListener('focus', back);
+    document.addEventListener('visibilitychange', function () { if (document.hidden) away(); else back(); });
+    document.addEventListener('keyup', function (e) {
+      if (e.key === 'PrintScreen') { away(); try { navigator.clipboard.writeText(' '); } catch (x) { /* not allowed here */ } setTimeout(back, 1500); }
+    });
+    document.addEventListener('contextmenu', function (e) { if (e.target && e.target.classList && e.target.classList.contains('private-img')) e.preventDefault(); });
+  })();
+
   window.PortalShell = { refresh: build, landing: landing, can: function (perm) { return has([perm]); } };
 })();

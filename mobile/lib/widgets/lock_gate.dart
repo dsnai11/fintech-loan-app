@@ -1,3 +1,4 @@
+import '../services/screen_guard.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:async';
 import 'package:flutter/material.dart' hide Text;
@@ -76,6 +77,7 @@ class _LockGateState extends State<LockGate> with WidgetsBindingObserver {
     final auth = context.watch<AuthService>();
     final lock = context.watch<AppLock>();
     final mode = context.watch<AppSettings>().appLockMode;
+    ScreenGuard.apply(context.watch<AppSettings>().blockScreenshots);
     Widget? overlay;
     // On the website people sign in with their email and password only; the PIN is for the phone app
     if (!kIsWeb && auth.isAuthenticated && mode != 'off') {
