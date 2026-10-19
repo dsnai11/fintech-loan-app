@@ -137,7 +137,7 @@ const strict = await startServer(DB, { DATE_CHANGE_MAX_SHIFT_DAYS: '3' });
 const farDay = ((first.getUTCDate() + 8 - 1) % 28) + 1;
 check('a move bigger than the allowed days is refused (409)', (await client(strict.base)('POST', `/pay/change-date/${d.loan._id}`, d.token, { day: farDay })).s === 409 && (await Loan.findById(d.loan._id)).dateChanges.length === 0);
 check('a bad day is refused (400)', (await call('POST', `/pay/change-date/${d.loan._id}`, d.token, { day: 31 })).s === 400);
-const target = first.getUTCDate() === 28 ? 27 : first.getUTCDate() + 1;
+const target = first.getUTCDate() >= 27 ? 25 : first.getUTCDate() + 1; // days after the 28th cannot be chosen, so move back instead
 const moved = await call('POST', `/pay/change-date/${d.loan._id}`, d.token, { day: target });
 const after = await EMIPayment.find({ loanId: d.loan._id }).sort({ emiNumber: 1 });
 check('all the remaining instalments move to that day, one month apart, amounts unchanged', moved.s === 200 && after.every(e => e.dueDate.getUTCDate() === target) && after[0].amount === 10200 && Math.round((after[1].dueDate - after[0].dueDate) / 864e5) >= 28, JSON.stringify(moved.d));
