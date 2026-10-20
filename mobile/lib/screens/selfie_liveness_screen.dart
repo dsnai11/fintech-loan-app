@@ -272,12 +272,19 @@ class _SelfieLivenessScreenState extends State<NativeSelfieScreen> {
       await _cam!.stopImageStream();
       final shot = await _cam!.takePicture();
       final after = base64Encode(await shot.readAsBytes());
-      await context.read<ApiService>().submitSelfie(challengeId: _challengeId!, before: _before!, after: after, samples: _samples, blinks: _blinks);
+      final r = await context.read<ApiService>().submitSelfie(challengeId: _challengeId!, before: _before!, after: after, samples: _samples, blinks: _blinks);
+      // The server may already have compared the selfie with the Aadhaar card photo: turn it back with the reason, or say it matched
+      final selfieStatus = ((r['selfie'] as Map?)?['status'] ?? '').toString();
+      final cardStatus = ((r['aadhaarCard'] as Map?)?['status'] ?? '').toString();
+      if (selfieStatus == 'rejected' || cardStatus == 'rejected') {
+        _fail((r['message'] ?? 'Please try again.').toString());
+        return;
+      }
       HapticFeedback.mediumImpact();
       if (!mounted) return;
       setState(() {
         _phase = _Phase.done;
-        _message = 'Photo verified';
+        _message = cardStatus == 'passed' ? 'Photo verified and matched with your Aadhaar card' : 'Photo verified';
       });
       await Future.delayed(const Duration(milliseconds: 900));
       if (mounted) Navigator.of(context).pop(true);

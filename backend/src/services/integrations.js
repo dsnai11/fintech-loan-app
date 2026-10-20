@@ -180,11 +180,13 @@ export const INTEGRATIONS = [
   {
     id: 'face_match', label: 'Aadhaar photo and selfie match', purpose: 'Compares the face on the Aadhaar card photo with their selfie, by machine (Amazon Rekognition).',
     fields: [
+      field('FACE_MATCH_ENGINE', 'Engine', { options: ['', 'auto', 'aws', 'local', 'off'], hint: 'auto (or empty): Amazon when its keys are set, otherwise the built-in engine on our own server. aws: Amazon only. local: built-in only. off: a person checks every photo.' }),
       field('AWS_ACCESS_KEY_ID', 'AWS access key ID', { secret: true }),
       field('AWS_SECRET_ACCESS_KEY', 'AWS secret access key', { secret: true }),
       field('AWS_REGION', 'AWS region (for India: ap-south-1)'),
-      field('FACE_MATCH_PASS_AT', 'Pass at this similarity or more (default 90)'),
-      field('FACE_MATCH_REJECT_BELOW', 'Ask for a clearer photo below this similarity (default 50)'),
+      field('FACE_MATCH_PASS_AT', 'Pass at this similarity or more (default 90 for Amazon, 80 for the built-in engine)'),
+      field('FACE_MATCH_REJECT_BELOW', 'Ask for a clearer photo below this similarity (default 50 for Amazon, 45 for the built-in engine)'),
+      field('FACE_LIVENESS_MIN', 'Built-in engine: lowest "real person" score for a web selfie to pass without a blink test (0 to 1, default 0.5)'),
       field('FACE_MATCH_AUTO', 'Automatic check', { options: ['', 'true', 'false'], hint: 'Leave empty or true to use it. false sends every card photo to a person.' }),
     ],
     status: () => faceMatchMode(),

@@ -12,7 +12,12 @@
     "sync-portal": "node scripts/sync-portal.mjs"
   },
   "dependencies": {
+    "@tensorflow/tfjs-backend-cpu": "^4.22.0",
+    "@tensorflow/tfjs-backend-wasm": "^4.22.0",
+    "@tensorflow/tfjs-converter": "^4.22.0",
+    "@tensorflow/tfjs-core": "^4.22.0",
     "@tesseract.js-data/eng": "^1.0.0",
+    "@vladmandic/human": "^3.3.6",
     "axios": "^1.6.2",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
@@ -20,6 +25,7 @@
     "express": "^4.18.2",
     "express-rate-limit": "^8.7.0",
     "helmet": "^8.3.0",
+    "jpeg-js": "^0.4.4",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^7.5.0",
     "nodemailer": "^10.0.14",

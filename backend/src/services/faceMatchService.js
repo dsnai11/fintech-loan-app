@@ -7,8 +7,12 @@ import { audit } from './auditService.js';
 
 // Compares the face on the customer's Aadhaar card photo with their selfie, by machine.
 //
-// The provider is Amazon Rekognition (CompareFaces). It is used only when its keys are set in the portal. With no keys the
-// check cannot run, and the photos go to a person at the company, exactly as before. Nothing is ever invented.
+// Two engines can do the comparison:
+//   - Amazon Rekognition (CompareFaces), when its keys are set in the portal. Certified-grade, paid.
+//   - A built-in engine on our own server (open-source models, no account). Weaker, so its marks are conservative, and it also
+//     scores whether the selfie shows a real, live person (anti-spoof) so a web selfie can be checked without a blink test.
+// The setting FACE_MATCH_ENGINE chooses: auto (Amazon when its keys are set, otherwise the built-in one), aws, local or off.
+// If the engine fails, the photos go to a person at the company. Nothing is ever invented.
 //
 // What the machine decides, from the similarity score (0 to 100):
 //   at or above the "pass" mark         -> accepted, if the selfie itself passed its live check and nothing else looks wrong
@@ -21,13 +25,27 @@ const REGION = () => getConfig('AWS_REGION') || 'ap-south-1';
 const endpoint = () => getConfig('AWS_REKOGNITION_ENDPOINT') || `https://rekognition.${REGION()}.amazonaws.com/`;
 export const keysSet = () => !!(getConfig('AWS_ACCESS_KEY_ID') && getConfig('AWS_SECRET_ACCESS_KEY'));
 const num = (k, d) => { const raw = String(getConfig(k) ?? '').trim(); const v = Number(raw); return raw !== '' && Number.isFinite(v) && v >= 0 && v <= 100 ? v : d; };
-export const marks = () => ({ pass: num('FACE_MATCH_PASS_AT', 90), reject: num('FACE_MATCH_REJECT_BELOW', 50), maxAutoRejects: 2 });
-export const automaticOn = () => keysSet() && getConfig('FACE_MATCH_AUTO') !== 'false';
+export const marks = () => (engine() === 'local' ? { pass: num('FACE_MATCH_PASS_AT', 80), reject: num('FACE_MATCH_REJECT_BELOW', 45), maxAutoRejects: 2 } : { pass: num('FACE_MATCH_PASS_AT', 90), reject: num('FACE_MATCH_REJECT_BELOW', 50), maxAutoRejects: 2 });
+export const engine = () => {
+  if (getConfig('FACE_MATCH_AUTO') === 'false') return null;
+  const want = String(getConfig('FACE_MATCH_ENGINE') || 'auto').toLowerCase();
+  if (want === 'off') return null;
+  if (want === 'aws') return keysSet() ? 'aws' : null;
+  if (want === 'local') return 'local';
+  return keysSet() ? 'aws' : 'local';
+};
+export const automaticOn = () => engine() !== null;
+// The marks suit each engine: the built-in one scores different people at about 50 and the same person at 80 or more
+export const liveMin = () => { const v = Number(getConfig('FACE_LIVENESS_MIN')); return Number.isFinite(v) && v > 0 && v <= 1 ? v : 0.5; };
 
 export function modeNow() {
-  if (keysSet() && getConfig('FACE_MATCH_AUTO') === 'false') return { mode: 'off', note: 'Switched off in settings. A person compares every card photo with the selfie.' };
-  if (keysSet()) return { mode: 'live', provider: 'aws_rekognition', note: `The face on the card is compared with the selfie automatically. Pass at ${marks().pass}% or more, ask for a clearer photo below ${marks().reject}%, and a person looks at anything in between.` };
-  return { mode: 'staff', note: 'No face-matching service is connected, so a person at the company compares every card photo with the selfie. Add the AWS keys to switch on the automatic check.' };
+  const e = engine();
+  if (!e) {
+    const switchedOff = getConfig('FACE_MATCH_AUTO') === 'false' || String(getConfig('FACE_MATCH_ENGINE') || '').toLowerCase() === 'off';
+    return switchedOff ? { mode: 'off', note: 'Switched off in settings. A person compares every card photo with the selfie.' } : { mode: 'staff', note: 'The Amazon engine is chosen but its keys are not set, so a person at the company compares every card photo with the selfie. Add the AWS keys, or choose the built-in engine.' };
+  }
+  if (e === 'aws') return { mode: 'live', provider: 'aws_rekognition', note: `The face on the card is compared with the selfie automatically (Amazon Rekognition). Pass at ${marks().pass}% or more, ask for a clearer photo below ${marks().reject}%, and a person looks at anything in between.` };
+  return { mode: 'live', provider: 'built_in', note: `The face on the card is compared with the selfie automatically by the built-in engine on our own server, which also checks the selfie shows a real person. Pass at ${marks().pass}% or more, ask for a clearer photo below ${marks().reject}%, and a person looks at anything in between. It is less accurate than a paid service: tune the marks on real photos, and add the AWS keys for a stronger check.` };
 }
 
 // AWS request signing (Signature Version 4), done by hand so no extra package is needed
@@ -51,8 +69,9 @@ function sign(url, body, target) {
   return out;
 }
 
-// Returns { ok: true, similarity, faceOnCard } or { ok: false, reason: 'no_face_in_selfie' | 'no_face_on_card' | 'error', detail }
+// Returns { ok: true, similarity, liveness? } or { ok: false, reason: 'no_face_in_selfie' | 'no_face_on_card' | ... | 'error', detail }
 export async function compareFaces(selfieBytes, cardBytes) {
+  if (engine() === 'local') return (await import('./faceEngineLocal.js')).compareLocal(selfieBytes, cardBytes);
   const body = JSON.stringify({
     SourceImage: { Bytes: selfieBytes.toString('base64') },
     TargetImage: { Bytes: cardBytes.toString('base64') },
@@ -109,28 +128,53 @@ export async function runFaceMatch(userId, req = null) {
 
   const res = await compareFaces(selfie.data, card.data);
   const m = marks();
+  const e = engine();
   const prev = user.aadhaarCard;
   const rejects = prev.autoRejects || 0;
-  const faceMatch = { mode: 'aws_rekognition', at: new Date(), similarity: res.ok ? res.similarity : null, passAt: m.pass, rejectBelow: m.reject, result: null };
+  const faceMatch = { mode: e === 'local' ? 'built_in' : 'aws_rekognition', at: new Date(), similarity: res.ok ? res.similarity : null, passAt: m.pass, rejectBelow: m.reject, result: null };
   let status = 'review';
   let note = null;
+  let selfieUpdate = null; // set when the problem is with the selfie, not the card
+  let liveness = null;
+  if (res.ok && res.liveness && res.liveness.real !== null) {
+    liveness = { real: Math.round(res.liveness.real * 100) / 100, live: Math.round((res.liveness.live ?? 0) * 100) / 100, min: liveMin() };
+    liveness.passed = liveness.real >= liveness.min && liveness.live >= liveness.min;
+    faceMatch.liveness = liveness;
+  }
+  const SELFIE_PROBLEMS = {
+    no_face_in_selfie: 'We could not see your face in the selfie. Please retake it, facing the camera in good light.',
+    selfie_face_small: 'Your face is too small in the selfie. Please retake it a little closer to the camera.',
+    several_faces_in_selfie: 'There is more than one face in the selfie. Please retake it with only you in the picture.',
+  };
+  const CARD_PROBLEMS = {
+    no_face_on_card: 'We could not see your face on the Aadhaar card photo. Please send a clear, well-lit photo of the whole card.',
+    card_face_small: 'Your photo on the Aadhaar card is too small to read. Please take the card photo closer, with the whole card in view.',
+  };
 
   if (!res.ok && res.reason === 'error') {
-    // The service failed: that is not the customer's fault, so a person looks
+    // The engine failed: that is not the customer's fault, so a person looks
     faceMatch.result = 'service_error';
     faceMatch.detail = String(res.detail || '').slice(0, 200);
+  } else if (!res.ok && SELFIE_PROBLEMS[res.reason]) {
+    faceMatch.result = res.reason;
+    const selfieRejects = user.selfie.autoRejects || 0;
+    if (selfieRejects + 1 <= m.maxAutoRejects) selfieUpdate = { ...user.selfie, status: 'rejected', reviewedBy: BY_MACHINE, reviewedAt: new Date(), reviewNote: SELFIE_PROBLEMS[res.reason], autoRejects: selfieRejects + 1 };
   } else if (!res.ok) {
     faceMatch.result = res.reason;
-    if (rejects + 1 > m.maxAutoRejects) { /* third failure: a person looks */ }
-    else {
-      status = 'rejected';
-      note = res.reason === 'no_face_on_card' ? 'We could not see your face on the Aadhaar card photo. Please send a clear, well-lit photo of the whole card.' : 'We could not see your face in the selfie. Please retake it.';
-    }
+    if (rejects + 1 <= m.maxAutoRejects) { status = 'rejected'; note = CARD_PROBLEMS[res.reason] || CARD_PROBLEMS.no_face_on_card; }
   } else if (res.similarity >= m.pass) {
-    // Passing by machine needs the selfie itself to have passed its live check, and no warning flag on either photo
-    const clean = user.selfie.status === 'passed' && !user.aadhaarCard.flag && !user.selfie.flag;
-    faceMatch.result = clean ? 'match' : 'match_but_flagged';
-    if (clean) status = 'passed';
+    // Passing by machine needs a selfie that is a real person and nothing else looking wrong. A phone selfie has passed the blink check.
+    // A web selfie has no blink check, so with the built-in engine its own "real person" scores stand in for it.
+    const blinkOk = user.selfie.status === 'passed' && !user.selfie.flag;
+    const passiveOk = e === 'local' && liveness?.passed && user.selfie.status === 'review' && user.selfie.flag === 'no_blink_check';
+    const flagged = !!user.aadhaarCard.flag || (user.selfie.flag && !passiveOk);
+    if (!flagged && (blinkOk || passiveOk)) {
+      faceMatch.result = 'match';
+      status = 'passed';
+      if (passiveOk) selfieUpdate = { ...user.selfie, status: 'passed', method: 'photo_upload+passive_liveness', flag: null, passive: liveness, reviewedBy: BY_MACHINE, reviewedAt: new Date(), reviewNote: `Real-person scores ${liveness.real} and ${liveness.live}` };
+    } else {
+      faceMatch.result = liveness && !liveness.passed && !blinkOk ? 'match_but_not_live' : 'match_but_flagged';
+    }
   } else if (res.similarity < m.reject) {
     faceMatch.result = 'no_match';
     if (rejects + 1 <= m.maxAutoRejects) {
@@ -144,12 +188,12 @@ export async function runFaceMatch(userId, req = null) {
   const aadhaarCard = { ...prev, status, faceMatch, autoRejects: status === 'rejected' ? rejects + 1 : rejects };
   if (status === 'passed') { aadhaarCard.reviewedBy = BY_MACHINE; aadhaarCard.reviewedAt = new Date(); aadhaarCard.reviewNote = `Similarity ${res.similarity}%`; }
   if (status === 'rejected') { aadhaarCard.reviewedBy = BY_MACHINE; aadhaarCard.reviewedAt = new Date(); aadhaarCard.reviewNote = note; }
-  await User.updateOne({ _id: userId }, { aadhaarCard });
+  await User.updateOne({ _id: userId }, { aadhaarCard, ...(selfieUpdate ? { selfie: selfieUpdate } : {}) });
   if (faceMatch.result === 'no_match' && status === 'review') {
     await AmlAlert.create({ rule: 'FACE_MISMATCH', severity: 'HIGH', userId, detail: `The face on the Aadhaar card did not match the selfie (${res.similarity}%) after ${rejects} earlier attempts.` });
   }
-  await audit('system', status === 'passed' ? 'FACE_MATCH_PASSED' : status === 'rejected' ? 'FACE_MATCH_REJECTED' : 'FACE_MATCH_TO_REVIEW', { type: 'User', id: userId }, { result: faceMatch.result, similarity: faceMatch.similarity }, req);
-  return { ran: true, status, result: faceMatch.result, similarity: faceMatch.similarity };
+  await audit('system', status === 'passed' ? 'FACE_MATCH_PASSED' : (status === 'rejected' || selfieUpdate?.status === 'rejected') ? 'FACE_MATCH_REJECTED' : 'FACE_MATCH_TO_REVIEW', { type: 'User', id: userId }, { engine: faceMatch.mode, result: faceMatch.result, similarity: faceMatch.similarity, liveness }, req);
+  return { ran: true, status, result: faceMatch.result, similarity: faceMatch.similarity, selfieStatus: selfieUpdate?.status || user.selfie.status, selfieNote: selfieUpdate?.status === 'rejected' ? selfieUpdate.reviewNote : null, cardNote: note };
 }
 
 // The selfie was retaken: the earlier comparison no longer stands, so the card goes back to "to be checked" and is compared again.
@@ -158,7 +202,17 @@ export async function selfieChanged(userId, req = null) {
   if (!user?.aadhaarCard) return;
   const { reviewedBy, reviewedAt, reviewNote, faceMatch, ...rest } = user.aadhaarCard;
   await User.updateOne({ _id: userId }, { aadhaarCard: { ...rest, status: 'review' } });
-  await runFaceMatch(userId, req).catch(() => {});
+  return runFaceMatch(userId, req).catch(() => null);
 }
 
-export default { selfieChanged, modeNow, compareFaces, runFaceMatch, marks, keysSet, automaticOn };
+// What to tell the customer right after a selfie, now that the match with the Aadhaar card may have been decided by machine
+export function outcomeFor(user) {
+  const card = user.aadhaarCard, selfie = user.selfie;
+  if (selfie?.status === 'rejected') return { selfie: { status: 'rejected', note: selfie.reviewNote || null }, aadhaarCard: card ? { status: card.status, note: null } : null, message: selfie.reviewNote || 'Please retake your selfie.' };
+  if (!card) return { selfie: { status: selfie?.status }, aadhaarCard: null, message: null };
+  const note = card.status === 'rejected' ? card.reviewNote || null : null;
+  const message = card.status === 'passed' ? 'Your selfie matches your Aadhaar card' : card.status === 'rejected' ? note : null;
+  return { selfie: { status: selfie?.status }, aadhaarCard: { status: card.status, note, matched: card.faceMatch?.result === 'match' }, message };
+}
+
+export default { outcomeFor, selfieChanged, modeNow, compareFaces, runFaceMatch, marks, keysSet, automaticOn, engine };

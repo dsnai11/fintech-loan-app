@@ -72,6 +72,8 @@ export async function startServer(db, env = {}) {
         REQUIRE_PHONE_VERIFIED: 'false',
         OFFER_LIMIT: 'false',
         REQUIRE_ONBOARDING: 'false',
+        // The built-in face engine is only used by the tests that ask for it (it loads large models)
+        FACE_MATCH_ENGINE: 'aws',
         ...env,
       },
     });

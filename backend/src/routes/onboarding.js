@@ -6,7 +6,7 @@ import AmlAlert from '../models/AmlAlert.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { audit } from '../services/auditService.js';
 import { setupStatus, checkProfile } from '../services/onboardingService.js';
-import { runFaceMatch, selfieChanged } from '../services/faceMatchService.js';
+import { runFaceMatch, selfieChanged, outcomeFor } from '../services/faceMatchService.js';
 import { readCard, judgeText, readerName, MESSAGES } from '../services/aadhaarCardCheck.js';
 import { analyseBlinks, readFrame, REQUIRED_BLINKS } from '../services/livenessService.js';
 
@@ -105,7 +105,9 @@ router.post('/selfie', async (req, res) => {
     if (dupe) await AmlAlert.create({ rule: 'DUPLICATE_SELFIE', severity: 'MEDIUM', userId: user._id, detail: 'The selfie photo is the same picture as one on another account.' });
     await audit(req.user, 'SELFIE_CAPTURED', { type: 'User', id: user._id }, { blinks: result.blinks, status: selfie.status }, req);
     await selfieChanged(user._id, req).catch(() => {});
-    res.json({ message: dupe ? 'Thank you. Our team will look at your photo.' : 'Photo verified', selfie: { status: selfie.status }, steps: setupStatus(await User.findById(user._id)) });
+    const fresh = await User.findById(user._id);
+    const out = outcomeFor(fresh);
+    res.json({ message: out.message || (dupe ? 'Thank you. Our team will look at your photo.' : 'Photo verified'), selfie: out.selfie, aadhaarCard: out.aadhaarCard, steps: setupStatus(fresh) });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -134,7 +136,9 @@ router.post('/selfie/upload', async (req, res) => {
     if (dupe) await AmlAlert.create({ rule: 'DUPLICATE_SELFIE', severity: 'MEDIUM', userId: user._id, detail: 'The selfie photo is the same picture as one on another account.' });
     await audit(req.user, 'SELFIE_UPLOADED', { type: 'User', id: user._id }, { status: 'review', duplicate: !!dupe }, req);
     await selfieChanged(user._id, req).catch(() => {});
-    res.json({ message: 'Thank you. Our team will look at your photo.', selfie: { status: 'review' }, steps: setupStatus(await User.findById(user._id)) });
+    const fresh = await User.findById(user._id);
+    const out = outcomeFor(fresh);
+    res.json({ message: out.message || 'Thank you. Our team will look at your photo.', selfie: out.selfie, aadhaarCard: out.aadhaarCard, steps: setupStatus(fresh) });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

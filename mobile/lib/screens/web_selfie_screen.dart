@@ -26,6 +26,7 @@ class _WebSelfieScreenState extends State<WebSelfieScreen> {
   bool _busy = false;
   bool _done = false;
   String? _error;
+  String _result = 'review';
 
   Future<void> _pick(ImageSource source) async {
     // In a browser the plain "camera" option only opens a file chooser on a computer, so use the camera inside the page
@@ -50,8 +51,16 @@ class _WebSelfieScreenState extends State<WebSelfieScreen> {
     if (photo == null) return;
     setState(() { _busy = true; _error = null; });
     try {
-      await context.read<ApiService>().submitSelfieUpload(base64Encode(photo));
-      if (mounted) setState(() => _done = true);
+      final r = await context.read<ApiService>().submitSelfieUpload(base64Encode(photo));
+      final selfieStatus = ((r['selfie'] as Map?)?['status'] ?? '').toString();
+      final cardStatus = ((r['aadhaarCard'] as Map?)?['status'] ?? '').toString();
+      if (!mounted) return;
+      if (selfieStatus == 'rejected' || cardStatus == 'rejected') {
+        // Turned back by the automatic check: say why and let them try again
+        setState(() { _error = (r['message'] ?? 'Please try again.').toString(); _photo = null; });
+      } else {
+        setState(() { _done = true; _result = cardStatus == 'passed' ? 'matched' : selfieStatus == 'passed' ? 'verified' : 'review'; });
+      }
     } catch (e) {
       if (mounted) setState(() => _error = friendlyError(e));
     }
@@ -84,7 +93,7 @@ class _WebSelfieScreenState extends State<WebSelfieScreen> {
         ),
         const SizedBox(height: 22),
         if (_done)
-          const Text('Thank you. Our team will look at your photo. You can carry on in the meantime.', textAlign: TextAlign.center, style: TextStyle(fontSize: 15, height: 1.5, fontWeight: FontWeight.w600, color: kGreen))
+          Text(_result == 'matched' ? 'Your selfie matches your Aadhaar card. You are all set here.' : _result == 'verified' ? 'Your selfie is verified.' : 'Thank you. Our team will look at your photo. You can carry on in the meantime.', textAlign: TextAlign.center, style: TextStyle(fontSize: 15, height: 1.5, fontWeight: FontWeight.w600, color: kGreen))
         else ...[
           if (_error != null) Padding(padding: const EdgeInsets.only(bottom: 12), child: Text(_error!, textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, color: Color(0xFFB91C1C)))),
           Row(mainAxisAlignment: MainAxisAlignment.center, children: [
