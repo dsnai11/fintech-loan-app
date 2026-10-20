@@ -48,6 +48,7 @@ details.act[open] summary { margin-bottom: 10px; }
   <div id="alert" class="alert" role="alert"></div>
 
   <div id="listView">
+    <div class="card" id="pendingBox" style="display:none"></div>
     <div class="card">
       <div class="row" style="margin-bottom:10px">
         <input id="q" placeholder="Phone, name, email or loan number" style="min-width:260px" onkeydown="if(event.key==='Enter'){page=1;loadList()}">
@@ -58,6 +59,7 @@ details.act[open] summary { margin-bottom: 10px; }
       <div class="scroll" id="list"></div>
       <div class="row" id="pager" style="margin-top:10px"></div>
     </div>
+    <div class="card" id="settingsBox" style="display:none"></div>
   </div>
 
   <div id="loanView" style="display:none">
@@ -79,7 +81,8 @@ const inr = n => '₹' + (Math.round((n || 0) * 100) / 100).toLocaleString('en-I
 const when = d => (d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '-');
 const MODE = { CASH: 'Cash', UPI: 'UPI', NEFT: 'Bank transfer', CHEQUE: 'Cheque', CARD: 'Card', OTHER: 'Other' };
 const can = p => !window.PortalShell || PortalShell.can(p);
-let page = 1, L = null, tab = 'schedule', currentId = null;
+let page = 1, L = null, tab = 'schedule', currentId = null, F = { fourEyes: true };
+const me = () => { try { return localStorage.getItem('admin_user') || ''; } catch (e) { return ''; } };
 
 function msg(text, kind) {
   const a = $('alert'); a.textContent = text; a.className = 'alert show ' + (kind === 'ok' ? 'ok' : 'err');
@@ -97,6 +100,7 @@ function dpdTag(dpd) { return dpd > 90 ? '<span class="tag bad">' + dpd + ' days
 // ---- the list ----
 async function loadList() {
   $('alert').className = 'alert';
+  loadPending();
   try {
     const p = new URLSearchParams({ page, limit: 50 });
     if ($('q').value.trim()) p.set('q', $('q').value.trim());
@@ -118,6 +122,7 @@ function openLoan(id) { location.hash = 'loan=' + id; }
 async function loadLoan(id) {
   try {
     currentId = id; L = await api('/admin/lms/' + id);
+    try { F = await api('/admin/lms/settings'); } catch (e) { /* keep the default */ }
     $('listView').style.display = 'none'; $('loanView').style.display = '';
     $('alert').className = 'alert';
     drawLoan();
@@ -128,7 +133,7 @@ function drawLoan() {
   const stat = l.status === 'closed' ? '<span class="tag grey">Closed' + (l.closureType ? ' (' + esc(l.closureType.replace('_', ' ')) + ')' : '') + '</span>' : l.status === 'defaulted' ? '<span class="tag bad">In default</span>' : '<span class="tag ok">Live</span>';
   $('head').innerHTML = `<div class="card"><div class="row" style="justify-content:space-between"><div><h2 style="font-size:18px;margin-bottom:2px">${esc(c ? c.name : '')} ${stat}</h2><div class="note">${esc(c ? c.phone : '')} &middot; ${esc(c ? c.email : '')} &middot; loan ${esc(l.id)}</div>
     <div class="note">${inr(l.amount)} &middot; ${l.tenure} instalments &middot; ${esc(l.rate)}% &middot; paid out ${when(l.disbursedAt)}${l.flatRate ? ' &middot; flat rate' : ' &middot; reducing balance'}${l.colending ? ' &middot; co-lent' : ''}</div></div>
-    <div class="row">${c ? `<button class="btn" onclick="openCustomer()">Customer page</button>` : ''}${l.status === 'closed' ? '<button class="btn" onclick="openDoc(\'/admin/lms/' + l.id + '/closure-letter\')">Closure letter</button>' : ''}</div></div></div>`;
+    <div class="row"><button class="btn" onclick="openDoc('/admin/lms/' + L.loan.id + '/documents/statement')">Statement</button><button class="btn" onclick="openDoc('/admin/lms/' + L.loan.id + '/documents/schedule')">Schedule</button><button class="btn" onclick="interestCert()">Interest certificate</button>${c ? `<button class="btn" onclick="openCustomer()">Customer page</button>` : ''}${l.status === 'closed' ? '<button class="btn" onclick="openDoc(\'/admin/lms/' + l.id + '/closure-letter\')">Closure letter</button>' : ''}</div></div></div>`;
   $('tiles').innerHTML = [
     ['Principal left', inr(f.principalOutstanding), f.unpaidEmis + ' unpaid of ' + f.totalEmis, ''],
     ['Overdue now', inr(f.overdueAmount), f.overdueEmis ? f.overdueEmis + ' instalment(s), incl. ' + inr(f.lateFeesOutstanding) + ' late fees' : 'Nothing overdue', f.overdueEmis ? 'bad' : ''],
@@ -138,6 +143,7 @@ function drawLoan() {
     ['Held in advance', inr(f.advanceBalance), f.refundDue ? 'To refund to the customer' : 'Used by the next payment', f.refundDue ? 'bad' : ''],
   ].map(t => `<div class="tile ${t[3]}"><div class="l">${t[0]}</div><div class="v">${t[1]}</div><div class="s">${t[2]}</div></div>`).join('');
   drawActions(); drawTabs();
+  if ($('chFields')) drawChangeFields();
 }
 function openCustomer() { try { localStorage.setItem('find_customer', L.customer.phone); } catch (e) { /* not allowed */ } location.href = 'customers.html'; }
 
@@ -158,6 +164,12 @@ function drawActions() {
     <label style="display:block;margin-top:8px"><input id="pAhead" type="checkbox" style="width:auto"> Also pay instalments that are not due yet (pay ahead)</label>
     <div class="note">Oldest unpaid instalments are cleared first, each with its late fee. Money left over is kept on the loan in advance.</div>
     <div class="row" style="margin-top:10px"><button class="btn" onclick="payPreview()">Check</button><button class="btn primary" onclick="payPost()">Record payment</button></div><div id="pPrev"></div></details>` : ''}
+  ${post ? `<details class="act" id="dChg"><summary>Change the loan (waive late fees, new due day, add months, pause, restructure)</summary>
+    <div class="grid"><div><label for="chType">What do you want to do</label><select id="chType" onchange="drawChangeFields()"><option value="waiver">Waive late fees</option><option value="date_change">Change the due day</option><option value="extension">Add months to the loan</option><option value="moratorium">Pause instalments</option><option value="restructure">Restructure the loan</option></select></div></div>
+    <div id="chFields" style="margin-top:8px"></div>
+    <div style="margin-top:8px"><label for="chReason" style="display:block;font-size:12px;font-weight:600;margin-bottom:3px">Why (the approver will read this)</label><textarea id="chReason" rows="2" maxlength="400" style="width:100%"></textarea></div>
+    <div class="note">${F.fourEyes ? 'Nothing changes until a different person approves it.' : 'Two-person approval is switched off, so this is applied straight away.'}</div>
+    <div class="row" style="margin-top:10px"><button class="btn" onclick="chPreview()">Check</button><button class="btn primary" onclick="chSend()">${F.fourEyes ? 'Send for approval' : 'Apply now'}</button></div><div id="chPrev"></div></details>` : ''}
   ${close ? `<details class="act" id="dPre"><summary>Part-prepayment</summary>
     ${pp.allowed ? `<div class="grid"><div><label for="ppAmt">Amount received (₹)</label><input id="ppAmt" type="number" min="1" step="0.01"></div>
     <div><label for="ppWhat">What should come down</label><select id="ppWhat"><option value="reduce_tenure">The number of instalments (same instalment)</option><option value="reduce_emi">The instalment (same number)</option></select></div>
@@ -213,7 +225,7 @@ async function closePost() {
 
 // ---- tabs ----
 function drawTabs() {
-  const names = { schedule: 'Schedule', transactions: 'Transactions', receipts: 'Receipts (' + L.receipts.length + ')', timeline: 'Timeline' };
+  const names = { schedule: 'Schedule', transactions: 'Transactions', receipts: 'Receipts (' + L.receipts.length + ')', changes: 'Changes (' + L.requests.length + ')', timeline: 'Timeline' };
   $('tabs').innerHTML = Object.keys(names).map(k => `<button class="${tab === k ? 'on' : ''}" onclick="tab='${k}';drawTabs()">${names[k]}</button>`).join('');
   const T = {
     schedule: () => `<div class="scroll"><table><thead><tr><th>#</th><th>Due</th><th class="r">Instalment</th><th class="r">Principal</th><th class="r">Interest</th><th class="r">Late fee</th><th>Status</th><th>Paid</th></tr></thead><tbody>${L.schedule.map(s => `<tr><td>${s.emiNumber}</td><td>${when(s.dueDate)}</td><td class="r">${inr(s.amount)}</td><td class="r">${inr(s.principal)}</td><td class="r">${inr(s.interest)}</td><td class="r">${s.lateFee ? inr(s.lateFee) : '-'}</td>
@@ -225,6 +237,7 @@ function drawTabs() {
       return L.receipts.length ? `<div class="scroll"><table><thead><tr><th>Receipt</th><th>Type</th><th class="r">Amount</th><th>How</th><th>Date</th><th>By</th><th></th></tr></thead><tbody>${L.receipts.map(r => `<tr><td>${esc(r.receiptNo)}${r.status === 'reversed' ? '<div class="note" style="color:#991B1B">Reversed: ' + esc(r.reversal ? r.reversal.reason : '') + '</div>' : ''}</td><td>${esc({ payment: 'Payment', prepayment: 'Part-prepayment', foreclosure: 'Early closure' }[r.type] || r.type)}</td><td class="r">${inr(r.amount)}</td><td>${esc(MODE[r.mode] || r.mode)}${r.reference ? '<div class="note">' + esc(r.reference) + '</div>' : ''}</td><td>${when(r.valueDate)}</td><td>${esc(r.postedBy)}</td>
         <td class="row"><button class="btn" onclick="openDoc('/admin/lms/receipts/${r.id}/html')">Open</button>${can('lms.post') && latest && latest.id === r.id && r.type === 'payment' ? `<button class="btn" onclick="reverse('${r.id}')">Reverse</button>` : ''}</td></tr>`).join('')}</tbody></table></div><div class="note" style="margin-top:8px">Only the most recent payment on a loan can be reversed.</div>` : '<div class="note">No payments have been recorded by staff on this loan.</div>';
     },
+    changes: () => (L.requests.length ? `<div class="scroll"><table><thead><tr><th>Asked</th><th>Change</th><th>By</th><th>Status</th><th></th></tr></thead><tbody>${L.requests.map(r => requestRow(r, false)).join('')}</tbody></table></div>${L.restructure ? '<div class="note" style="margin-top:8px">This loan was restructured on ' + when(L.restructure.at) + ' (approved by ' + esc(L.restructure.by) + ').</div>' : ''}` : '<div class="note">No changes have been asked for on this loan.</div>'),
     timeline: () => (L.timeline && L.timeline.length) ? L.timeline.map(t => `<div style="padding:6px 0;border-bottom:1px solid var(--e-border)"><b>${esc(t.label)}</b> <span class="tag ${t.state === 'done' ? 'ok' : t.state === 'current' ? 'warn' : 'grey'}">${esc(t.state)}</span> <span class="note">${t.at ? when(t.at) : ''}</span><div class="note">${esc(t.detail || '')}</div></div>`).join('') : '<div class="note">No events yet.</div>',
   };
   $('tabBody').innerHTML = T[tab]();
@@ -244,6 +257,79 @@ async function openDoc(path) {
     if (!w) return msg('Your browser blocked the new window. Allow pop-ups for this site and try again.', 'err');
     w.document.open(); w.document.write(html); w.document.close();
   } catch (e) { if (w) w.close(); msg(e.message, 'err'); }
+}
+
+// ---- changes that a second person approves ----
+function drawChangeFields() {
+  const t = $('chType').value, box = $('chFields');
+  const n = (id, label, min, max, val) => `<div><label for="${id}">${label}</label><input id="${id}" type="number" min="${min}" max="${max}"${val !== undefined ? ' value="' + val + '"' : ''}></div>`;
+  if (t === 'waiver') {
+    const rows = L.schedule.filter(s => s.lateFee > 0);
+    box.innerHTML = rows.length ? `<div class="note" style="margin-bottom:6px">Late fees on overdue instalments. Leave the amount as it is to waive the whole fee, lower it to waive part, or put 0 to leave one alone.</div><div class="grid">${rows.map(s => `<div><label for="wv${s.emiNumber}">Instalment ${s.emiNumber}, fee ${inr(s.lateFee)}</label><input id="wv${s.emiNumber}" data-emi="${s.emiNumber}" class="wv" type="number" min="0" max="${s.lateFee}" step="0.01" value="${s.lateFee}"></div>`).join('')}</div>` : '<div class="note">There are no late fees on this loan.</div>';
+  } else if (t === 'date_change') box.innerHTML = `<div class="grid">${n('chDay', 'New due day of the month (1 to 28)', 1, 28)}</div><div class="note">All remaining instalments move to that day. Only possible when nothing is overdue.</div>`;
+  else if (t === 'extension') box.innerHTML = `<div class="grid">${n('chExtra', 'Months to add (1 to 12)', 1, 12, 3)}</div><div class="note">The balance is re-worked over the longer time, so each instalment comes down and the total interest goes up. Only possible when nothing is overdue.</div>`;
+  else if (t === 'moratorium') box.innerHTML = `<div class="grid">${n('chMonths', 'Pause for (months, 1 to 6)', 1, 6, 1)}</div><label style="display:block;margin-top:8px"><input id="chCharge" type="checkbox" style="width:auto"> Charge interest for the pause (spread over the remaining instalments)</label><div class="note">All remaining instalments move later. Only possible when nothing is overdue.</div>`;
+  else box.innerHTML = `<div class="grid">${n('chCount', 'New number of instalments (1 to 60)', 1, 60, 6)}<div><label for="chRate">New yearly rate (empty = keep ${esc(L.loan.rate)}%)</label><input id="chRate" type="number" min="0" max="60" step="0.01"></div><div><label for="chFirst">First new due date</label><input id="chFirst" type="date"></div></div>
+    <label style="display:block;margin-top:8px"><input id="chWaive" type="checkbox" style="width:auto"> Waive the late fees (needed if there are any)</label><label style="display:block;margin-top:4px"><input id="chCap" type="checkbox" style="width:auto" checked> Add the interest already billed on overdue instalments to the principal</label>
+    <div class="note">All unpaid instalments, including overdue ones, are replaced by a fresh monthly schedule. The loan is marked as restructured. Compliance must confirm how a restructured account is classified and reported.</div>`;
+}
+function chBody() {
+  const t = $('chType').value; let payload = {};
+  if (t === 'waiver') { const items = [...document.querySelectorAll('.wv')].map(i => ({ emiNumber: Number(i.dataset.emi), amount: Number(i.value) })).filter(i => i.amount > 0); payload = items.length ? { items } : {}; }
+  else if (t === 'date_change') payload = { day: Number(v('chDay')) };
+  else if (t === 'extension') payload = { extraMonths: Number(v('chExtra')) };
+  else if (t === 'moratorium') payload = { months: Number(v('chMonths')), chargeInterest: $('chCharge').checked };
+  else payload = { instalments: Number(v('chCount')), annualRate: v('chRate') === '' ? undefined : Number(v('chRate')), firstDueDate: v('chFirst'), waiveLateFees: $('chWaive').checked, capitaliseArrears: $('chCap').checked };
+  return { type: t, payload, reason: v('chReason') };
+}
+async function chPreview() {
+  try {
+    const p = (await api(`/admin/lms/${currentId}/requests?preview=1`, 'POST', chBody())).preview;
+    $('chPrev').innerHTML = `<div class="preview"><b>${esc(p.typeLabel)}</b><ul style="margin:6px 0 0 18px;padding:0">${p.summary.map(l => '<li>' + esc(l) + '</li>').join('')}</ul></div>`;
+  } catch (e) { showErr('chPrev', e); }
+}
+async function chSend() {
+  if (!confirm(F.fourEyes ? 'Send this change for approval?' : 'Apply this change to the loan now?')) return;
+  try {
+    const r = await api(`/admin/lms/${currentId}/requests`, 'POST', chBody());
+    msg(r.applied ? 'The change has been applied.' : 'Sent for approval. Someone else has to approve it before anything changes.', 'ok');
+    await loadLoan(currentId); tab = 'changes'; drawTabs();
+  } catch (e) { showErr('chPrev', e); }
+}
+function interestCert() {
+  const now = new Date(), def = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+  const y = prompt('Which financial year? Enter the year it starts in (for 1 April ' + def + ' to 31 March ' + (def + 1) + ' enter ' + def + ')', def);
+  if (y) openDoc('/admin/lms/' + L.loan.id + '/documents/interest-certificate?fy=' + encodeURIComponent(y));
+}
+function requestRow(r, withLoan) {
+  const mine = r.requestedBy === me();
+  const canDecide = r.status === 'pending' && can('lms.approve') && (!F.fourEyes || !mine);
+  return `<tr><td>${when(r.requestedAt)}</td><td>${withLoan ? esc(r.customer || '') + '<div class="note">' + esc(r.phone || '') + '</div>' : ''}<b>${esc(r.typeLabel)}</b><ul style="margin:4px 0 0 16px;padding:0;font-size:12px">${(r.summary || []).map(l => '<li>' + esc(l) + '</li>').join('')}</ul><div class="note">Why: ${esc(r.reason)}</div></td>
+    <td>${esc(r.requestedBy)}</td><td><span class="tag ${r.status === 'approved' ? 'ok' : r.status === 'pending' ? 'warn' : r.status === 'rejected' || r.status === 'failed' ? 'bad' : 'grey'}">${esc(r.status)}</span>${r.autoApplied ? '<div class="note">applied at once</div>' : ''}${r.decidedBy ? '<div class="note">' + esc(r.decidedBy) + (r.decisionNote ? ': ' + esc(r.decisionNote) : '') + '</div>' : ''}${r.status === 'failed' && r.result ? '<div class="note">' + esc(r.result.error || '') + '</div>' : ''}</td>
+    <td class="row">${withLoan ? `<button class="btn" onclick="openLoan('${r.loanId}')">Open loan</button>` : ''}${canDecide ? `<button class="btn primary" onclick="decideReq('${r.id}','approve')">Approve</button><button class="btn" onclick="decideReq('${r.id}','reject')">Reject</button>` : ''}${r.status === 'pending' && mine ? `<button class="btn" onclick="decideReq('${r.id}','withdraw')">Withdraw</button>` : ''}${r.status === 'pending' && mine && F.fourEyes ? '<span class="note">waiting for someone else</span>' : ''}</td></tr>`;
+}
+async function decideReq(id, what) {
+  let note = '';
+  if (what === 'reject') { note = prompt('Why is it being rejected?') || ''; if (!note.trim()) return; }
+  else if (what === 'approve') { if (!confirm('Approve this change? It is applied to the loan straight away.')) return; note = prompt('Note (optional)') || ''; }
+  try {
+    await api(`/admin/lms/requests/${id}/${what}`, 'POST', { note });
+    msg(what === 'approve' ? 'Approved and applied.' : what === 'reject' ? 'Rejected.' : 'Withdrawn.', 'ok');
+    if (currentId) await loadLoan(currentId); else { loadPending(); }
+  } catch (e) { msg(e.message, 'err'); }
+}
+async function loadPending() {
+  try {
+    const d = await api('/admin/lms/requests?status=pending'); F.fourEyes = d.fourEyes;
+    const box = $('pendingBox');
+    box.style.display = d.requests.length ? '' : 'none';
+    box.innerHTML = `<h2>Waiting for approval (${d.requests.length})</h2><div class="sub">${d.fourEyes ? 'Changes to live loans need a second person. You cannot approve your own request.' : 'Two-person approval is switched off.'}</div><div class="scroll"><table><thead><tr><th>Asked</th><th>Change</th><th>By</th><th>Status</th><th></th></tr></thead><tbody>${d.requests.map(r => requestRow(r, true)).join('')}</tbody></table></div>`;
+    const sb = $('settingsBox');
+    if (can('controls.edit')) { sb.style.display = ''; sb.innerHTML = `<h2>Approval rule</h2><label><input type="checkbox" ${d.fourEyes ? 'checked' : ''} onchange="setFour(this.checked)" style="width:auto"> Changes to live loans need a second person to approve them</label><div class="note">Recommended. If you switch this off, a change is applied as soon as it is asked for (it is still recorded).</div>`; }
+  } catch (e) { /* the list still works without it */ }
+}
+async function setFour(on) {
+  try { await api('/admin/lms/settings', 'PUT', { fourEyes: on }); msg(on ? 'Two-person approval is on.' : 'Two-person approval is off. Changes are applied at once.', 'ok'); loadPending(); } catch (e) { msg(e.message, 'err'); loadPending(); }
 }
 
 function route() {

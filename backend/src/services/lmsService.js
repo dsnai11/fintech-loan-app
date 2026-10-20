@@ -3,6 +3,7 @@ import User from '../models/User.js';
 import EMIPayment from '../models/EMIPayment.js';
 import LoanReceipt from '../models/LoanReceipt.js';
 import Transaction from '../models/Transaction.js';
+import LoanServiceRequest from '../models/LoanServiceRequest.js';
 import { getPolicy } from './pricingPolicy.js';
 import { getForeclosureQuote, executeForeclosure } from './foreclosureService.js';
 import { markEMIPaid, isFlatInterest } from './emiService.js';
@@ -71,6 +72,12 @@ const scheduleView = (emis, now) => emis.map(e => ({
   method: e.paymentMethod || null, gateway: e.paymentGateway || null, reference: e.transactionId || e.paymentId || null,
 }));
 
+export const TYPE_LABEL = { waiver: 'Waive late fees', date_change: 'Change the due day', extension: 'Add months', moratorium: 'Pause instalments', restructure: 'Restructure' };
+export const requestView = r => ({
+  id: String(r._id), loanId: String(r.loanId), type: r.type, typeLabel: TYPE_LABEL[r.type], payload: r.payload, reason: r.reason, summary: r.summary || [], status: r.status,
+  requestedBy: r.requestedBy, requestedAt: r.requestedAt, decidedBy: r.decidedBy || null, decidedAt: r.decidedAt || null, decisionNote: r.decisionNote || '', autoApplied: !!r.autoApplied, result: r.result || null,
+});
+
 export const receiptView = r => ({
   id: String(r._id), receiptNo: r.receiptNo, type: r.type, amount: r.amount, mode: r.mode, reference: r.reference || '', valueDate: r.valueDate,
   note: r.note || '', allocations: r.allocations || [], advanceBefore: r.advanceBefore, advanceAfter: r.advanceAfter, prepayment: r.prepayment || null,
@@ -78,7 +85,7 @@ export const receiptView = r => ({
 });
 
 // Plain-words lines for the "Transactions" list: disbursement, payments (by provider or by staff), late fees, closure
-function statementLines(loan, emis, receipts, now) {
+function statementLines(loan, emis, receipts, now, requests = []) {
   const lines = [];
   if (loan.disbursementDate) lines.push({ date: loan.disbursementDate, kind: 'Paid out', text: 'Loan amount paid to the customer', debit: loan.disbursedAmount || loan.loanAmount, credit: 0 });
   const viaReceipt = new Set(receipts.filter(r => r.status === 'posted').flatMap(r => (r.allocations || []).map(a => a.emiNumber)));
@@ -90,16 +97,18 @@ function statementLines(loan, emis, receipts, now) {
     lines.push({ date: r.valueDate, kind: r.type === 'foreclosure' ? 'Closure' : r.type === 'prepayment' ? 'Prepayment' : 'Payment', text: `${r.receiptNo}, ${r.mode}${r.reference ? ' ' + r.reference : ''}${r.status === 'reversed' ? ' (reversed)' : ''}`, debit: 0, credit: r.status === 'reversed' ? 0 : r.amount, receipt: r.receiptNo });
     if (r.status === 'reversed' && r.reversal) lines.push({ date: r.reversal.at, kind: 'Reversal', text: `${r.receiptNo} reversed: ${r.reversal.reason}`, debit: r.amount, credit: 0 });
   }
+  for (const q of requests.filter(x => x.status === 'approved')) lines.push({ date: q.decidedAt || q.requestedAt, kind: TYPE_LABEL[q.type], text: (q.summary || []).slice(0, 2).join('; '), debit: 0, credit: 0 });
   return lines.sort((a, b) => new Date(a.date) - new Date(b.date));
 }
 
 export async function accountView(loanId, now = new Date()) {
   const loan = await Loan.findById(loanId);
   if (!loan) return fail(404, 'Loan not found');
-  const [user, emis, receipts] = await Promise.all([
+  const [user, emis, receipts, requests] = await Promise.all([
     User.findById(loan.userId).select('firstName lastName phone email'),
     EMIPayment.find({ loanId }).sort({ emiNumber: 1 }),
     LoanReceipt.find({ loanId }).sort({ createdAt: -1 }),
+    LoanServiceRequest.find({ loanId }).sort({ requestedAt: -1 }).limit(30),
   ]);
   const flat = isFlatInterest(loan, loan.monthlyEMI || 0) || loan.productKey === 'payday';
   const figures = figuresFor(loan, emis, now);
@@ -121,7 +130,9 @@ export async function accountView(loanId, now = new Date()) {
     figures, closeQuote, canPrepay,
     schedule: scheduleView(emis, now),
     receipts: receipts.map(receiptView),
-    transactions: statementLines(loan, emis, receipts, now),
+    requests: requests.map(requestView),
+    restructure: loan.restructure || null,
+    transactions: statementLines(loan, emis, receipts, now, requests),
     timeline: (await timelineFor(loan).catch(() => ({ steps: [] }))).steps,
   };
 }
@@ -159,7 +170,7 @@ function allocate(emis, available, now, payAhead) {
   return { allocations, left };
 }
 
-async function withLock(loanId, work) {
+export async function withLock(loanId, work) {
   const stale = new Date(Date.now() - 60000);
   const got = await Loan.findOneAndUpdate({ _id: loanId, $or: [{ postingLock: null }, { postingLock: { $lt: stale } }] }, { postingLock: new Date() }, { new: true });
   if (!got) return fail(409, 'Someone else is posting to this loan right now. Try again in a moment.');

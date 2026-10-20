@@ -55,6 +55,7 @@ const emiPaymentSchema = new mongoose.Schema(
       default: 0,
     },
     penaltyReason: String,
+    penaltyWaived: { type: Number, default: 0 }, // late fee a person waived (with approval)
     notes: String,
     metadata: {
       razorpayResponse: mongoose.Schema.Types.Mixed,
