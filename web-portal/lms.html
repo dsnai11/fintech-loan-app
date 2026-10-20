@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%93%92%3C/text%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Active loans - LIFC Admin</title>
+<style>
+* { box-sizing: border-box; }
+.card { padding: 16px; margin-bottom: 14px; }
+.card h2 { margin: 0 0 4px; font-size: 15px; }
+.sub { font-size: 12px; color: var(--e-muted); margin-bottom: 12px; line-height: 1.5; }
+.note { font-size: 12px; color: var(--e-muted); }
+.alert { display: none; padding: 12px 16px; margin-bottom: 14px; white-space: pre-line; }
+.alert.show { display: block; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 14px; }
+.tile { background: var(--e-surface); border: 1px solid var(--e-border); border-radius: 12px; padding: 14px; }
+.tile .l { font-size: 12px; color: var(--e-muted); font-weight: 600; }
+.tile .v { font-size: 22px; font-weight: 800; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.tile .s { font-size: 12px; color: var(--e-muted); margin-top: 2px; }
+.tile.bad .v { color: #B91C1C; }
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--e-muted); border-bottom: 1px solid var(--e-border); white-space: nowrap; }
+td { padding: 8px; border-bottom: 1px solid var(--e-border); vertical-align: top; }
+tr.click { cursor: pointer; } tr.click:hover td { background: var(--e-primary-soft); }
+.r { text-align: right; font-variant-numeric: tabular-nums; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.tag { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 20px; background: #E0ECFF; color: #1D4ED8; white-space: nowrap; }
+.tag.ok { background: #DCFCE7; color: #166534; } .tag.warn { background: #FEF3C7; color: #92400E; } .tag.bad { background: #FEE2E2; color: #991B1B; } .tag.grey { background: #E5E7EB; color: #374151; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px 14px; }
+.grid label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 3px; }
+.grid input, .grid select, .grid textarea { width: 100%; }
+details.act { border: 1px solid var(--e-border); border-radius: 10px; padding: 10px 14px; margin-bottom: 10px; background: var(--e-surface); }
+details.act summary { cursor: pointer; font-weight: 700; font-size: 14px; }
+details.act[open] summary { margin-bottom: 10px; }
+.preview { margin-top: 10px; padding: 10px 12px; border-radius: 8px; background: var(--e-primary-soft); font-size: 13px; line-height: 1.55; }
+.tabs { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+.tabs button { border: 1px solid var(--e-border); background: var(--e-surface); padding: 6px 14px; border-radius: 20px; font-size: 13px; cursor: pointer; }
+.tabs button.on { background: var(--e-primary); color: #fff; border-color: var(--e-primary); }
+.back { background: none; border: 0; color: var(--e-primary); cursor: pointer; font-size: 13px; padding: 0; margin-bottom: 10px; }
+.disabled-note { font-size: 12px; color: #92400E; }
+</style>
+<link rel="stylesheet" href="assets/portal.css">
+</head>
+<body data-shell="app" data-title="Active loans" data-sub="Every live loan in one place: what is owed, record payments, part-prepay, close early, receipts.">
+<div class="container">
+  <div id="alert" class="alert" role="alert"></div>
+
+  <div id="listView">
+    <div class="card">
+      <div class="row" style="margin-bottom:10px">
+        <input id="q" placeholder="Phone, name, email or loan number" style="min-width:260px" onkeydown="if(event.key==='Enter'){page=1;loadList()}">
+        <select id="bucket" onchange="page=1;loadList()"><option value="">All loans</option><option value="current">Nothing overdue</option><option value="1-30">1 to 30 days late</option><option value="31-60">31 to 60 days late</option><option value="61-90">61 to 90 days late</option><option value="90+">Over 90 days late</option></select>
+        <select id="status" onchange="page=1;loadList()"><option value="">Live and in default</option><option value="disbursed">Live only</option><option value="defaulted">In default only</option></select>
+        <button class="btn primary" onclick="page=1;loadList()">Search</button>
+      </div>
+      <div class="scroll" id="list"></div>
+      <div class="row" id="pager" style="margin-top:10px"></div>
+    </div>
+  </div>
+
+  <div id="loanView" style="display:none">
+    <button class="back" onclick="showList()">&larr; All active loans</button>
+    <div id="head"></div>
+    <div class="tiles" id="tiles"></div>
+    <div class="card" id="actions"></div>
+    <div class="tabs" id="tabs"></div>
+    <div class="card" id="tabBody"></div>
+  </div>
+</div>
+<script>
+const API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
+const token = localStorage.getItem('admin_token');
+if (!token) location.href = 'admin-config.html';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const inr = n => '₹' + (Math.round((n || 0) * 100) / 100).toLocaleString('en-IN');
+const when = d => (d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '-');
+const MODE = { CASH: 'Cash', UPI: 'UPI', NEFT: 'Bank transfer', CHEQUE: 'Cheque', CARD: 'Card', OTHER: 'Other' };
+const can = p => !window.PortalShell || PortalShell.can(p);
+let page = 1, L = null, tab = 'schedule', currentId = null;
+
+function msg(text, kind) {
+  const a = $('alert'); a.textContent = text; a.className = 'alert show ' + (kind === 'ok' ? 'ok' : 'err');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+async function api(path, method = 'GET', body) {
+  const r = await fetch(API + path, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { localStorage.removeItem('admin_token'); location.href = 'admin-config.html'; throw new Error('Session expired'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) { const e = new Error(d.errors ? d.errors.join('\n') : d.error || 'Something went wrong'); e.data = d; throw e; }
+  return d;
+}
+function dpdTag(dpd) { return dpd > 90 ? '<span class="tag bad">' + dpd + ' days late</span>' : dpd > 30 ? '<span class="tag warn">' + dpd + ' days late</span>' : dpd > 0 ? '<span class="tag warn">' + dpd + ' days late</span>' : '<span class="tag ok">On time</span>'; }
+
+// ---- the list ----
+async function loadList() {
+  $('alert').className = 'alert';
+  try {
+    const p = new URLSearchParams({ page, limit: 50 });
+    if ($('q').value.trim()) p.set('q', $('q').value.trim());
+    if ($('bucket').value) p.set('bucket', $('bucket').value);
+    if ($('status').value) p.set('status', $('status').value);
+    const d = await api('/admin/lms/active?' + p);
+    $('list').innerHTML = d.loans.length ? `<table><thead><tr><th>Customer</th><th>Loan</th><th class="r">Instalment</th><th class="r">Principal left</th><th>Next due</th><th class="r">Overdue</th><th>Status</th></tr></thead><tbody>${d.loans.map(l => `<tr class="click" onclick="openLoan('${l.id}')">
+      <td>${esc(l.customer)}<div class="note">${esc(l.phone)}</div></td><td>${inr(l.amount)}<div class="note">${esc(l.product)} &middot; ${when(l.disbursedAt)}</div></td><td class="r">${inr(l.emi)}</td>
+      <td class="r">${inr(l.principalOutstanding)}<div class="note">${l.unpaidEmis} unpaid</div></td><td>${l.unpaidEmis ? when(l.nextDue) : '-'}</td>
+      <td class="r">${l.overdueAmount ? inr(l.overdueAmount) + '<div class="note">' + l.overdueEmis + ' instalment' + (l.overdueEmis === 1 ? '' : 's') + '</div>' : '-'}</td>
+      <td>${dpdTag(l.dpd)}${l.status === 'defaulted' ? ' <span class="tag bad">Default</span>' : ''}${l.advance ? ' <span class="tag grey">Advance ' + inr(l.advance) + '</span>' : ''}</td></tr>`).join('')}</tbody></table>` : '<div class="note">No loans match.</div>';
+    $('pager').innerHTML = `<span class="note">${d.total} loan${d.total === 1 ? '' : 's'} &middot; page ${d.page} of ${Math.max(1, d.pages)}</span>${d.page > 1 ? '<button class="btn" onclick="page--;loadList()">Previous</button>' : ''}${d.page < d.pages ? '<button class="btn" onclick="page++;loadList()">Next</button>' : ''}`;
+  } catch (e) { msg(e.message, 'err'); }
+}
+function showList() { currentId = null; location.hash = ''; $('loanView').style.display = 'none'; $('listView').style.display = ''; loadList(); }
+function openLoan(id) { location.hash = 'loan=' + id; }
+
+// ---- one loan ----
+async function loadLoan(id) {
+  try {
+    currentId = id; L = await api('/admin/lms/' + id);
+    $('listView').style.display = 'none'; $('loanView').style.display = '';
+    $('alert').className = 'alert';
+    drawLoan();
+  } catch (e) { msg(e.message, 'err'); }
+}
+function drawLoan() {
+  const l = L.loan, f = L.figures, c = L.customer;
+  const stat = l.status === 'closed' ? '<span class="tag grey">Closed' + (l.closureType ? ' (' + esc(l.closureType.replace('_', ' ')) + ')' : '') + '</span>' : l.status === 'defaulted' ? '<span class="tag bad">In default</span>' : '<span class="tag ok">Live</span>';
+  $('head').innerHTML = `<div class="card"><div class="row" style="justify-content:space-between"><div><h2 style="font-size:18px;margin-bottom:2px">${esc(c ? c.name : '')} ${stat}</h2><div class="note">${esc(c ? c.phone : '')} &middot; ${esc(c ? c.email : '')} &middot; loan ${esc(l.id)}</div>
+    <div class="note">${inr(l.amount)} &middot; ${l.tenure} instalments &middot; ${esc(l.rate)}% &middot; paid out ${when(l.disbursedAt)}${l.flatRate ? ' &middot; flat rate' : ' &middot; reducing balance'}${l.colending ? ' &middot; co-lent' : ''}</div></div>
+    <div class="row">${c ? `<button class="btn" onclick="openCustomer()">Customer page</button>` : ''}${l.status === 'closed' ? '<button class="btn" onclick="openDoc(\'/admin/lms/' + l.id + '/closure-letter\')">Closure letter</button>' : ''}</div></div></div>`;
+  $('tiles').innerHTML = [
+    ['Principal left', inr(f.principalOutstanding), f.unpaidEmis + ' unpaid of ' + f.totalEmis, ''],
+    ['Overdue now', inr(f.overdueAmount), f.overdueEmis ? f.overdueEmis + ' instalment(s), incl. ' + inr(f.lateFeesOutstanding) + ' late fees' : 'Nothing overdue', f.overdueEmis ? 'bad' : ''],
+    ['Days past due', f.dpd, f.dpd ? 'Oldest unpaid instalment' : 'On time', f.dpd > 30 ? 'bad' : ''],
+    ['Next due', f.nextDue ? inr(f.nextDue.amount) : '-', f.nextDue ? 'Instalment ' + f.nextDue.emiNumber + ', ' + when(f.nextDue.dueDate) : 'No future instalment', ''],
+    ['Paid so far', inr(f.totalPaid), f.paidEmis + ' instalment(s)', ''],
+    ['Held in advance', inr(f.advanceBalance), f.refundDue ? 'To refund to the customer' : 'Used by the next payment', f.refundDue ? 'bad' : ''],
+  ].map(t => `<div class="tile ${t[3]}"><div class="l">${t[0]}</div><div class="v">${t[1]}</div><div class="s">${t[2]}</div></div>`).join('');
+  drawActions(); drawTabs();
+}
+function openCustomer() { try { localStorage.setItem('find_customer', L.customer.phone); } catch (e) { /* not allowed */ } location.href = 'customers.html'; }
+
+function modeOptions() { return Object.keys(MODE).map(k => `<option value="${k}">${MODE[k]}</option>`).join(''); }
+function today() { return new Date().toISOString().slice(0, 10); }
+function drawActions() {
+  const l = L.loan, live = l.status === 'disbursed' || l.status === 'defaulted';
+  if (!live) { $('actions').innerHTML = '<h2>Actions</h2><div class="note">This loan is closed. You can still see the schedule, receipts and the closure letter.</div>'; return; }
+  const post = can('lms.post'), close = can('lms.close');
+  const pp = L.canPrepay;
+  $('actions').innerHTML = `<h2>Actions</h2><div class="sub">Everything here is recorded with your name. Use "Check" first to see exactly what will happen.</div>
+  ${post ? `<details class="act" id="dPay"><summary>Record a payment received</summary>
+    <div class="grid"><div><label for="pAmt">Amount received (₹)</label><input id="pAmt" type="number" min="1" step="0.01"></div>
+    <div><label for="pMode">How it came in</label><select id="pMode">${modeOptions()}</select></div>
+    <div><label for="pRef">Reference (UTR, cheque no.)</label><input id="pRef" maxlength="60"></div>
+    <div><label for="pDate">Date received</label><input id="pDate" type="date" value="${today()}" max="${today()}"></div>
+    <div style="grid-column:1/-1"><label for="pNote">Note</label><input id="pNote" maxlength="300"></div></div>
+    <label style="display:block;margin-top:8px"><input id="pAhead" type="checkbox" style="width:auto"> Also pay instalments that are not due yet (pay ahead)</label>
+    <div class="note">Oldest unpaid instalments are cleared first, each with its late fee. Money left over is kept on the loan in advance.</div>
+    <div class="row" style="margin-top:10px"><button class="btn" onclick="payPreview()">Check</button><button class="btn primary" onclick="payPost()">Record payment</button></div><div id="pPrev"></div></details>` : ''}
+  ${close ? `<details class="act" id="dPre"><summary>Part-prepayment</summary>
+    ${pp.allowed ? `<div class="grid"><div><label for="ppAmt">Amount received (₹)</label><input id="ppAmt" type="number" min="1" step="0.01"></div>
+    <div><label for="ppWhat">What should come down</label><select id="ppWhat"><option value="reduce_tenure">The number of instalments (same instalment)</option><option value="reduce_emi">The instalment (same number)</option></select></div>
+    <div><label for="ppMode">How it came in</label><select id="ppMode">${modeOptions()}</select></div>
+    <div><label for="ppRef">Reference</label><input id="ppRef" maxlength="60"></div>
+    <div><label for="ppDate">Date received</label><input id="ppDate" type="date" value="${today()}" max="${today()}"></div></div>
+    <div class="note">The principal comes down by the amount (less the prepayment fee, if there is one). The interest on the next instalment is worked out on the lower balance. Finance should confirm this rule.</div>
+    <div class="row" style="margin-top:10px"><button class="btn" onclick="prePreview()">Check</button><button class="btn primary" onclick="prePost()">Record part-prepayment</button></div><div id="ppPrev"></div>` : `<div class="disabled-note">${esc(pp.reason)}</div>`}</details>
+  <details class="act" id="dClose"><summary>Close the loan early</summary>
+    ${L.closeQuote ? `<div class="preview">Settlement today: <b>${inr(L.closeQuote.total)}</b> (overdue ${inr(L.closeQuote.overdueAmount)}, principal ${inr(L.closeQuote.principal)}, accrued interest ${inr(L.closeQuote.accruedInterest)}, fee ${inr(L.closeQuote.fee)}). Future interest is waived.${L.figures.advanceBalance ? ' Held in advance: ' + inr(L.figures.advanceBalance) + '.' : ''}</div>` : '<div class="note">No settlement figure is available for this loan.</div>'}
+    <div class="grid" style="margin-top:10px"><div><label for="cAmt">Amount received (₹)</label><input id="cAmt" type="number" min="0" step="0.01"></div>
+    <div><label for="cMode">How it came in</label><select id="cMode">${modeOptions()}</select></div>
+    <div><label for="cRef">Reference</label><input id="cRef" maxlength="60"></div>
+    <div><label for="cDate">Date received</label><input id="cDate" type="date" value="${today()}" max="${today()}"></div></div>
+    <div class="row" style="margin-top:10px"><button class="btn" onclick="closePreview()">Check</button><button class="btn primary" onclick="closePost()">Close the loan</button></div><div id="cPrev"></div></details>` : ''}
+  ${!post && !close ? '<div class="note">You can look at loans, but your role cannot record payments or close loans.</div>' : ''}`;
+}
+const v = id => $(id).value;
+function paymentBody() { return { amount: Number(v('pAmt')), mode: v('pMode'), reference: v('pRef'), valueDate: v('pDate'), note: v('pNote'), payAhead: $('pAhead').checked }; }
+function showErr(box, e) { $(box).innerHTML = `<div class="preview" style="background:#FEE2E2;color:#991B1B">${esc(e.message)}</div>`; }
+async function payPreview() {
+  try {
+    const r = await api(`/admin/lms/${currentId}/payments?preview=1`, 'POST', paymentBody()), p = r.preview;
+    $('pPrev').innerHTML = `<div class="preview">${p.instalmentsCleared ? 'This will clear: ' + p.allocations.map(a => 'instalment ' + a.emiNumber + ' (' + inr(a.total) + (a.penalty ? ', incl. ' + inr(a.penalty) + ' late fee' : '') + (a.ahead ? ', ahead of its due date' : '') + ')').join(', ') + '.' : 'This clears no instalment.'}<br>Kept on the loan in advance afterwards: <b>${inr(p.advanceAfter)}</b>${p.closesLoan ? '<br><b>This pays the loan off, so it will close.</b>' : ''}</div>`;
+  } catch (e) { showErr('pPrev', e); }
+}
+async function payPost() {
+  if (!confirm('Record this payment against the loan?')) return;
+  try { const r = await api(`/admin/lms/${currentId}/payments`, 'POST', paymentBody()); msg('Recorded. Receipt ' + r.receipt.receiptNo + (r.closed ? '. The loan is now closed.' : '.'), 'ok'); await loadLoan(currentId); } catch (e) { showErr('pPrev', e); }
+}
+function preBody() { return { amount: Number(v('ppAmt')), mode: v('ppWhat'), payMode: v('ppMode'), reference: v('ppRef'), valueDate: v('ppDate') }; }
+async function prePreview() {
+  try {
+    const p = (await api(`/admin/lms/${currentId}/prepay?preview=1`, 'POST', preBody())).preview;
+    $('ppPrev').innerHTML = `<div class="preview">Principal ${inr(p.principalBefore)} &rarr; <b>${inr(p.principalAfter)}</b> (down by ${inr(p.principalReduced)}${p.fee ? ', fee ' + inr(p.fee) + ' at ' + p.feePercent + '%' : ''}).<br>Instalments: ${p.instalmentsBefore} &rarr; <b>${p.instalmentsAfter}</b> &middot; each: ${inr(p.emiBefore)} &rarr; <b>${inr(p.emiAfter)}</b><br>Interest still to pay: ${inr(p.interestBefore)} &rarr; ${inr(p.interestAfter)}</div>`;
+  } catch (e) { showErr('ppPrev', e); }
+}
+async function prePost() {
+  if (!confirm('Record this part-prepayment and change the instalments?')) return;
+  try { const r = await api(`/admin/lms/${currentId}/prepay`, 'POST', preBody()); msg('Recorded. Receipt ' + r.receipt.receiptNo + '. The schedule has been re-worked.', 'ok'); await loadLoan(currentId); } catch (e) { showErr('ppPrev', e); }
+}
+function closeBody() { return { amount: Number(v('cAmt') || 0), mode: v('cMode'), reference: v('cRef'), valueDate: v('cDate') }; }
+async function closePreview() {
+  try {
+    const p = (await api(`/admin/lms/${currentId}/close?preview=1`, 'POST', closeBody())).preview;
+    $('cPrev').innerHTML = `<div class="preview">Settlement ${inr(p.quote.total)}${p.advanceUsed ? ', less ' + inr(p.advanceUsed) + ' held in advance' : ''}. To collect: <b>${inr(p.toCollect)}</b>.${p.received ? ' Received ' + inr(p.received) + (p.refundAfter ? ', so ' + inr(p.refundAfter) + ' is to be refunded.' : '.') : ''}</div>`;
+  } catch (e) { showErr('cPrev', e); }
+}
+async function closePost() {
+  if (!confirm('Close this loan now? This cannot be undone here.')) return;
+  try { const r = await api(`/admin/lms/${currentId}/close`, 'POST', closeBody()); msg('The loan is closed. Receipt ' + r.receipt.receiptNo + (r.refundDue ? '. Refund due to the customer: ' + inr(r.refundDue) : '.'), 'ok'); await loadLoan(currentId); } catch (e) { showErr('cPrev', e); }
+}
+
+// ---- tabs ----
+function drawTabs() {
+  const names = { schedule: 'Schedule', transactions: 'Transactions', receipts: 'Receipts (' + L.receipts.length + ')', timeline: 'Timeline' };
+  $('tabs').innerHTML = Object.keys(names).map(k => `<button class="${tab === k ? 'on' : ''}" onclick="tab='${k}';drawTabs()">${names[k]}</button>`).join('');
+  const T = {
+    schedule: () => `<div class="scroll"><table><thead><tr><th>#</th><th>Due</th><th class="r">Instalment</th><th class="r">Principal</th><th class="r">Interest</th><th class="r">Late fee</th><th>Status</th><th>Paid</th></tr></thead><tbody>${L.schedule.map(s => `<tr><td>${s.emiNumber}</td><td>${when(s.dueDate)}</td><td class="r">${inr(s.amount)}</td><td class="r">${inr(s.principal)}</td><td class="r">${inr(s.interest)}</td><td class="r">${s.lateFee ? inr(s.lateFee) : '-'}</td>
+      <td><span class="tag ${s.status === 'PAID' ? 'ok' : s.status === 'OVERDUE' ? 'bad' : s.status === 'WAIVED' ? 'grey' : ''}">${esc(s.status.toLowerCase())}</span>${s.daysOverdue ? '<div class="note">' + s.daysOverdue + ' days late</div>' : ''}</td>
+      <td>${s.paidDate ? when(s.paidDate) + '<div class="note">' + inr(s.paidAmount) + (s.method ? ', ' + esc(MODE[s.method] || s.method) : '') + (s.gateway === 'MANUAL' ? ', by hand' : '') + (s.reference ? '<br>' + esc(s.reference) : '') + '</div>' : '-'}</td></tr>`).join('')}</tbody></table></div>`,
+    transactions: () => L.transactions.length ? `<div class="scroll"><table><thead><tr><th>Date</th><th>What</th><th>Details</th><th class="r">Out</th><th class="r">In</th></tr></thead><tbody>${L.transactions.map(t => `<tr><td>${when(t.date)}</td><td>${esc(t.kind)}</td><td>${esc(t.text)}</td><td class="r">${t.debit ? inr(t.debit) : ''}</td><td class="r">${t.credit ? inr(t.credit) : ''}</td></tr>`).join('')}</tbody></table></div>` : '<div class="note">Nothing yet.</div>',
+    receipts: () => {
+      const latest = L.receipts.find(r => r.status === 'posted');
+      return L.receipts.length ? `<div class="scroll"><table><thead><tr><th>Receipt</th><th>Type</th><th class="r">Amount</th><th>How</th><th>Date</th><th>By</th><th></th></tr></thead><tbody>${L.receipts.map(r => `<tr><td>${esc(r.receiptNo)}${r.status === 'reversed' ? '<div class="note" style="color:#991B1B">Reversed: ' + esc(r.reversal ? r.reversal.reason : '') + '</div>' : ''}</td><td>${esc({ payment: 'Payment', prepayment: 'Part-prepayment', foreclosure: 'Early closure' }[r.type] || r.type)}</td><td class="r">${inr(r.amount)}</td><td>${esc(MODE[r.mode] || r.mode)}${r.reference ? '<div class="note">' + esc(r.reference) + '</div>' : ''}</td><td>${when(r.valueDate)}</td><td>${esc(r.postedBy)}</td>
+        <td class="row"><button class="btn" onclick="openDoc('/admin/lms/receipts/${r.id}/html')">Open</button>${can('lms.post') && latest && latest.id === r.id && r.type === 'payment' ? `<button class="btn" onclick="reverse('${r.id}')">Reverse</button>` : ''}</td></tr>`).join('')}</tbody></table></div><div class="note" style="margin-top:8px">Only the most recent payment on a loan can be reversed.</div>` : '<div class="note">No payments have been recorded by staff on this loan.</div>';
+    },
+    timeline: () => (L.timeline && L.timeline.length) ? L.timeline.map(t => `<div style="padding:6px 0;border-bottom:1px solid var(--e-border)"><b>${esc(t.label)}</b> <span class="tag ${t.state === 'done' ? 'ok' : t.state === 'current' ? 'warn' : 'grey'}">${esc(t.state)}</span> <span class="note">${t.at ? when(t.at) : ''}</span><div class="note">${esc(t.detail || '')}</div></div>`).join('') : '<div class="note">No events yet.</div>',
+  };
+  $('tabBody').innerHTML = T[tab]();
+}
+async function reverse(id) {
+  const reason = prompt('Why is this payment being reversed? (for example: cheque bounced, wrong loan)');
+  if (!reason || !reason.trim()) return;
+  try { const r = await api(`/admin/lms/receipts/${id}/reverse`, 'POST', { reason }); msg('Reversed.' + (r.reopened ? ' The loan is open again.' : ''), 'ok'); await loadLoan(currentId); } catch (e) { msg(e.message, 'err'); }
+}
+// Receipts and letters are pages of their own: fetched with your login, then shown in a new window (where they can be printed)
+async function openDoc(path) {
+  const w = window.open('', '_blank');
+  try {
+    const r = await fetch(API + path, { headers: { Authorization: 'Bearer ' + token } });
+    if (!r.ok) { const d = await r.json().catch(() => ({})); if (w) w.close(); return msg(d.error || 'Could not open it', 'err'); }
+    const html = await r.text();
+    if (!w) return msg('Your browser blocked the new window. Allow pop-ups for this site and try again.', 'err');
+    w.document.open(); w.document.write(html); w.document.close();
+  } catch (e) { if (w) w.close(); msg(e.message, 'err'); }
+}
+
+function route() {
+  const m = /loan=([a-f0-9]{24})/.exec(location.hash);
+  if (m) loadLoan(m[1]); else { $('loanView').style.display = 'none'; $('listView').style.display = ''; loadList(); }
+}
+window.addEventListener('hashchange', route);
+route();
+</script>
+<script src="assets/portal.js"></script>
+</body>
+</html>

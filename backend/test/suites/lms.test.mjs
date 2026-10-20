@@ -1,0 +1,204 @@
+import { check, section, connect, disconnect, startServer, finish, makeAdmin, tokenFor, client, day } from '../lib.mjs';
+import User from '../../src/models/User.js';
+import Loan from '../../src/models/Loan.js';
+import EMIPayment from '../../src/models/EMIPayment.js';
+import LoanReceipt from '../../src/models/LoanReceipt.js';
+import Role from '../../src/models/Role.js';
+import AuditLog from '../../src/models/AuditLog.js';
+import Transaction from '../../src/models/Transaction.js';
+import { createEMISchedule } from '../../src/services/emiService.js';
+import { rebuild } from '../../src/services/lmsService.js';
+
+const DB = 'fintech-test-lms';
+await connect(DB);
+await Role.create([{ key: 'loanviewer', label: 'Loan viewer', description: 't', permissions: ['loans.view'] }, { key: 'poster', label: 'Poster', description: 't', permissions: ['loans.view', 'lms.post'] }]);
+const srv = await startServer(DB, {});
+const call = client(srv.base);
+const { token: admin } = await makeAdmin();
+const staff = async (role, n) => tokenFor(await User.create({ firstName: 'S', lastName: role, email: `${role}${n}@lifc.in`, phone: `9720000${String(n).padStart(3, '0')}`, password: 'x12345678', role, twoFactorEnabled: true }), true);
+const viewer = await staff('loanviewer', 1);
+const poster = await staff('poster', 2);
+
+let n = 0;
+const customer = async () => {
+  n++;
+  return User.create({ firstName: `Lms${n}`, lastName: 'Cust', email: `lms${n}@x.in`, phone: `97300${String(n).padStart(5, '0')}`, password: 'x12345678', kycStatus: 'approved', phoneVerified: true });
+};
+// A flat-rate loan with three instalments of 10,600 (10,000 principal and 600 interest)
+async function flatLoan(dues, { penalties = [], advance = 0, extra = {} } = {}) {
+  const user = await customer();
+  const loan = await Loan.create({ userId: user._id, loanAmount: 30000, tenure: dues.length, interestRate: 15, monthlyEMI: 10600, totalAmount: 31800, planType: '3_emi', status: 'disbursed', disbursementDate: day(-70), advanceBalance: advance, ...extra });
+  for (const [i, d] of dues.entries()) {
+    const over = d < 0;
+    await EMIPayment.create({ loanId: loan._id, userId: user._id, emiNumber: i + 1, dueDate: day(d), amount: 10600, principalAmount: 10000, interestAmount: 600, status: over ? 'OVERDUE' : 'PENDING', daysOverdue: over ? -d : 0, penaltyApplied: penalties[i] || 0 });
+  }
+  return { user, loan };
+}
+const url = (l, p = '') => `/admin/lms/${l._id}${p}`;
+
+section('THE LIST OF LIVE LOANS');
+const a = await flatLoan([-40, -10, 20], { penalties: [300, 100, 0] });
+const fresh = await flatLoan([10, 40, 70]);
+check('no login -> 401', (await call('GET', '/admin/lms/active', null)).s === 401);
+check('a customer is refused (403)', (await call('GET', '/admin/lms/active', await tokenFor(a.user))).s === 403);
+const list = await call('GET', '/admin/lms/active', admin);
+const row = list.d.loans.find(l => l.id === String(a.loan._id));
+check('live loans are listed with what is owed and how late', list.s === 200 && row && row.dpd === 40 && row.overdueEmis === 2 && row.overdueAmount === 21600 && row.principalOutstanding === 30000, JSON.stringify(row));
+check('a loan with nothing overdue shows 0 days late', list.d.loans.find(l => l.id === String(fresh.loan._id)).dpd === 0);
+check('the 31 to 60 days bucket holds the late one only', (await call('GET', '/admin/lms/active?bucket=31-60', admin)).d.loans.every(l => l.dpd >= 31 && l.dpd <= 60) && (await call('GET', '/admin/lms/active?bucket=31-60', admin)).d.loans.some(l => l.id === String(a.loan._id)));
+check('the current bucket holds loans with nothing overdue', (await call('GET', '/admin/lms/active?bucket=current', admin)).d.loans.every(l => l.dpd === 0));
+check('the 90+ bucket does not hold it', !(await call('GET', '/admin/lms/active?bucket=90%2B', admin)).d.loans.some(l => l.id === String(a.loan._id)));
+check('an unknown bucket is refused (400)', (await call('GET', '/admin/lms/active?bucket=weird', admin)).s === 400);
+check('search by phone finds the loan', (await call('GET', `/admin/lms/active?q=${a.user.phone}`, admin)).d.loans.length === 1);
+check('search by loan id finds the loan', (await call('GET', `/admin/lms/active?q=${a.loan._id}`, admin)).d.loans[0].id === String(a.loan._id));
+check('a closed loan is not in the list', !(await (async () => { const c = await flatLoan([10]); await Loan.updateOne({ _id: c.loan._id }, { status: 'closed' }); return (await call('GET', '/admin/lms/active?limit=100', admin)).d.loans.some(l => l.id === String(c.loan._id)); })()));
+
+section('ONE LOAN ACCOUNT');
+const view = await call('GET', url(a.loan), admin);
+const f = view.d.figures;
+check('the figures add up', view.s === 200 && f.principalOutstanding === 30000 && f.overdueEmis === 2 && f.overdueAmount === 21600 && f.lateFeesOutstanding === 400 && f.dpd === 40 && f.nextDue.emiNumber === 3 && f.paidEmis === 0, JSON.stringify(f));
+check('the schedule shows each instalment with its late fee and status', view.d.schedule.length === 3 && view.d.schedule[0].lateFee === 300 && view.d.schedule[0].status === 'OVERDUE' && view.d.schedule[2].status === 'PENDING');
+check('an early-closure figure is shown', view.d.closeQuote && view.d.closeQuote.total > 0);
+check('a flat-rate loan says why it cannot be part-prepaid', view.d.canPrepay.allowed === false && /flat rate/.test(view.d.canPrepay.reason));
+check('a bad id is refused (400) and an unknown loan is 404', (await call('GET', '/admin/lms/nope', admin)).s === 400 && (await call('GET', '/admin/lms/5f0000000000000000000000', admin)).s === 404);
+check('a viewer can look', (await call('GET', url(a.loan), viewer)).s === 200);
+
+section('RECORDING A PAYMENT: CHECKS');
+const post = (l, body, tok = admin, q = '') => call('POST', url(l, '/payments' + q), tok, body);
+check('a viewer cannot record payments (403)', (await post(a.loan, { amount: 100, mode: 'CASH' }, viewer)).s === 403);
+check('an amount is needed (400)', (await post(a.loan, { mode: 'CASH' })).s === 400 && (await post(a.loan, { amount: -5, mode: 'CASH' })).s === 400 && (await post(a.loan, { amount: 'abc', mode: 'CASH' })).s === 400);
+check('a made-up mode is refused (400)', (await post(a.loan, { amount: 100, mode: 'GOLD' })).s === 400);
+check('UPI needs a reference (400)', (await post(a.loan, { amount: 10900, mode: 'UPI' })).s === 400 && (await post(a.loan, { amount: 10900, mode: 'UPI', reference: 'ab' })).s === 400);
+check('a payment dated in the future is refused (400)', (await post(a.loan, { amount: 10900, mode: 'CASH', valueDate: day(10) })).s === 400);
+check('a payment dated before the loan was paid out is refused (400)', (await post(a.loan, { amount: 10900, mode: 'CASH', valueDate: day(-200) })).s === 400);
+check('a loan that is not live is refused (409)', (await post((await (async () => { const c = await flatLoan([10]); await Loan.updateOne({ _id: c.loan._id }, { status: 'closed' }); return c; })()).loan, { amount: 100, mode: 'CASH' })).s === 409);
+const tiny = await flatLoan([-5], { penalties: [0] });
+const tp = await post(tiny.loan, { amount: 500, mode: 'CASH' });
+check('less than an instalment clears nothing and is kept on the loan in advance', tp.s === 200 && tp.d.summary.instalmentsCleared === 0 && (await Loan.findById(tiny.loan._id)).advanceBalance === 500 && (await EMIPayment.findOne({ loanId: tiny.loan._id, emiNumber: 1 })).status === 'OVERDUE');
+const tp2 = await post(tiny.loan, { amount: 10100, mode: 'CASH' });
+check('the next payment uses that advance, so together they clear the instalment', tp2.s === 200 && tp2.d.summary.instalmentsCleared === 1 && (await Loan.findById(tiny.loan._id)).advanceBalance === 0 && (await Loan.findById(tiny.loan._id)).status === 'closed');
+
+section('RECORDING A PAYMENT: WHAT IT DOES');
+const pre = await post(a.loan, { amount: 10900, mode: 'UPI', reference: 'UTR123456' }, admin, '?preview=1');
+check('a preview shows what would be cleared and changes nothing', pre.s === 200 && pre.d.preview.instalmentsCleared === 1 && pre.d.preview.allocations[0].total === 10900 && (await LoanReceipt.countDocuments({ loanId: a.loan._id })) === 0 && (await EMIPayment.findOne({ loanId: a.loan._id, emiNumber: 1 })).status === 'OVERDUE');
+const p1 = await post(a.loan, { amount: 10900, mode: 'UPI', reference: 'UTR123456', note: 'paid at branch' });
+check('the first instalment and its late fee are cleared', p1.s === 200 && p1.d.receipt.receiptNo.startsWith('RCP-') && p1.d.summary.instalmentsCleared === 1 && p1.d.closed === false, JSON.stringify(p1.d));
+const e1 = await EMIPayment.findOne({ loanId: a.loan._id, emiNumber: 1 });
+check('it is marked paid by hand, with the reference and who recorded it', e1.status === 'PAID' && e1.paymentGateway === 'MANUAL' && e1.paymentMethod === 'UPI' && e1.transactionId === 'UTR123456' && e1.paidAmount === 10900 && /admin/.test(e1.notes || ''), JSON.stringify(e1.toObject()));
+check('a transaction and an audit entry were written', (await Transaction.countDocuments({ loanId: a.loan._id, paymentGateway: 'MANUAL' })) === 1 && (await AuditLog.countDocuments({ action: 'LMS_PAYMENT_POSTED', entityId: String(a.loan._id) })) === 1);
+check('the same reference cannot be recorded twice (409)', (await post(a.loan, { amount: 10900, mode: 'UPI', reference: 'UTR123456' })).s === 409);
+const p2 = await post(a.loan, { amount: 25000, mode: 'CASH' });
+check('more than needed clears the next one and the rest is kept in advance', p2.s === 200 && p2.d.summary.instalmentsCleared === 1 && p2.d.summary.advanceAfter === 25000 - 10700 && (await Loan.findById(a.loan._id)).advanceBalance === 14300, JSON.stringify(p2.d.summary));
+check('a future instalment is not paid unless staff say so', (await EMIPayment.findOne({ loanId: a.loan._id, emiNumber: 3 })).status === 'PENDING');
+check('the account view shows the advance', (await call('GET', url(a.loan), admin)).d.figures.advanceBalance === 14300);
+const p3 = await post(a.loan, { amount: 100, mode: 'CASH', payAhead: true });
+check('with "pay ahead" it clears the future one, using the advance, and closes the loan', p3.s === 200 && p3.d.closed === true && p3.d.summary.advanceAfter === 3800, JSON.stringify(p3.d));
+const closedLoan = await Loan.findById(a.loan._id);
+check('the loan is closed as repaid, with the leftover to be refunded', closedLoan.status === 'closed' && closedLoan.closureType === 'repaid' && closedLoan.advanceBalance === 3800 && (await call('GET', url(a.loan), admin)).d.figures.refundDue === 3800);
+check('a closed loan takes no more payments (409)', (await post(a.loan, { amount: 100, mode: 'CASH' })).s === 409);
+check('the closure letter opens now', (await fetch(srv.base + url(a.loan, '/closure-letter'), { headers: { Authorization: `Bearer ${admin}` } })).status === 200);
+check('and the transactions list shows payment, receipt and payout lines', (await call('GET', url(a.loan), admin)).d.transactions.some(t => t.kind === 'Paid out') && (await call('GET', url(a.loan), admin)).d.transactions.filter(t => t.kind === 'Payment').length === 3);
+
+section('REVERSING A PAYMENT');
+const rev = (id, reason, tok = admin) => call('POST', `/admin/lms/receipts/${id}/reverse`, tok, { reason });
+check('a viewer cannot reverse (403)', (await rev(p1.d.receipt.id, 'wrong loan entered', viewer)).s === 403);
+check('only the latest payment can be reversed (409)', (await rev(p1.d.receipt.id, 'wrong loan entered')).s === 409);
+check('a reason is needed (400)', (await rev(p3.d.receipt.id, 'x')).s === 400);
+const r3 = await rev(p3.d.receipt.id, 'cheque bounced');
+const reopened = await Loan.findById(a.loan._id);
+check('reversing the one that closed the loan reopens it, and the advance goes back', r3.s === 200 && r3.d.reopened === true && reopened.status === 'disbursed' && !reopened.closedAt && !reopened.closureType && reopened.advanceBalance === 14300, JSON.stringify(r3.d));
+const e3 = await EMIPayment.findOne({ loanId: a.loan._id, emiNumber: 3 });
+check('the instalment is unpaid again', e3.status === 'PENDING' && !e3.paidDate && !e3.paidAmount);
+check('the receipt shows as reversed, with who and why', (await LoanReceipt.findById(p3.d.receipt.id)).status === 'reversed' && (await LoanReceipt.findById(p3.d.receipt.id)).reversal.reason === 'cheque bounced');
+check('reversing twice is refused (409)', (await rev(p3.d.receipt.id, 'again please')).s === 409);
+const r2 = await rev(p2.d.receipt.id, 'recorded on the wrong loan');
+check('then the one before it can be reversed, and its instalment is overdue again', r2.s === 200 && (await EMIPayment.findOne({ loanId: a.loan._id, emiNumber: 2 })).status === 'OVERDUE' && (await Loan.findById(a.loan._id)).advanceBalance === 0);
+check('the reversal is in the audit log', (await AuditLog.countDocuments({ action: 'LMS_PAYMENT_REVERSED', entityId: String(a.loan._id) })) === 2);
+const cl = await flatLoan([-5], { extra: { colending: { partnerId: 'p1', partnerName: 'Partner Bank' } } });
+const clp = await post(cl.loan, { amount: 10600, mode: 'CASH' });
+check('a payment on a co-lent loan can be recorded, but reversing it is sent to finance (409)', clp.s === 200 && (await rev(clp.d.receipt.id, 'recorded in error')).s === 409);
+check('a poster can record but not reverse beyond permission rules', (await post((await flatLoan([-5])).loan, { amount: 10600, mode: 'CASH' }, poster)).s === 200);
+
+section('TWO PEOPLE AT ONCE');
+const lk = await flatLoan([-5]);
+await Loan.updateOne({ _id: lk.loan._id }, { postingLock: new Date() });
+check('while someone else is posting, a second try is told to wait (409)', (await post(lk.loan, { amount: 10600, mode: 'CASH' })).s === 409);
+await Loan.updateOne({ _id: lk.loan._id }, { postingLock: new Date(Date.now() - 120000) });
+check('a lock that was left behind does not block for ever', (await post(lk.loan, { amount: 10600, mode: 'CASH' })).s === 200);
+check('and the lock is released afterwards', !(await Loan.findById(lk.loan._id)).postingLock);
+
+section('CLOSING A LOAN EARLY');
+const cx = await flatLoan([10, 40, 70]);
+const q = (await call('GET', url(cx.loan), admin)).d.closeQuote;
+const closeCall = (l, body, tok = admin, qs = '') => call('POST', url(l, '/close' + qs), tok, body);
+check('a viewer or poster cannot close a loan (403)', (await closeCall(cx.loan, { amount: q.total, mode: 'CASH' }, viewer)).s === 403 && (await closeCall(cx.loan, { amount: q.total, mode: 'CASH' }, poster)).s === 403);
+const cp = await closeCall(cx.loan, {}, admin, '?preview=1');
+check('the preview shows the settlement and what to collect', cp.s === 200 && cp.d.preview.quote.total === q.total && cp.d.preview.toCollect === q.total);
+check('less than the settlement is refused (409), and nothing changes', (await closeCall(cx.loan, { amount: q.total - 500, mode: 'CASH' })).s === 409 && (await Loan.findById(cx.loan._id)).status === 'disbursed');
+check('a mode and reference are needed for a transfer (400)', (await closeCall(cx.loan, { amount: q.total, mode: 'NEFT' })).s === 400);
+const closed = await closeCall(cx.loan, { amount: q.total, mode: 'NEFT', reference: 'UTRCLOSE1', note: 'customer asked to close' });
+const afterClose = await Loan.findById(cx.loan._id);
+check('the loan is closed early, and the settlement recorded', closed.s === 200 && afterClose.status === 'closed' && afterClose.closureType === 'foreclosure' && afterClose.foreclosure.principal === q.principal, JSON.stringify(closed.d));
+check('the transaction is marked as recorded by hand', (await Transaction.countDocuments({ loanId: cx.loan._id, paymentGateway: 'MANUAL' })) === 1);
+check('the receipt is of type closure, and a letter can be made', closed.d.receipt.type === 'foreclosure' && (await fetch(srv.base + url(cx.loan, '/closure-letter'), { headers: { Authorization: `Bearer ${admin}` } })).status === 200);
+check('closing again is refused (409)', (await closeCall(cx.loan, { amount: q.total, mode: 'CASH' })).s === 409);
+const adv = await flatLoan([10, 40, 70], { advance: 5000 });
+const qa = (await call('GET', url(adv.loan), admin)).d.closeQuote;
+const cpa = await closeCall(adv.loan, {}, admin, '?preview=1');
+check('money held in advance is taken off what must be collected', cpa.d.preview.advanceUsed === 5000 && cpa.d.preview.toCollect === qa.total - 5000);
+check('and it can be closed with just that', (await closeCall(adv.loan, { amount: qa.total - 5000, mode: 'CASH' })).s === 200);
+const big = await flatLoan([10, 40, 70], { advance: 1000 });
+const qb = (await call('GET', url(big.loan), admin)).d.closeQuote;
+const over = await closeCall(big.loan, { amount: qb.total + 700, mode: 'CASH' });
+check('paying more than the settlement leaves a refund to give back', over.s === 200 && over.d.refundDue === 1700 && (await Loan.findById(big.loan._id)).advanceBalance === 1700);
+
+section('PART-PREPAYMENT');
+check('the schedule builder lowers the instalment', (() => { const r = rebuild(40000, 12, 4, 10000, 'reduce_emi'); return r.length === 4 && r.reduce((s, x) => s + x.principal, 0) === 40000 && r[0].amount < 10600; })());
+check('and the tenure', (() => { const r = rebuild(40000, 12, 4, 10600, 'reduce_tenure'); return r.length <= 4 && r.reduce((s, x) => s + x.principal, 0) === 40000; })());
+check('an instalment too small for the interest is not accepted for shortening', rebuild(1000000, 24, 6, 10, 'reduce_tenure') === null);
+const pf = await flatLoan([10, 40, 70]);
+const pr = (l, body, tok = admin, qs = '') => call('POST', url(l, '/prepay' + qs), tok, body);
+check('a flat-rate loan cannot be part-prepaid (409), and says why', (await pr(pf.loan, { amount: 5000, mode: 'reduce_emi', payMode: 'CASH' })).s === 409 && /flat rate/.test((await pr(pf.loan, { amount: 5000, mode: 'reduce_emi', payMode: 'CASH' })).d.error));
+
+const user = await customer();
+const rl = await Loan.create({ userId: user._id, loanAmount: 60000, tenure: 6, interestRate: 12, status: 'disbursed', disbursementDate: day(-10) });
+rl.monthlyEMI = rl.calculateEMI();
+await rl.save();
+await createEMISchedule(rl._id);
+const rows0 = await EMIPayment.find({ loanId: rl._id }).sort({ emiNumber: 1 });
+const principal0 = rows0.reduce((s, e) => s + e.principalAmount, 0);
+const view2 = await call('GET', url(rl), admin);
+check('a reducing-balance loan can be part-prepaid', view2.d.canPrepay.allowed === true && view2.d.loan.flatRate === false);
+check('a viewer or poster cannot part-prepay (403)', (await pr(rl, { amount: 10000, mode: 'reduce_emi', payMode: 'CASH' }, viewer)).s === 403 && (await pr(rl, { amount: 10000, mode: 'reduce_emi', payMode: 'CASH' }, poster)).s === 403);
+check('a choice of what to reduce is needed (400)', (await pr(rl, { amount: 10000, payMode: 'CASH' })).s === 400);
+check('too small an amount is refused (400)', (await pr(rl, { amount: 100, mode: 'reduce_emi', payMode: 'CASH' })).s === 400);
+check('as much as is owed is refused and sent to closing (409)', (await pr(rl, { amount: 90000, mode: 'reduce_emi', payMode: 'CASH' })).s === 409);
+check('a transfer needs a reference (400)', (await pr(rl, { amount: 10000, mode: 'reduce_emi', payMode: 'UPI' })).s === 400);
+const pv1 = await pr(rl, { amount: 12000, mode: 'reduce_emi', payMode: 'CASH' }, admin, '?preview=1');
+const pv2 = await pr(rl, { amount: 12000, mode: 'reduce_tenure', payMode: 'CASH' }, admin, '?preview=1');
+check('lowering the instalment keeps the number of instalments', pv1.s === 200 && pv1.d.preview.instalmentsAfter === 6 && pv1.d.preview.emiAfter < pv1.d.preview.emiBefore, JSON.stringify(pv1.d.preview));
+check('shortening keeps the instalment and ends the loan sooner', pv2.s === 200 && pv2.d.preview.instalmentsAfter < 6 && pv2.d.preview.emiAfter === pv2.d.preview.emiBefore, JSON.stringify(pv2.d.preview));
+check('the principal comes down by the amount less any fee', Math.abs(pv1.d.preview.principalReduced + pv1.d.preview.fee - 12000) <= 1 && pv1.d.preview.principalAfter === principal0 - pv1.d.preview.principalReduced);
+check('previews change nothing', (await EMIPayment.countDocuments({ loanId: rl._id })) === 6 && (await LoanReceipt.countDocuments({ loanId: rl._id })) === 0);
+const done = await pr(rl, { amount: 12000, mode: 'reduce_tenure', payMode: 'CASH', note: 'customer part payment' });
+const rows1 = await EMIPayment.find({ loanId: rl._id }).sort({ emiNumber: 1 });
+const loan1 = await Loan.findById(rl._id);
+check('shortening re-works the schedule and drops the extra instalments', done.s === 200 && rows1.length === pv2.d.preview.instalmentsAfter && loan1.tenure === rows1.length, JSON.stringify(done.d));
+check('the principal left in the schedule is exactly what is still owed', rows1.reduce((s, e) => s + e.principalAmount, 0) === done.d.preview.principalAfter && rows1.every(e => e.amount === e.principalAmount + e.interestAmount));
+check('the receipt, a transaction and an audit entry were written', (await LoanReceipt.countDocuments({ loanId: rl._id, type: 'prepayment' })) === 1 && (await AuditLog.countDocuments({ action: 'LMS_PREPAYMENT' })) === 1 && (await Transaction.countDocuments({ loanId: rl._id, paymentGateway: 'MANUAL' })) === 1);
+check('a prepayment cannot be reversed here (409)', (await rev(done.d.receipt.id, 'done by mistake')).s === 409);
+const odl = await Loan.create({ userId: (await customer())._id, loanAmount: 60000, tenure: 6, interestRate: 12, status: 'disbursed', disbursementDate: day(-70) });
+odl.monthlyEMI = odl.calculateEMI(); await odl.save(); await createEMISchedule(odl._id);
+await EMIPayment.updateOne({ loanId: odl._id, emiNumber: 1 }, { status: 'OVERDUE' });
+check('with an overdue instalment it is refused (409)', (await pr(odl, { amount: 10000, mode: 'reduce_emi', payMode: 'CASH' })).s === 409);
+
+section('RECEIPTS');
+const html = await fetch(srv.base + `/admin/lms/receipts/${p1.d.receipt.id}/html`, { headers: { Authorization: `Bearer ${admin}` } });
+const text = await html.text();
+check('a receipt opens as a page with its number, amount and reference', html.status === 200 && text.includes(p1.d.receipt.receiptNo) && text.includes('10,900') && text.includes('UTR123456'));
+check('a reversed receipt says so', (await (await fetch(srv.base + `/admin/lms/receipts/${p3.d.receipt.id}/html`, { headers: { Authorization: `Bearer ${admin}` } })).text()).includes('REVERSED'));
+check('opening a receipt needs a login (401)', (await fetch(srv.base + `/admin/lms/receipts/${p1.d.receipt.id}/html`)).status === 401);
+
+await srv.stop();
+await disconnect();
+finish();

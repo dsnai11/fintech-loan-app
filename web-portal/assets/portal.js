@@ -32,6 +32,7 @@
   var NAV = [
     { group: 'Lending' },
     { href: 'loan-management.html', label: 'Loan management', icon: 'loans', any: ['loans.view'] },
+    { href: 'lms.html', label: 'Active loans', icon: 'wallet', any: ['loans.view'] },
     { href: 'emi-analytics.html', label: 'EMI collections', icon: 'emi', any: ['reports.view'] },
     { href: 'decisions.html', label: 'Decisions', icon: 'scale', any: ['decisions.view'] },
     { href: 'product-rules.html', label: 'Rules by product', icon: 'scale', any: ['decisions.view'] },

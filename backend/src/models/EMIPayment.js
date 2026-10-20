@@ -35,7 +35,7 @@ const emiPaymentSchema = new mongoose.Schema(
     paidAmount: Number,
     paymentMethod: {
       type: String,
-      enum: ['NEFT', 'UPI', 'CARD', 'WALLET', 'AUTO_DEBIT'],
+      enum: ['NEFT', 'UPI', 'CARD', 'WALLET', 'AUTO_DEBIT', 'CASH', 'CHEQUE', 'OTHER'],
       default: 'AUTO_DEBIT',
     },
     paymentGateway: {

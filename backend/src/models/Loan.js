@@ -49,6 +49,9 @@ const loanSchema = new mongoose.Schema(
     writtenOffAmount: Number,
     writeOffReason: String,
     recoveredAmount: { type: Number, default: 0 },
+    // Money received from the customer in advance (more than the instalments due), kept until it is used, or refunded after closure
+    advanceBalance: { type: Number, default: 0 },
+    postingLock: Date, // held for a moment while staff post a payment, so two people cannot post at once
     colending: mongoose.Schema.Types.Mixed, // the partner bank funding part of this loan: { partnerId, partnerName, partnerShare, nbfcShare, partnerRate, funding }
     payday: mongoose.Schema.Types.Mixed, // payday advance: { salaryDay, dueDate, days, fee }
     dateChanges: [mongoose.Schema.Types.Mixed], // times the customer moved the due day: { at, fromDay, toDay, shiftDays, by }
