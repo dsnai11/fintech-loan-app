@@ -5,6 +5,7 @@ import EMIPayment from '../models/EMIPayment.js';
 import CollectionNote from '../models/CollectionNote.js';
 import { adminMiddleware } from '../middleware/auth.js';
 import { buildQueue, renderLetter, runEscalations, STAGES, STAGE_LABEL } from '../services/collectionsService.js';
+import { AGEING } from '../services/lmsReports.js';
 import { notify } from '../services/notificationService.js';
 import { audit } from '../services/auditService.js';
 import User from '../models/User.js';
@@ -24,6 +25,8 @@ const isManager = req => can(req.user.role, 'collections.manage');
 // One person works a case at a time. Managers can step in.
 const lockedByOther = (loan, req) => (loan.assignedTo && loan.assignedTo !== req.user.email && !isManager(req) ? `This case is assigned to ${loan.assignedTo}. Ask a collections manager to reassign it.` : null);
 const isId = id => mongoose.isValidObjectId(id);
+export const OUTCOMES = ['CONNECTED', 'PROMISED', 'NOT_REACHABLE', 'WRONG_NUMBER', 'REFUSED', 'DISPUTE', 'PAID_ALREADY', 'LEFT_MESSAGE'];
+const bucketOf = days => (AGEING.find(([, , lo, hi]) => days >= lo && days <= hi) || AGEING[1])[0];
 const bad = (res, status, error) => res.status(status).json({ error });
 
 async function addNote(loan, fields, admin) {
@@ -35,6 +38,55 @@ async function getCase(loanId) {
   const [item] = await buildQueue({ loanId });
   return item || null;
 }
+
+// How many cases and how much money sit in each age bucket, and who is working them
+router.get('/buckets', async (req, res) => {
+  try {
+    const all = await cached('queue', 20000, () => buildQueue());
+    const buckets = AGEING.filter(b => b[0] !== 'current').map(([key, label]) => ({ key, label, cases: 0, amount: 0, unassigned: 0 }));
+    const idx = Object.fromEntries(buckets.map((b, i) => [b.key, i]));
+    const agents = new Map();
+    for (const i of all) {
+      const b = buckets[idx[bucketOf(i.daysOverdue)]];
+      b.cases++; b.amount += i.amountDue;
+      const who = i.loan?.assignedTo || null;
+      if (!who) b.unassigned++;
+      const key = who || '(unassigned)';
+      if (!agents.has(key)) agents.set(key, { agent: who, cases: 0, amount: 0 });
+      const a = agents.get(key); a.cases++; a.amount += i.amountDue;
+    }
+    res.json({ total: all.length, buckets, agents: [...agents.values()].sort((a, b) => b.amount - a.amount) });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// A manager hands a batch of cases to one person, by age bucket or by a list of loans
+router.post('/bulk-assign', async (req, res) => {
+  try {
+    const to = req.body?.to ? String(req.body.to).trim().toLowerCase() : '';
+    if (!to) return bad(res, 400, 'Choose who the cases go to');
+    const person = await User.findOne({ email: to, status: 'active' }).select('role email');
+    const ok = person && (can(person.role, 'collections.act') || String(person.email).toLowerCase() === (process.env.ADMIN_EMAIL || 'admin@lifc.in').toLowerCase());
+    if (!ok) return bad(res, 400, 'That person is not an active collections user');
+    const limit = Math.min(500, Math.max(1, Number(req.body?.limit) || 100));
+    const all = await buildQueue();
+    let pick = all;
+    if (Array.isArray(req.body?.loanIds) && req.body.loanIds.length) { const want = new Set(req.body.loanIds.map(String)); pick = all.filter(i => want.has(i.loanId)); }
+    else if (req.body?.bucket) {
+      if (!AGEING.some(b => b[0] === req.body.bucket && b[0] !== 'current')) return bad(res, 400, 'Unknown bucket');
+      pick = all.filter(i => bucketOf(i.daysOverdue) === req.body.bucket);
+    } else return bad(res, 400, 'Choose a bucket or a list of loans');
+    if (req.body?.includeAssigned !== true) pick = pick.filter(i => !i.loan?.assignedTo);
+    pick = pick.slice(0, limit);
+    if (!pick.length) return res.json({ assigned: 0, to });
+    await Loan.updateMany({ _id: { $in: pick.map(i => i.loanId) } }, { assignedTo: to, assignedAt: new Date() });
+    await audit(req.user, 'COLLECTION_BULK_ASSIGNED', { type: 'Collections', id: 'bulk' }, { to, count: pick.length, bucket: req.body.bucket || null }, req);
+    res.json({ assigned: pick.length, to });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 
 router.get('/queue', async (req, res) => {
   try {
@@ -129,12 +181,22 @@ router.get('/:loanId', async (req, res) => {
 router.post('/:loanId/notes', async (req, res) => {
   try {
     if (!isId(req.params.loanId)) return bad(res, 400, 'Invalid loan id');
-    const { type = 'NOTE', text = '', promiseDate, promiseAmount } = req.body || {};
+    const { type = 'NOTE', text = '', promiseDate, promiseAmount, outcome, nextActionDate } = req.body || {};
     if (!['NOTE', 'CALL', 'PROMISE_TO_PAY'].includes(type)) return bad(res, 400, 'type must be NOTE, CALL or PROMISE_TO_PAY');
     if (type !== 'PROMISE_TO_PAY' && !String(text).trim()) return bad(res, 400, 'Add a note');
     if (String(text).length > 2000) return bad(res, 400, 'Note is too long');
 
     const fields = { type, text: String(text).trim() };
+    if (outcome) {
+      if (!OUTCOMES.includes(outcome)) return bad(res, 400, 'Unknown call outcome');
+      fields.outcome = outcome;
+    }
+    if (nextActionDate) {
+      const nd = new Date(nextActionDate);
+      if (Number.isNaN(nd.getTime())) return bad(res, 400, 'The follow-up date is not a valid date');
+      if (nd.getTime() < Date.now() - 864e5) return bad(res, 400, 'The follow-up date cannot be in the past');
+      fields.nextActionDate = nd;
+    }
     if (type === 'PROMISE_TO_PAY') {
       const d = new Date(promiseDate);
       if (!promiseDate || Number.isNaN(d.getTime())) return bad(res, 400, 'Promise date is required');

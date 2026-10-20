@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%93%92%3C/text%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LMS overview - LIFC</title>
+<style>
+* { box-sizing: border-box; }
+.card { padding: 16px; margin-bottom: 14px; }
+.card h2 { margin: 0 0 4px; font-size: 15px; }
+.sub { font-size: 12px; color: var(--e-muted); margin-bottom: 12px; line-height: 1.5; }
+.note { font-size: 12px; color: var(--e-muted); }
+.alert { display: none; padding: 12px 16px; margin-bottom: 14px; white-space: pre-line; }
+.alert.show { display: block; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 14px; }
+.tile { background: var(--e-surface); border: 1px solid var(--e-border); border-radius: 12px; padding: 14px; }
+.tile .l { font-size: 12px; color: var(--e-muted); font-weight: 600; }
+.tile .v { font-size: 24px; font-weight: 800; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.tile .s { font-size: 12px; color: var(--e-muted); margin-top: 2px; }
+.tile.bad .v { color: #B91C1C; }
+.todo { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--e-border); }
+.todo:last-child { border-bottom: 0; }
+.todo b { font-size: 20px; margin-right: 10px; font-variant-numeric: tabular-nums; }
+.todo.zero b { color: #9CA3AF; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+</style>
+<link rel="stylesheet" href="../assets/portal.css">
+</head>
+<body data-portal="lms" data-shell="app" data-title="Overview" data-sub="Where the loan book stands today, and what needs a person.">
+<div class="container">
+  <div id="alert" class="alert" role="alert"></div>
+  <div class="tiles" id="tiles"></div>
+  <div class="card"><h2>Needs attention</h2><div class="sub">Each line opens the page where you deal with it.</div><div id="todo"></div></div>
+  <div class="card"><h2>Where to go</h2>
+    <div class="row"><a class="btn" href="loans.html">Active loans</a><a class="btn" href="collections.html">Collection queue</a><a class="btn" href="reports.html">Reports</a><a class="btn" href="reconcile.html">Reconciliation</a></div>
+  </div>
+</div>
+<script>
+const API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
+const token = localStorage.getItem('lms_token');
+if (!token) location.href = 'index.html';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const inr = n => '₹' + Math.round(n || 0).toLocaleString('en-IN');
+function msg(text) { const a = $('alert'); a.textContent = text; a.className = 'alert show err'; }
+async function api(path) {
+  const r = await fetch(API + path, { headers: { Authorization: 'Bearer ' + token } });
+  if (r.status === 401) { localStorage.removeItem('lms_token'); location.href = 'index.html'; throw new Error('Session expired'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || 'Something went wrong');
+  return d;
+}
+async function load() {
+  try {
+    const o = await api('/admin/lms/overview');
+    $('tiles').innerHTML = [
+      ['Live loans', o.liveLoans, 'Live and in default', ''],
+      ['Principal outstanding', inr(o.outstanding), 'Owed by customers', ''],
+      ['Overdue', inr(o.overdueAmount), o.lateLoans + ' loan' + (o.lateLoans === 1 ? '' : 's') + ' late', o.lateLoans ? 'bad' : ''],
+      ['Gross NPA', (o.grossNpaPercent || 0) + '%', 'Share of the book in NPA classes', o.grossNpaPercent > 5 ? 'bad' : ''],
+      ['Collected this month', inr(o.thisMonth.collected), 'Demand ' + inr(o.thisMonth.demand), ''],
+      ['Collection efficiency', o.thisMonth.efficiencyPercent == null ? '-' : o.thisMonth.efficiencyPercent + '%', 'Paid in the month it fell due', ''],
+      ['Provision needed', inr(o.provision), 'Finance to confirm the rates', ''],
+    ].map(t => `<div class="tile ${t[3]}"><div class="l">${t[0]}</div><div class="v">${t[1]}</div><div class="s">${t[2]}</div></div>`).join('');
+    const items = [
+      [o.pendingApprovals, 'changes to live loans waiting for approval', 'loans.html'],
+      [o.unassignedCases, 'late loans nobody is working on', 'collections.html'],
+      [o.promisesDueToday, 'promises to pay due today', 'collections.html'],
+      [o.promisesBroken, 'promises to pay that were broken', 'collections.html'],
+    ];
+    $('todo').innerHTML = items.map(i => `<div class="todo ${i[0] ? '' : 'zero'}"><div><b>${i[0]}</b>${esc(i[1])}</div><a class="btn" href="${i[2]}">Open</a></div>`).join('');
+  } catch (e) { msg(e.message); }
+}
+load();
+</script>
+<script src="../assets/portal.js"></script>
+</body>
+</html>

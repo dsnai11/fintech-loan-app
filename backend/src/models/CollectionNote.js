@@ -10,6 +10,9 @@ const collectionNoteSchema = new mongoose.Schema(
       required: true,
     },
     text: { type: String, default: '', maxlength: 2000 },
+    // What came of a call, and when to follow up
+    outcome: { type: String, enum: ['CONNECTED', 'PROMISED', 'NOT_REACHABLE', 'WRONG_NUMBER', 'REFUSED', 'DISPUTE', 'PAID_ALREADY', 'LEFT_MESSAGE'] },
+    nextActionDate: Date,
     promiseDate: Date,
     promiseAmount: Number,
     amount: Number,

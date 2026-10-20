@@ -9,6 +9,8 @@ import { renderReceipt } from '../services/receiptHtml.js';
 import { renderClosureLetter } from '../services/closureLetter.js';
 import { audit } from '../services/auditService.js';
 import { createRequest, decide, withdraw, listRequests, fourEyes, setFourEyes, TYPES } from '../services/lmsRequests.js';
+import { overview, ageing, dcb, agentPerformance, writeOffRegister } from '../services/lmsReports.js';
+import { reconcile } from '../services/lmsRecon.js';
 import { renderSchedule, renderStatementOfAccount, renderInterestCertificate } from '../services/loanDocuments.js';
 
 // Servicing live loans: the list, one loan's account, recording payments, reversing the last one, part-prepayment, early closure,
@@ -29,6 +31,38 @@ router.get('/active', async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// ---- the overview, reports and reconciliation ----
+router.get('/overview', async (req, res) => {
+  try { res.json(await overview()); } catch (e) { res.status(500).json({ error: e.message }); }
+});
+router.get('/reports/ageing', async (req, res) => {
+  try { res.json(await ageing()); } catch (e) { res.status(500).json({ error: e.message }); }
+});
+router.get('/reports/dcb', async (req, res) => {
+  try { res.json(await dcb({ months: req.query.months })); } catch (e) { res.status(500).json({ error: e.message }); }
+});
+router.get('/reports/agents', async (req, res) => {
+  try {
+    const { from, to } = req.query;
+    for (const d of [from, to]) if (d && Number.isNaN(new Date(d).getTime())) return res.status(400).json({ error: 'That date is not valid' });
+    res.json(await agentPerformance({ from, to }));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+router.get('/reports/writeoffs', async (req, res) => {
+  try { res.json(await writeOffRegister()); } catch (e) { res.status(500).json({ error: e.message }); }
+});
+router.post('/reconcile', async (req, res) => {
+  try {
+    const text = String(req.body?.csv ?? '');
+    if (!text.trim()) return res.status(400).json({ error: 'Paste the settlement file or choose it first' });
+    if (text.length > 3 * 1024 * 1024) return res.status(413).json({ error: 'The file is too large. Split it by month.' });
+    const r = await reconcile(text);
+    if (!r.ok) return res.status(r.status || 400).json({ error: r.error });
+    await audit(req.user, 'LMS_RECONCILIATION_RUN', { type: 'Reconciliation', id: 'run' }, { lines: r.summary.lines, matched: r.summary.matched, notInBooks: r.summary.notInBooks, amountDiffers: r.summary.amountDiffers }, req);
+    res.json(r);
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ---- changes that a second person approves ----

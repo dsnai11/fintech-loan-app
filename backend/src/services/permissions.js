@@ -147,7 +147,7 @@ const RULES = [
   [/^\/api\/admin\/referrals(\/|$)/, 'referrals.view', 'referrals.view'], // changes are checked in the route
   [/^\/api\/admin\/dashboard(\/|$)/, 'reports.view', 'reports.view'], // saving targets is checked in the route
   [/^\/api\/admin\/collections\/[^/]+\/(letter|claim|release)(\/|$)/, 'collections.act', 'collections.act'],
-  [/^\/api\/admin\/collections\/(run-escalations|[^/]+\/(default|write-off|recovery|assign))(\/|$)/, 'collections.view', 'collections.manage'],
+  [/^\/api\/admin\/collections\/(run-escalations|bulk-assign|[^/]+\/(default|write-off|recovery|assign))(\/|$)/, 'collections.view', 'collections.manage'],
   [/^\/api\/admin\/collections(\/|$)/, 'collections.view', 'collections.act'],
   [/^\/api\/admin\/sla(\/|$)/, 'reports.view', 'reports.view'], // the targets are changed in the route
   [/^\/api\/admin\/colending(\/|$)/, 'reports.view', 'reports.view'], // changes are checked in the route

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%93%92%3C/text%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LMS sign-in - LIFC</title>
+<style>
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #0F172A; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; }
+.box { width: 100%; max-width: 400px; background: #fff; border-radius: 14px; padding: 30px 28px; margin: 16px; box-shadow: 0 20px 50px rgba(0,0,0,.35); }
+h1 { margin: 0 0 4px; font-size: 22px; }
+.sub { color: #6B7280; font-size: 13px; margin-bottom: 20px; line-height: 1.5; }
+label { display: block; font-size: 12px; font-weight: 600; margin: 12px 0 4px; }
+input { width: 100%; padding: 11px 12px; border: 1px solid #CBD5E1; border-radius: 8px; font: inherit; }
+button { width: 100%; margin-top: 18px; padding: 12px; border: 0; border-radius: 8px; background: #1D4ED8; color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+.err { background: #FEE2E2; color: #991B1B; padding: 10px 12px; border-radius: 8px; font-size: 13px; margin-top: 14px; display: none; }
+.err.show { display: block; }
+.small { margin-top: 16px; font-size: 12px; color: #6B7280; text-align: center; }
+.small a { color: #1D4ED8; }
+.brand { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: #6B7280; margin-bottom: 14px; font-weight: 700; }
+</style>
+</head>
+<body data-portal="lms" data-shell="lite">
+<div class="box">
+  <div class="brand">Laxmi India Finance &middot; LMS</div>
+  <h1>Loan servicing sign-in</h1>
+  <div class="sub">For staff who service live loans, collect payments and run collections. This is separate from the admin console.</div>
+  <form onsubmit="login(event)">
+    <label for="email">Email</label><input id="email" type="email" autocomplete="username" required>
+    <label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password" required>
+    <div id="codeRow" style="display:none"><label for="code">Code from your authenticator app</label><input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="20"></div>
+    <button type="submit" id="go">Sign in</button>
+  </form>
+  <div class="err" id="err" role="alert"></div>
+  <div class="small">Admin console staff: <a href="../admin-config.html">sign in there</a></div>
+</div>
+<script>
+const API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
+const $ = id => document.getElementById(id);
+const LMS_ANY = ['lms.access', 'lms.post', 'lms.approve', 'lms.close', 'collections.view', 'loans.view'];
+let challenge = null;
+try { if (localStorage.getItem('lms_token')) location.replace('home.html'); } catch (e) { /* not allowed */ }
+function showErr(t) { const e = $('err'); e.textContent = t; e.className = 'err show'; }
+async function login(ev) {
+  ev.preventDefault();
+  $('err').className = 'err';
+  $('go').disabled = true;
+  try {
+    const body = challenge ? { challengeToken: challenge, code: $('code').value.trim() } : { email: $('email').value.trim(), password: $('pw').value };
+    if (challenge && !body.code) throw new Error('Enter the code from your authenticator app');
+    const r = await fetch(API + (challenge ? '/auth/2fa/verify' : '/auth/login'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { if (r.status === 401 && challenge) { challenge = null; $('codeRow').style.display = 'none'; } throw new Error(d.error || 'Sign-in failed. Check your email and password.'); }
+    if (d.twoFactorRequired) { challenge = d.challengeToken; $('codeRow').style.display = 'block'; $('code').focus(); showErr('Enter the 6-digit code from your authenticator app, or a recovery code.'); return; }
+    const u = d.user || {};
+    if (u.email !== 'admin@lifc.in' && !u.isAdmin) throw new Error('This sign-in is for staff only');
+    const perms = u.permissions || [];
+    const ok = (u.role || 'super_admin') === 'super_admin' || perms.indexOf('*') >= 0 || LMS_ANY.some(p => perms.indexOf(p) >= 0);
+    if (!ok) throw new Error('Your role does not have access to the LMS. Ask an administrator to give you access.');
+    localStorage.setItem('lms_token', d.token);
+    localStorage.setItem('lms_user', u.email);
+    localStorage.setItem('lms_role', u.role || 'super_admin');
+    localStorage.setItem('lms_perms', JSON.stringify(perms));
+    location.href = 'home.html';
+  } catch (e) { showErr(e.message); }
+  finally { $('go').disabled = false; }
+}
+</script>
+</body>
+</html>

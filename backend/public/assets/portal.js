@@ -4,11 +4,15 @@
   var body = document.body;
   var mode = body.getAttribute('data-shell') || 'lite';
   if (mode === 'lite') { body.classList.add('ent-lite'); return; }
+  // The LMS (loan servicing and collections) is its own console: its own address, menu, sign-in and session
+  var PORTAL = body.getAttribute('data-portal') === 'lms' ? 'lms' : 'admin';
+  var K = PORTAL === 'lms' ? 'lms_' : 'admin_';
 
   var IDLE_MINUTES = 20;
   var API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
   var I = {
     loans: '<path d="M3 7h18v12H3z"/><path d="M8 7V5h8v2"/><path d="M3 13h18"/>',
+    wallet: '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 14h2"/>',
     emi: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/>',
     users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5c2.2.6 3.5 2.4 3.5 5.5"/>',
     phone: '<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/>',
@@ -29,11 +33,11 @@
     gear: '<circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2.3.9a7 7 0 0 0-2-1.2L14.2 3h-4l-.4 2.6a7 7 0 0 0-2 1.2l-2.3-.9-2 3.4 2 1.5A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.5 2 3.4 2.3-.9a7 7 0 0 0 2 1.2l.4 2.6h4l.4-2.6a7 7 0 0 0 2-1.2l2.3.9 2-3.4-2-1.5c.1-.4.1-.8.1-1.2z"/>'
   };
   // `any` lists the permissions that unlock a page (one is enough). 'super' means the super admin only.
+  var LMS_ANY = ['lms.access', 'lms.post', 'lms.approve', 'lms.close', 'collections.view'];
   var NAV = [
     { group: 'Lending' },
+    { href: 'lms/home.html', label: 'Open the LMS', icon: 'wallet', any: LMS_ANY },
     { href: 'loan-management.html', label: 'Loan management', icon: 'loans', any: ['loans.view'] },
-    { href: 'lms.html', label: 'Active loans', icon: 'wallet', any: ['loans.view'] },
-    { href: 'emi-analytics.html', label: 'EMI collections', icon: 'emi', any: ['reports.view'] },
     { href: 'decisions.html', label: 'Decisions', icon: 'scale', any: ['decisions.view'] },
     { href: 'product-rules.html', label: 'Rules by product', icon: 'scale', any: ['decisions.view'] },
     { href: 'employers.html', label: 'Employers', icon: 'users', any: ['decisions.view'] },
@@ -46,11 +50,6 @@
     { href: 'partners.html', label: 'Partners', icon: 'users', any: ['referrals.view'] },
     { href: 'rewards.html', label: 'Rewards', icon: 'gift', any: ['referrals.view'] },
     { href: 'referrals.html', label: 'Referrals', icon: 'gift', any: ['referrals.view'] },
-    { group: 'Recovery' },
-    { href: 'collections.html', label: 'Collections', icon: 'phone', any: ['collections.view'] },
-    { href: 'reminders.html', label: 'Reminders and settlements', icon: 'phone', any: ['collections.view'] },
-    { href: 'online-payments.html', label: 'Online payments', icon: 'emi', any: ['collections.view'] },
-    { href: 'mandates.html', label: 'Auto-debit', icon: 'emi', any: ['collections.view'] },
     { group: 'Risk and reporting' },
     { href: 'compliance.html', label: 'Compliance', icon: 'shield', any: ['kyc.view', 'aml.view', 'audit.view', 'requests.process'] },
     { href: 'colending.html', label: 'Co-lending', icon: 'loans', any: ['reports.view'] },
@@ -80,13 +79,33 @@
     { href: 'admin-config.html', label: 'Configuration', icon: 'gear', any: ['config.manage'] }
   ];
   var ROLE_FALLBACK = { super_admin: 'Super admin' };
+  if (PORTAL === 'lms') {
+    var ADMIN_ANY = ['config.manage', 'loans.approve', 'loans.disburse', 'kyc.view', 'pricing.view', 'decisions.view', 'appsettings.edit', 'staff.manage', 'aml.view'];
+    NAV = [
+      { group: 'Overview' },
+      { href: 'home.html', label: 'Overview', icon: 'board', any: LMS_ANY.concat(['loans.view']) },
+      { group: 'Loans' },
+      { href: 'loans.html', label: 'Active loans', icon: 'wallet', any: ['loans.view'] },
+      { group: 'Collections' },
+      { href: 'collections.html', label: 'Collection queue', icon: 'phone', any: ['collections.view'] },
+      { href: 'reminders.html', label: 'Reminders and settlements', icon: 'phone', any: ['collections.view'] },
+      { href: 'autodebit.html', label: 'Auto-debit', icon: 'emi', any: ['collections.view'] },
+      { href: 'payments.html', label: 'Online payments', icon: 'emi', any: ['collections.view'] },
+      { group: 'Reports' },
+      { href: 'reports.html', label: 'Reports', icon: 'chart', any: ['loans.view'] },
+      { href: 'emi.html', label: 'EMI collections', icon: 'emi', any: ['reports.view'] },
+      { href: 'reconcile.html', label: 'Reconciliation', icon: 'tick', any: ['lms.post'] },
+      { group: 'Other consoles' },
+      { href: '../admin-config.html', label: 'Admin console', icon: 'gear', any: ADMIN_ANY }
+    ];
+  }
 
   function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   var here = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
 
-  function perms() { try { return JSON.parse(store('admin_perms') || '[]'); } catch (e) { return []; } }
-  function role() { return store('admin_role') || 'super_admin'; }
+  function perms() { try { return JSON.parse(store(K + 'perms') || '[]'); } catch (e) { return []; } }
+  function role() { return store(K + 'role') || 'super_admin'; }
   function has(list) {
     if (role() === 'super_admin') return true;
     var mine = perms();
@@ -94,6 +113,7 @@
     return list.some(function (p) { return p !== 'super' && mine.indexOf(p) >= 0; });
   }
   function landing(p) {
+    if (PORTAL === 'lms') return 'home.html';
     var mine = p || perms();
     if (mine.indexOf('*') >= 0) return 'admin-config.html';
     for (var i = 0; i < NAV.length; i++) {
@@ -104,10 +124,10 @@
   }
 
   function signOut() {
-    try { ['admin_token', 'admin_user', 'admin_role', 'admin_perms', 'admin_role_label'].forEach(function (k) { localStorage.removeItem(k); }); } catch (e) {}
-    location.href = 'admin-config.html';
+    try { ['token', 'user', 'role', 'perms', 'role_label'].forEach(function (k) { localStorage.removeItem(K + k); }); } catch (e) {}
+    location.href = PORTAL === 'lms' ? 'index.html' : 'admin-config.html';
   }
-  function signedIn() { return !!store('admin_token'); }
+  function signedIn() { return !!store(K + 'token'); }
 
   // Pull the page's own title (and any real action buttons) out of its old header before the shell replaces it.
   var title = body.getAttribute('data-title') || '';
@@ -145,7 +165,7 @@
   content.id = 'ent-content';
 
   function build() {
-    var html = '<div class="ent-brand"><b>Laxmi India Finance</b><span>Back office</span></div><nav class="ent-nav">';
+    var html = '<div class="ent-brand"><b>Laxmi India Finance</b><span>' + (PORTAL === 'lms' ? 'Loan servicing (LMS)' : 'Back office') + '</span></div><nav class="ent-nav">';
     var pending = null; var shown = 0;
     NAV.forEach(function (n) {
       if (n.group) { pending = n.group; return; }
@@ -163,7 +183,7 @@
 
     top.innerHTML = '<button class="ent-burger" aria-label="Open menu" id="ent-burger">&#9776;</button>' +
       '<div class="ent-title"><h1>' + esc(title) + '</h1>' + (sub ? '<p>' + esc(sub) + '</p>' : '') + '</div><div class="ent-actions" id="ent-actions"></div>' +
-      '<div class="ent-user"><div class="who"><b>' + esc(store('admin_user') || '') + '</b><span class="ent-role">' + esc(store('admin_role_label') || ROLE_FALLBACK[role()] || role().replace(/_/g, ' ')) + '</span></div>' +
+      '<div class="ent-user"><div class="who"><b>' + esc(store(K + 'user') || '') + '</b><span class="ent-role">' + esc(store(K + 'role_label') || ROLE_FALLBACK[role()] || role().replace(/_/g, ' ')) + '</span></div>' +
       '<button class="btn" id="ent-signout" type="button">Sign out</button></div>';
     var box = top.querySelector('#ent-actions');
     actions.forEach(function (b) { b.classList.add('btn'); box.appendChild(b); });
@@ -192,12 +212,12 @@
 
   // Ask the server who I am now, so a change to my role shows up without signing in again.
   if (signedIn()) {
-    fetch(API + '/admin/me', { headers: { Authorization: 'Bearer ' + store('admin_token') } }).then(function (r) {
+    fetch(API + '/admin/me', { headers: { Authorization: 'Bearer ' + store(K + 'token') } }).then(function (r) {
       if (r.status === 401) { signOut(); return null; }
       return r.ok ? r.json() : null;
     }).then(function (me) {
       if (!me) return;
-      store('admin_role', me.role); store('admin_perms', JSON.stringify(me.permissions || [])); store('admin_role_label', me.roleLabel || '');
+      store(K + 'role', me.role); store(K + 'perms', JSON.stringify(me.permissions || [])); store(K + 'role_label', me.roleLabel || '');
       build();
     }).catch(function () {});
   }
@@ -228,7 +248,7 @@
     function stamp() {
       if (!signedIn()) { wm.style.backgroundImage = 'none'; return; }
       var d = new Date(), pad = function (n) { return (n < 10 ? '0' : '') + n; };
-      var text = esc(store('admin_user') || '') + '  ' + d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+      var text = esc(store(K + 'user') || '') + '  ' + d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
       var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="340" height="190"><text x="20" y="110" fill="#000" fill-opacity="0.07" font-family="Arial" font-size="15" transform="rotate(-22 170 95)">' + text + '</text></svg>';
       wm.style.backgroundImage = 'url("data:image/svg+xml,' + encodeURIComponent(svg) + '")';
     }

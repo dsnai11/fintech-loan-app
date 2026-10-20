@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%E2%9C%85%3C/text%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reconciliation - LIFC LMS</title>
+<style>
+* { box-sizing: border-box; }
+.card { padding: 16px; margin-bottom: 14px; }
+.card h2 { margin: 0 0 4px; font-size: 15px; }
+.sub { font-size: 12px; color: var(--e-muted); margin-bottom: 12px; line-height: 1.5; }
+.note { font-size: 12px; color: var(--e-muted); }
+.alert { display: none; padding: 12px 16px; margin-bottom: 14px; white-space: pre-line; }
+.alert.show { display: block; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 14px; }
+.tile { background: var(--e-surface); border: 1px solid var(--e-border); border-radius: 12px; padding: 14px; }
+.tile .l { font-size: 12px; color: var(--e-muted); font-weight: 600; }
+.tile .v { font-size: 22px; font-weight: 800; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.tile .s { font-size: 12px; color: var(--e-muted); margin-top: 2px; }
+.tile.bad .v { color: #B91C1C; } .tile.good .v { color: #166534; }
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--e-muted); border-bottom: 1px solid var(--e-border); white-space: nowrap; }
+td { padding: 8px; border-bottom: 1px solid var(--e-border); vertical-align: top; }
+.r { text-align: right; font-variant-numeric: tabular-nums; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+textarea { width: 100%; font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+</style>
+<link rel="stylesheet" href="../assets/portal.css">
+</head>
+<body data-portal="lms" data-shell="app" data-title="Reconciliation" data-sub="Match a bank or payment-provider settlement file with the payments in our books.">
+<div class="container">
+  <div id="alert" class="alert" role="alert"></div>
+  <div class="card">
+    <h2>Check a settlement file</h2>
+    <div class="sub">Use a CSV file with a header row. It needs a <b>reference</b> column (the UTR, transaction id or payment id) and an <b>amount</b> column. A <b>date</b> column lets us also find payments we booked that the file does not show. Nothing is changed: this only reads and compares.</div>
+    <div class="row" style="margin-bottom:8px"><input id="file" type="file" accept=".csv,text/csv,text/plain" onchange="readFile()"><span class="note" id="fname"></span></div>
+    <textarea id="csv" rows="7" placeholder="Reference,Amount,Date&#10;pay_AAA111,10600.00,2026-10-12"></textarea>
+    <div class="row" style="margin-top:10px"><button class="btn primary" id="go" onclick="run()">Compare with our books</button></div>
+  </div>
+  <div id="result"></div>
+</div>
+<script>
+const API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
+const token = localStorage.getItem('lms_token');
+if (!token) location.href = 'index.html';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const inr = n => '₹' + (Math.round((n || 0) * 100) / 100).toLocaleString('en-IN');
+const when = d => (d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '-');
+function msg(text, kind) { const a = $('alert'); a.textContent = text; a.className = 'alert show ' + (kind === 'ok' ? 'ok' : 'err'); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+function readFile() {
+  const f = $('file').files[0];
+  if (!f) return;
+  if (f.size > 3 * 1024 * 1024) { msg('That file is too large. Split it by month.'); return; }
+  $('fname').textContent = f.name;
+  const r = new FileReader();
+  r.onload = () => { $('csv').value = String(r.result || ''); };
+  r.readAsText(f);
+}
+async function run() {
+  $('alert').className = 'alert'; $('go').disabled = true; $('result').innerHTML = '';
+  try {
+    const r = await fetch(API + '/admin/lms/reconcile', { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify({ csv: $('csv').value }) });
+    if (r.status === 401) { localStorage.removeItem('lms_token'); location.href = 'index.html'; return; }
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || 'Something went wrong');
+    draw(d);
+  } catch (e) { msg(e.message); }
+  finally { $('go').disabled = false; }
+}
+function table(title, hint, head, rows, cols) {
+  if (!rows.length) return '';
+  return `<div class="card"><h2>${title} (${rows.length})</h2><div class="sub">${hint}</div><div class="scroll"><table><thead><tr>${head.map(h => '<th>' + h + '</th>').join('')}</tr></thead><tbody>${rows.map(x => '<tr>' + cols(x).map((c, i) => '<td' + (c && c.r ? ' class="r"' : '') + '>' + (c && c.r ? c.v : c) + '</td>').join('') + '</tr>').join('')}</tbody></table></div></div>`;
+}
+function draw(d) {
+  const s = d.summary, T = (l, v, sub, k) => `<div class="tile ${k || ''}"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${sub}</div></div>`;
+  $('result').innerHTML = `<div class="tiles">
+    ${T('Lines in the file', s.lines, s.unreadable ? s.unreadable + ' could not be read' : 'All read', '')}
+    ${T('Matched', s.matched, inr(s.matchedAmount), 'good')}
+    ${T('Different amount', s.amountDiffers, 'Same reference, other amount', s.amountDiffers ? 'bad' : '')}
+    ${T('In the file, not in our books', s.notInBooks, inr(s.notInBooksAmount), s.notInBooks ? 'bad' : '')}
+    ${T('In our books, not in the file', s.notInFile, s.comparedBooksForPeriod ? inr(s.notInFileAmount) : 'No dates in the file', s.notInFile ? 'bad' : '')}
+  </div>${d.note ? '<div class="note" style="margin-bottom:10px">' + esc(d.note) + '</div>' : ''}
+  ${table('Different amount', 'The bank and our books have the same reference but not the same amount.', ['Reference', 'In the file', 'In our books', 'Difference', 'Loan'], d.amountDiffers, x => [esc(x.reference), { r: 1, v: inr(x.amount) }, { r: 1, v: inr(x.booked) }, { r: 1, v: inr(x.difference) }, esc(x.loanId)])}
+  ${table('In the file, not in our books', 'Money the bank shows that we cannot find. Find the customer and record it, or ask the bank.', ['Reference', 'Amount', 'Date', 'Line'], d.notInBooks, x => [esc(x.reference), { r: 1, v: inr(x.amount) }, when(x.date), x.line])}
+  ${table('In our books, not in the file', 'Payments we recorded in this period that the file does not show. Chase them with the provider or the bank.', ['Reference', 'Amount', 'Date', 'Loan'], d.notInFile, x => [esc(x.reference), { r: 1, v: inr(x.amount) }, when(x.date), esc(x.loanId)])}
+  ${table('Repeated or unreadable lines', 'A reference that appears twice is counted once. A line with no reference or amount is skipped.', ['Line', 'Reference', 'Amount'], [...d.repeated, ...d.unreadable], x => [x.line, esc(x.reference), { r: 1, v: Number.isFinite(x.amount) ? inr(x.amount) : '-' }])}
+  ${table('Matched', 'Found in our books with the same amount.', ['Reference', 'Amount', 'Date', 'Loan'], d.matched, x => [esc(x.reference), { r: 1, v: inr(x.amount) }, when(x.date), esc(x.loanId)])}`;
+}
+</script>
+<script src="../assets/portal.js"></script>
+</body>
+</html>

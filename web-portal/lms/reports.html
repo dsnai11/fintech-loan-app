@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%93%8A%3C/text%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LMS reports - LIFC</title>
+<style>
+* { box-sizing: border-box; }
+.card { padding: 16px; margin-bottom: 14px; }
+.card h2 { margin: 0 0 4px; font-size: 15px; }
+.sub { font-size: 12px; color: var(--e-muted); margin-bottom: 12px; line-height: 1.5; }
+.note { font-size: 12px; color: var(--e-muted); }
+.alert { display: none; padding: 12px 16px; margin-bottom: 14px; white-space: pre-line; }
+.alert.show { display: block; }
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--e-muted); border-bottom: 1px solid var(--e-border); white-space: nowrap; }
+td { padding: 8px; border-bottom: 1px solid var(--e-border); vertical-align: top; }
+tr.total td { font-weight: 700; border-top: 2px solid var(--e-border); }
+.r { text-align: right; font-variant-numeric: tabular-nums; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.tabs { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+.tabs button { border: 1px solid var(--e-border); background: var(--e-surface); padding: 6px 14px; border-radius: 20px; font-size: 13px; cursor: pointer; }
+.tabs button.on { background: var(--e-primary); color: #fff; border-color: var(--e-primary); }
+.bar { height: 8px; border-radius: 4px; background: #DBEAFE; min-width: 2px; }
+</style>
+<link rel="stylesheet" href="../assets/portal.css">
+</head>
+<body data-portal="lms" data-shell="app" data-title="Reports" data-sub="Ageing and provisions, demand and collection, collection agents, and written-off loans.">
+<div class="container">
+  <div id="alert" class="alert" role="alert"></div>
+  <div class="tabs" id="tabs"></div>
+  <div class="card" id="body"></div>
+</div>
+<script>
+const API = (location.protocol === 'file:' ? 'https://fintech-loan-app-production.up.railway.app' : location.port === '3000' ? 'http://localhost:5000' : location.origin) + '/api';
+const token = localStorage.getItem('lms_token');
+if (!token) location.href = 'index.html';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const inr = n => '₹' + Math.round(n || 0).toLocaleString('en-IN');
+const pct = n => (n == null ? '-' : n + '%');
+const when = d => (d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '-');
+let tab = 'ageing', DATA = {};
+function msg(text) { const a = $('alert'); a.textContent = text; a.className = 'alert show err'; }
+async function api(path) {
+  const r = await fetch(API + path, { headers: { Authorization: 'Bearer ' + token } });
+  if (r.status === 401) { localStorage.removeItem('lms_token'); location.href = 'index.html'; throw new Error('Session expired'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || 'Something went wrong');
+  return d;
+}
+// Turns a table into a CSV file for download. Cells that start with = + - @ get a quote in front so a spreadsheet does not run them.
+function csv(name, head, rows) {
+  const cell = v => { let s = String(v ?? ''); if (/^[=+\-@]/.test(s)) s = "'" + s; return '"' + s.replace(/"/g, '""') + '"'; };
+  const text = [head, ...rows].map(r => r.map(cell).join(',')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: 'text/csv' }));
+  a.download = name + '.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+const NAMES = { ageing: 'Ageing and provisions', dcb: 'Demand and collection', agents: 'Collection agents', writeoffs: 'Written-off loans' };
+function drawTabs() { $('tabs').innerHTML = Object.keys(NAMES).map(k => `<button class="${tab === k ? 'on' : ''}" onclick="show('${k}')">${NAMES[k]}</button>`).join(''); }
+async function show(k) {
+  tab = k; drawTabs(); $('alert').className = 'alert';
+  $('body').innerHTML = '<div class="note">Loading...</div>';
+  try {
+    if (k === 'ageing') DATA.ageing = await api('/admin/lms/reports/ageing');
+    else if (k === 'dcb') DATA.dcb = await api('/admin/lms/reports/dcb?months=' + (window.dcbMonths || 12));
+    else if (k === 'agents') DATA.agents = await api('/admin/lms/reports/agents' + (window.agentQuery || ''));
+    else DATA.writeoffs = await api('/admin/lms/reports/writeoffs');
+    draw();
+  } catch (e) { $('body').innerHTML = ''; msg(e.message); }
+}
+function draw() {
+  const d = DATA[tab], b = $('body');
+  if (tab === 'ageing') {
+    const max = Math.max(1, ...d.buckets.map(x => x.outstanding));
+    b.innerHTML = `<h2>Ageing and provisions</h2><div class="sub">Live loans by how late they are, as of ${when(d.asOf)}. ${esc(d.note)}</div>
+      <div class="scroll"><table><thead><tr><th>How late</th><th class="r">Loans</th><th class="r">Principal outstanding</th><th class="r">Share</th><th></th><th class="r">Overdue amount</th><th class="r">Provision</th></tr></thead><tbody>${d.buckets.map(x => `<tr><td>${esc(x.label)}</td><td class="r">${x.loans}</td><td class="r">${inr(x.outstanding)}</td><td class="r">${x.share}%</td><td style="width:140px"><div class="bar" style="width:${Math.round((x.outstanding / max) * 130) + 2}px"></div></td><td class="r">${inr(x.overdue)}</td><td class="r">${inr(x.provision)}</td></tr>`).join('')}
+      <tr class="total"><td>All live loans</td><td class="r">${d.totals.loans}</td><td class="r">${inr(d.totals.outstanding)}</td><td class="r">100%</td><td></td><td class="r">${inr(d.totals.overdue)}</td><td class="r">${inr(d.totals.provision)}</td></tr></tbody></table></div>
+      <div class="note" style="margin-top:8px">Gross NPA: ${pct(d.totals.grossNpaPercent)}. Written off: ${d.writtenOff.loans} loan(s), ${inr(d.writtenOff.outstanding)} still to recover.</div>
+      <div class="row" style="margin-top:10px"><button class="btn" onclick="dl()">Download as a spreadsheet</button></div>`;
+  } else if (tab === 'dcb') {
+    b.innerHTML = `<h2>Demand, collection and balance</h2><div class="sub">${esc(d.note)}</div>
+      <div class="row" style="margin-bottom:10px"><label for="mo" style="margin:0">Months</label><select id="mo" onchange="window.dcbMonths=this.value;show('dcb')">${[3, 6, 12, 24].map(m => `<option value="${m}" ${String(window.dcbMonths || 12) === String(m) ? 'selected' : ''}>${m}</option>`).join('')}</select></div>
+      <div class="scroll"><table><thead><tr><th>Month</th><th class="r">Instalments</th><th class="r">Demand</th><th class="r">Collected on time</th><th class="r">Still unpaid</th><th class="r">Efficiency</th><th class="r">Arrears collected</th><th class="r">All collected in month</th><th class="r">Overall</th></tr></thead><tbody>${d.months.slice().reverse().map(m => `<tr><td>${esc(m.month)}</td><td class="r">${m.instalments}</td><td class="r">${inr(m.demand)}</td><td class="r">${inr(m.collectedOnTime)}</td><td class="r">${inr(m.balance)}</td><td class="r">${pct(m.efficiencyPercent)}</td><td class="r">${inr(m.arrearsCollected)}</td><td class="r">${inr(m.collectedInMonth)}</td><td class="r">${pct(m.overallEfficiencyPercent)}</td></tr>`).join('')}</tbody></table></div>
+      <div class="row" style="margin-top:10px"><button class="btn" onclick="dl()">Download as a spreadsheet</button></div>`;
+  } else if (tab === 'agents') {
+    b.innerHTML = `<h2>Collection agents</h2><div class="sub">Calls, promises and money collected on the cases each person holds, from ${when(d.from)} to ${when(d.to)}.</div>
+      <div class="row" style="margin-bottom:10px"><label for="af" style="margin:0">From</label><input id="af" type="date"><label for="at" style="margin:0">To</label><input id="at" type="date"><button class="btn" onclick="agentRange()">Show</button></div>
+      <div class="scroll">${d.agents.length ? `<table><thead><tr><th>Agent</th><th class="r">Cases held</th><th class="r">Calls</th><th class="r">Connected</th><th class="r">Promises</th><th class="r">Kept</th><th class="r">Broken</th><th class="r">Kept rate</th><th class="r">Collected on their cases</th><th class="r">Recovered (written off)</th></tr></thead><tbody>${d.agents.map(a => `<tr><td>${esc(a.agent)}</td><td class="r">${a.assigned}</td><td class="r">${a.calls}</td><td class="r">${a.connected}</td><td class="r">${a.promises}</td><td class="r">${a.promisesKept}</td><td class="r">${a.promisesBroken}</td><td class="r">${pct(a.keepRatePercent)}</td><td class="r">${inr(a.collectedOnAssigned)}</td><td class="r">${inr(a.recovered)}</td></tr>`).join('')}</tbody></table>` : '<div class="note">No collections activity in this period.</div>'}</div>
+      <div class="row" style="margin-top:10px"><button class="btn" onclick="dl()">Download as a spreadsheet</button></div>`;
+  } else {
+    b.innerHTML = `<h2>Written-off loans</h2><div class="sub">Loans written off, and what has been recovered since.</div>
+      <div class="note" style="margin-bottom:8px">${d.totals.loans} loan(s). Written off ${inr(d.totals.writtenOff)}, recovered ${inr(d.totals.recovered)} (${pct(d.totals.recoveryPercent)}), still to recover ${inr(d.totals.stillToRecover)}.</div>
+      <div class="scroll">${d.loans.length ? `<table><thead><tr><th>Customer</th><th>Written off on</th><th class="r">Written off</th><th class="r">Recovered</th><th class="r">Still to recover</th><th>Reason</th></tr></thead><tbody>${d.loans.map(l => `<tr><td>${esc(l.customer)}<div class="note">${esc(l.phone)}</div></td><td>${when(l.writtenOffAt)}</td><td class="r">${inr(l.writtenOffAmount)}</td><td class="r">${inr(l.recovered)}</td><td class="r">${inr(l.stillToRecover)}</td><td>${esc(l.reason)}</td></tr>`).join('')}</tbody></table>` : '<div class="note">No loan has been written off.</div>'}</div>
+      <div class="row" style="margin-top:10px"><button class="btn" onclick="dl()">Download as a spreadsheet</button></div>`;
+  }
+}
+function agentRange() {
+  const f = $('af').value, t = $('at').value, q = [];
+  if (f) q.push('from=' + f); if (t) q.push('to=' + t);
+  window.agentQuery = q.length ? '?' + q.join('&') : ''; show('agents');
+}
+function dl() {
+  const d = DATA[tab];
+  if (tab === 'ageing') csv('ageing-' + new Date().toISOString().slice(0, 10), ['How late', 'Loans', 'Principal outstanding', 'Share %', 'Overdue amount', 'Provision'], d.buckets.map(x => [x.label, x.loans, x.outstanding, x.share, x.overdue, x.provision]));
+  else if (tab === 'dcb') csv('demand-collection', ['Month', 'Instalments', 'Demand', 'Collected on time', 'Still unpaid', 'Efficiency %', 'Arrears collected', 'All collected in month', 'Overall %'], d.months.map(m => [m.month, m.instalments, m.demand, m.collectedOnTime, m.balance, m.efficiencyPercent, m.arrearsCollected, m.collectedInMonth, m.overallEfficiencyPercent]));
+  else if (tab === 'agents') csv('agents', ['Agent', 'Cases held', 'Calls', 'Connected', 'Promises', 'Kept', 'Broken', 'Kept rate %', 'Collected on their cases', 'Recovered'], d.agents.map(a => [a.agent, a.assigned, a.calls, a.connected, a.promises, a.promisesKept, a.promisesBroken, a.keepRatePercent, a.collectedOnAssigned, a.recovered]));
+}
+show('ageing');
+</script>
+<script src="../assets/portal.js"></script>
+</body>
+</html>
