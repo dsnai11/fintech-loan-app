@@ -45,8 +45,8 @@ router.put('/profile', authMiddleware, async (req, res) => {
     if (gender !== undefined) update.gender = gender;
     if (nationality !== undefined) update.nationality = nationality;
     if (panNumber) {
-      const pan = String(panNumber).toUpperCase().trim();
-      if (!/^[A-Z]{3}[PCHFATBLJG][A-Z][0-9]{4}[A-Z]$/.test(pan)) return res.status(400).json({ error: 'Invalid PAN format' });
+      const pan = String(panNumber).toUpperCase().replace(/[\s-]/g, '');
+      if (!/^[A-Z]{3}[PCHFATBLJG][A-Z][0-9]{4}[A-Z]$/.test(pan)) return res.status(400).json({ error: 'Invalid PAN format. A PAN is 5 letters, 4 digits and 1 letter, and the 4th letter shows who holds it (P for an individual). Example: ABCPE1234F' });
       const current = await User.findById(req.user.userId);
       if (!current) return res.status(404).json({ error: 'User not found' });
       if (current.panNumber !== pan) {

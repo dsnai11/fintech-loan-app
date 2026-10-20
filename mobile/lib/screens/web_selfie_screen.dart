@@ -8,6 +8,7 @@ import '../services/api_service.dart';
 import '../utils/error_utils.dart';
 import '../widgets/tr_text.dart';
 import 'setup_scaffold.dart';
+import 'web_camera_page.dart';
 
 // The selfie in a web browser. The phone app watches the eyes for a blink; a browser cannot do that, so here the customer sends one
 // clear photo and a person at the company looks at it. Their account carries on while it is checked.
@@ -27,6 +28,13 @@ class _WebSelfieScreenState extends State<WebSelfieScreen> {
   String? _error;
 
   Future<void> _pick(ImageSource source) async {
+    // In a browser the plain "camera" option only opens a file chooser on a computer, so use the camera inside the page
+    if (source == ImageSource.camera) {
+      final r = await Navigator.of(context).push<Uint8List>(MaterialPageRoute(fullscreenDialog: true, builder: (_) => const WebCameraPage(title: 'Take your selfie', hint: 'Look at the camera in good light, without glasses or a mask, and keep your face inside the oval.', front: true)));
+      if (r == null) return;
+      if (r.isNotEmpty) { if (mounted) setState(() { _photo = r; _error = null; }); return; }
+      source = ImageSource.gallery;
+    }
     try {
       final f = await ImagePicker().pickImage(source: source, preferredCameraDevice: CameraDevice.front, maxWidth: 1280, imageQuality: 80);
       if (f == null) return;

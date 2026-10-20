@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart' hide Text;
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -8,6 +9,7 @@ import '../services/api_service.dart';
 import '../utils/error_utils.dart';
 import '../widgets/tr_text.dart';
 import 'setup_scaffold.dart';
+import 'web_camera_page.dart';
 
 // A photo of the customer's Aadhaar card. Every customer sends one. A person at the company compares the face on the card
 // with the selfie, so the photo has to be clear and show the whole card. Works the same on the phone and in a browser.
@@ -28,6 +30,13 @@ class _AadhaarCardScreenState extends State<AadhaarCardScreen> {
   String _result = '';
 
   Future<void> _pick(ImageSource source) async {
+    // In a browser the plain "camera" option only opens a file chooser on a computer, so use the camera inside the page
+    if (kIsWeb && source == ImageSource.camera) {
+      final r = await Navigator.of(context).push<Uint8List>(MaterialPageRoute(fullscreenDialog: true, builder: (_) => const WebCameraPage(title: 'Photo of your Aadhaar card', hint: 'Hold the card flat in good light, inside the frame, with your photo and all 12 digits readable.', front: false, card: true)));
+      if (r == null) return;
+      if (r.isNotEmpty) { if (mounted) setState(() { _photo = r; _error = null; }); return; }
+      source = ImageSource.gallery;
+    }
     try {
       final f = await ImagePicker().pickImage(source: source, preferredCameraDevice: CameraDevice.rear, maxWidth: 1600, imageQuality: 85);
       if (f == null) return;

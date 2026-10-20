@@ -47,6 +47,9 @@ check('customer CANNOT self-approve KYC (stays pending)', ua.panNumber === 'ABCP
 const dup = await call('PUT', '/users/profile', tok(Bk), { panNumber: 'ABCPE1234F' });
 check('duplicate PAN refused (409)', dup.s === 409, dup.s);
 check('duplicate PAN raised HIGH AML alert for the second user', !!(await AmlAlert.findOne({ rule: 'DUPLICATE_PAN', userId: Bk._id, severity: 'HIGH' })));
+const sample = await call('POST', '/kyc/pan', tok(A), { panNumber: 'ABCDE1234F' });
+check('a PAN with a wrong 4th letter is refused, and the message explains the rule with a working example', sample.s === 400 && /4th letter/.test(sample.d.error) && /ABCPE1234F/.test(sample.d.error), JSON.stringify(sample.d));
+check('spaces and hyphens typed into a PAN are ignored', (await call('POST', '/kyc/pan', tok(A), { panNumber: ' abc-pe 1234 f ' })).s === 200);
 const kp = await call('POST', '/kyc/pan', tok(A), { panNumber: 'ABCPE1234F' });
 check('/kyc/pan without a provider -> not verified, pending review', kp.s === 200 && kp.d.verified === false && kp.d.mode === 'manual_review' && kp.d.kycStatus === 'pending', JSON.stringify(kp.d));
 const q = (await call('GET', '/admin/compliance/kyc')).d;

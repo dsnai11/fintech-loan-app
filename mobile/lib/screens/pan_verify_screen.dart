@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart' hide Text;
 import '../widgets/tr_text.dart';
 import 'package:provider/provider.dart';
@@ -60,13 +61,14 @@ class _PanVerifyScreenState extends State<PanVerifyScreen> {
   }
 
   Future<void> _confirmAndContinue() async {
-    final pan = _panController.text.trim().toUpperCase();
+    final pan = _panController.text.replaceAll(RegExp(r'[\s-]'), '').toUpperCase();
     if (pan.isEmpty) {
       setState(() => _error = 'Please enter your PAN number');
       return;
     }
-    if (!RegExp(r'^[A-Z]{5}[0-9]{4}[A-Z]$').hasMatch(pan)) {
-      setState(() => _error = 'Invalid PAN format (e.g. ABCDE1234F)');
+    // The same rule the server uses: the 4th letter is who holds the PAN (P is an individual)
+    if (!RegExp(r'^[A-Z]{3}[PCHFATBLJG][A-Z][0-9]{4}[A-Z]$').hasMatch(pan)) {
+      setState(() => _error = 'Check your PAN. It is 5 letters, 4 digits and 1 letter, and the 4th letter is P for an individual (example: ABCPE1234F).');
       return;
     }
 
@@ -191,9 +193,15 @@ class _PanVerifyScreenState extends State<PanVerifyScreen> {
           TextField(
             controller: _panController,
             textCapitalization: TextCapitalization.characters,
+            autocorrect: false,
+            enableSuggestions: false,
             maxLength: 10,
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp('[A-Za-z0-9]')),
+              TextInputFormatter.withFunction((old, value) => value.copyWith(text: value.text.toUpperCase())),
+            ],
             decoration: InputDecoration(
-              hintText: 'e.g. ABCDE1234F',
+              hintText: 'e.g. ABCPE1234F',
               counterText: '',
               prefixIcon: const Icon(Icons.credit_card_rounded, size: 18, color: Color(0xFF9CA3AF)),
               suffixIcon: _hasPan

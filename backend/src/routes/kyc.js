@@ -40,9 +40,9 @@ router.post('/pan', authMiddleware, async (req, res) => {
     const { panNumber, dob } = req.body;
     if (!panNumber) return res.status(400).json({ error: 'PAN number is required' });
 
-    const pan = String(panNumber).toUpperCase().trim();
+    const pan = String(panNumber).toUpperCase().replace(/[\s-]/g, '');
     // 4th character is the holder type: P person, C company, H HUF, F firm, A AOP, T trust, B BOI, L local authority, J juridical person, G government
-    if (!/^[A-Z]{3}[PCHFATBLJG][A-Z][0-9]{4}[A-Z]$/.test(pan)) return res.status(400).json({ error: 'Invalid PAN format' });
+    if (!/^[A-Z]{3}[PCHFATBLJG][A-Z][0-9]{4}[A-Z]$/.test(pan)) return res.status(400).json({ error: 'Invalid PAN format. A PAN is 5 letters, 4 digits and 1 letter, and the 4th letter shows who holds it (P for an individual). Example: ABCPE1234F' });
 
     const user = await User.findById(req.user.userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
