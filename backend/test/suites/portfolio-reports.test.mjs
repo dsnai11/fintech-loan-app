@@ -81,7 +81,7 @@ void ref;
 section('SIGN-UP KEEPS THE SOURCE, AND STAFF SEE THE REPORTS');
 const srv = await startServer(DB);
 const call = client(srv.base);
-const signup = body => fetch(srv.base + '/auth/signup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ firstName: 'Utm', lastName: 'User', password: 'password123', confirmPassword: 'password123', ...body }) }).then(r => r.json());
+const signup = body => fetch(srv.base + '/auth/signup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ firstName: 'Utm', lastName: 'User', password: 'Blue-Lantern-42', confirmPassword: 'Blue-Lantern-42', ...body }) }).then(r => r.json());
 await signup({ email: 'utm1@x.in', phone: '9811100001', utmSource: 'Facebook Ads!', utmCampaign: 'Launch-1', utmMedium: 'social' });
 const saved = await User.findOne({ email: 'utm1@x.in' });
 check('a source from a link is stored in a tidy form', saved.acquisition.source === 'facebookads' && saved.acquisition.campaign === 'launch-1' && saved.acquisition.medium === 'social', JSON.stringify(saved.acquisition));

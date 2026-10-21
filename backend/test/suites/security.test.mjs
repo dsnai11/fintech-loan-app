@@ -32,7 +32,7 @@ section('PASSWORD RULES AT SIGNUP');
 const signup = (email, password, phone) => call('POST', '/auth/signup', null, { firstName: 'S', lastName: 'U', email, phone, password, confirmPassword: password });
 check('too short is refused (400)', (await signup('s1@x.in', 'short', '9600000001')).s === 400);
 check('over 128 characters is refused (400)', (await signup('s2@x.in', 'x'.repeat(129), '9600000002')).s === 400);
-check('8 characters is accepted', (await signup('s3@x.in', 'eightchr', '9600000003')).s === 201);
+check('8 characters is accepted', (await signup('s3@x.in', 'eight8ch', '9600000003')).s === 201);
 
 section('ACCOUNT LOCKOUT');
 await User.create({ firstName: 'Lock', lastName: 'Me', email: 'lockme@x.in', phone: '9600000010', password: 'Right-Password-1' });

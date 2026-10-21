@@ -1,3 +1,4 @@
+import { passwordProblem, hashPassword, needsRehash, BCRYPT_COST } from '../services/passwordPolicy.js';
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
@@ -17,7 +18,7 @@ import { sendCode, verifyCode } from '../services/phoneVerification.js';
 import { isPartnerCode, findByCode, attachLead } from '../services/partnerService.js';
 
 // Checked against when the email is unknown, so a wrong email and a wrong password take the same time.
-const DUMMY_HASH = bcrypt.hashSync('not-a-real-password', 10);
+const DUMMY_HASH = bcrypt.hashSync('not-a-real-password', BCRYPT_COST);
 
 const router = express.Router();
 
@@ -33,9 +34,8 @@ router.post('/signup', async (req, res) => {
     if (password !== confirmPassword) {
       return res.status(400).json({ error: 'Passwords do not match' });
     }
-    if (typeof password !== 'string' || password.length < 8 || password.length > 128) {
-      return res.status(400).json({ error: 'Password must be 8 to 128 characters' });
-    }
+    const weak = passwordProblem(password, { email, phone, firstName, lastName });
+    if (weak) return res.status(400).json({ error: weak });
 
     if (!/^[6-9]\d{9}$/.test(String(phone))) {
       return res.status(400).json({ error: 'Enter a valid 10-digit mobile number' });
@@ -125,11 +125,13 @@ router.post('/login', async (req, res) => {
     if (user.status && user.status !== 'active') {
       return res.status(403).json({ error: 'Your account is not active. Please contact support.' });
     }
+    // A password stored at an older, cheaper work factor is stored again at the current one, now that we have it in hand
+    if (needsRehash(user.password)) hashPassword(String(password)).then(h => User.updateOne({ _id: user._id }, { password: h })).catch(() => {});
 
     // With two-factor on, the failure counter is only cleared once the code is also right. Otherwise someone
     // who knows the password could sign in again after every wrong code and never run out of guesses.
     if (user.twoFactorEnabled) {
-      const challengeToken = jwt.sign({ userId: String(user._id), purpose: '2fa' }, process.env.JWT_SECRET, { expiresIn: '5m' });
+      const challengeToken = jwt.sign({ userId: String(user._id), purpose: '2fa' }, process.env.JWT_SECRET, { algorithm: 'HS256', expiresIn: '5m' });
       return res.json({ twoFactorRequired: true, challengeToken });
     }
     await recordSuccess(email);
@@ -171,7 +173,7 @@ router.post('/login', async (req, res) => {
 // Step 1 of a sign-in from an unfamiliar phone ends with a short-lived device token. These two calls turn it into a sign-in.
 const deviceUser = async token => {
   let d;
-  try { d = jwt.verify(String(token || ''), process.env.JWT_SECRET); } catch (e) { return null; }
+  try { d = jwt.verify(String(token || ''), process.env.JWT_SECRET, { algorithms: ['HS256'] }); } catch (e) { return null; }
   if (d.purpose !== DEVICE_PURPOSE) return null;
   const user = await User.findById(d.userId);
   return user && (!user.status || user.status === 'active') ? { user, installId: d.installId } : null;
@@ -273,9 +275,8 @@ If you did not ask for this, you can ignore this email. Your password has not ch
 router.post('/reset-password', async (req, res) => {
   try {
     const { token, password } = req.body || {};
-    if (typeof password !== 'string' || password.length < 8 || password.length > 128) {
-      return res.status(400).json({ error: 'Password must be 8 to 128 characters.' });
-    }
+    const weak = passwordProblem(password);
+    if (weak) return res.status(400).json({ error: weak });
     const user = await consumeResetToken(token, password);
     if (!user) return res.status(400).json({ error: 'This reset link is invalid or has expired. Please ask for a new one.' });
 

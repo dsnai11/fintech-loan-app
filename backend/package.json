@@ -5,7 +5,7 @@
   "main": "src/index.js",
   "type": "module",
   "scripts": {
-    "dev": "nodemon src/index.js",
+    "dev": "node --watch src/index.js",
     "start": "node src/index.js",
     "test": "node test/run.mjs",
     "loadtest": "node scripts/loadtest.mjs",
@@ -32,10 +32,6 @@
     "pdf-parse": "^1.1.1",
     "pdfkit": "^0.15.0",
     "qrcode": "^1.5.4",
-    "tesseract.js": "^5.1.1",
-    "validator": "^13.11.0"
-  },
-  "devDependencies": {
-    "nodemon": "^3.0.1"
+    "tesseract.js": "^5.1.1"
   }
 }

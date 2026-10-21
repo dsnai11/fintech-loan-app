@@ -41,7 +41,7 @@ for (let i = 0; i < 5; i++) await call('POST', '/partner/login', null, { email: 
 check('repeated wrong guesses lock the email (429)', (await call('POST', '/partner/login', null, { email: 'ghost@x.in', password: 'bad-password-1' })).s === 429);
 
 section('CUSTOMERS SIGN UP WITH THE CODE');
-const signup = (n, extra = {}) => call('POST', '/auth/signup', null, { firstName: `Cust${n}`, lastName: 'Lead', email: `lead${n}@x.in`, phone: `98700000${String(n).padStart(2, '0')}`, password: 'password123', confirmPassword: 'password123', ...extra });
+const signup = (n, extra = {}) => call('POST', '/auth/signup', null, { firstName: `Cust${n}`, lastName: 'Lead', email: `lead${n}@x.in`, phone: `98700000${String(n).padStart(2, '0')}`, password: 'Blue-Lantern-42', confirmPassword: 'Blue-Lantern-42', ...extra });
 check('a made-up agent code is refused (400)', (await signup(1, { referralCode: 'AGTZZZZZZ' })).s === 400);
 const s2 = await signup(2, { referralCode: ` ${code.toLowerCase()} ` });
 check('a good code (spaces and capitals do not matter) links the customer', s2.s === 201 && (await PartnerLead.countDocuments()) === 1);

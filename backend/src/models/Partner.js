@@ -1,3 +1,4 @@
+import { BCRYPT_COST } from '../services/passwordPolicy.js';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
@@ -22,7 +23,7 @@ const schema = new mongoose.Schema(
 );
 
 schema.methods.setPassword = async function (plain) {
-  this.passwordHash = await bcrypt.hash(plain, 10);
+  this.passwordHash = await bcrypt.hash(plain, BCRYPT_COST);
   this.passwordChangedAt = new Date();
 };
 schema.methods.checkPassword = function (plain) {

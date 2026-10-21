@@ -1,3 +1,4 @@
+import { appSecret } from './appSecret.js';
 import crypto from 'crypto';
 import User from '../models/User.js';
 import { sendPlainEmail } from './notificationService.js';
@@ -12,7 +13,7 @@ const WINDOW_MS = 60 * 60 * 1000;
 const MAX_SENDS_PER_WINDOW = 5;
 const MAX_ATTEMPTS = 5;
 
-const hash = (email, code) => crypto.createHmac('sha256', process.env.JWT_SECRET || 'dev-only').update(`${String(email).toLowerCase()}|${code}`).digest('hex');
+const hash = (email, code) => crypto.createHmac('sha256', appSecret()).update(`${String(email).toLowerCase()}|${code}`).digest('hex');
 const mask = email => String(email).replace(/^(.).*(@.*)$/, '$1***$2');
 const fail = (status, error, extra = {}) => ({ status, body: { error, ...extra } });
 

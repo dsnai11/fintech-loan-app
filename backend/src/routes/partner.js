@@ -1,3 +1,4 @@
+import { passwordProblem } from '../services/passwordPolicy.js';
 import express from 'express';
 import Partner from '../models/Partner.js';
 import { partnerAuth, login, summaryOf } from '../services/partnerService.js';
@@ -30,6 +31,8 @@ router.post('/change-password', partnerAuth, async (req, res) => {
     const { current, next } = req.body || {};
     const p = await Partner.findById(req.partner._id).select('+passwordHash');
     if (!(await p.checkPassword(current))) return res.status(400).json({ error: 'Your current password is not right.' });
+    const weakNext = typeof next === 'string' && next.length >= 10 ? passwordProblem(next) : null;
+    if (weakNext) return res.status(400).json({ error: weakNext });
     if (typeof next !== 'string' || next.length < 10 || next.length > 128) return res.status(400).json({ error: 'Choose a new password of at least 10 characters.' });
     await p.setPassword(next);
     p.mustChangePassword = false;

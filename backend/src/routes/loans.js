@@ -342,7 +342,7 @@ router.post('/:loanId/statement-link', authMiddleware, async (req, res) => {
     const loan = await Loan.findById(req.params.loanId).catch(() => null);
     if (!loan || String(loan.userId) !== String(req.user.userId)) return res.status(404).json({ error: 'Loan not found' });
     if (!statementReady(loan)) return res.status(400).json({ error: 'A statement is available once the loan has been paid out' });
-    const t = jwt.sign({ purpose: 'statement', loanId: String(loan._id), userId: String(loan.userId) }, process.env.JWT_SECRET, { expiresIn: '5m' });
+    const t = jwt.sign({ purpose: 'statement', loanId: String(loan._id), userId: String(loan.userId) }, process.env.JWT_SECRET, { algorithm: 'HS256', expiresIn: '5m' });
     res.json({ path: `/api/loans/statement-view?t=${t}`, expiresInSeconds: 300 });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -351,7 +351,7 @@ router.post('/:loanId/statement-link', authMiddleware, async (req, res) => {
 
 router.get('/statement-view', async (req, res) => {
   try {
-    const d = jwt.verify(String(req.query.t || ''), process.env.JWT_SECRET);
+    const d = jwt.verify(String(req.query.t || ''), process.env.JWT_SECRET, { algorithms: ['HS256'] });
     if (d.purpose !== 'statement') throw new Error('wrong purpose');
     const loan = await Loan.findById(d.loanId).catch(() => null);
     if (!loan || String(loan.userId) !== d.userId || !statementReady(loan)) return res.status(404).send('Statement not found');

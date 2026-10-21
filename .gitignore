@@ -1,0 +1,27 @@
+# Secrets and keys never go into the repository. Settings live in Railway (variables) or in the portal's Integrations page.
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+**/key.properties
+**/local.properties
+service-account*.json
+*.sql
+*.bak
+
+# Logs, dependencies and machine files
+node_modules/
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

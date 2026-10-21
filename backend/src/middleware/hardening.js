@@ -6,7 +6,8 @@ function clean(value, depth = 0) {
   if (depth > 12 || value === null || typeof value !== 'object') return value;
   if (Array.isArray(value)) { value.forEach((v, i) => { value[i] = clean(v, depth + 1); }); return value; }
   for (const key of Object.keys(value)) {
-    if (key.startsWith('$') || key.includes('.')) delete value[key];
+    // Keys that start with $ or hold a dot are database operators; __proto__, constructor and prototype are how objects get poisoned
+    if (key.startsWith('$') || key.includes('.') || key === '__proto__' || key === 'constructor' || key === 'prototype') delete value[key];
     else value[key] = clean(value[key], depth + 1);
   }
   return value;

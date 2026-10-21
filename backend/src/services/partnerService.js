@@ -26,13 +26,13 @@ const tempPassword = () => Array.from(crypto.randomBytes(12), b => ALPHABET[b % 
 const r2 = n => Math.round((Number(n) || 0) * 100) / 100;
 const mask = s => { const t = String(s || ''); return t.length > 4 ? t.slice(0, 2) + 'X'.repeat(t.length - 4) + t.slice(-2) : t; };
 
-export const tokenFor = partner => jwt.sign({ purpose: 'partner', partnerId: String(partner._id), pwd: partner.passwordChangedAt ? +partner.passwordChangedAt : 0 }, process.env.JWT_SECRET, { expiresIn: '12h' });
+export const tokenFor = partner => jwt.sign({ purpose: 'partner', partnerId: String(partner._id), pwd: partner.passwordChangedAt ? +partner.passwordChangedAt : 0 }, process.env.JWT_SECRET, { algorithm: 'HS256', expiresIn: '12h' });
 
 // Middleware for the partner's own pages
 export async function partnerAuth(req, res, next) {
   try {
     const h = String(req.headers.authorization || '');
-    const d = jwt.verify(h.replace(/^Bearer\s+/i, ''), process.env.JWT_SECRET);
+    const d = jwt.verify(h.replace(/^Bearer\s+/i, ''), process.env.JWT_SECRET, { algorithms: ['HS256'] });
     if (d.purpose !== 'partner') throw new Error('not a partner token');
     const p = await Partner.findById(d.partnerId);
     if (!p || p.status !== 'active') return res.status(401).json({ error: 'Your session has ended. Please sign in again.' });

@@ -115,7 +115,7 @@ router.post('/pdf-link/:loanId', authMiddleware, async (req, res) => {
     const loan = await ownedLoan(req, res);
     if (!loan) return;
     if (['submitted', 'under_review', 'rejected'].includes(loan.status)) return res.status(400).json({ error: 'The agreement is available once your loan is approved' });
-    const t = jwt.sign({ purpose: 'agreement-pdf', loanId: String(loan._id), userId: String(loan.userId) }, process.env.JWT_SECRET, { expiresIn: '5m' });
+    const t = jwt.sign({ purpose: 'agreement-pdf', loanId: String(loan._id), userId: String(loan.userId) }, process.env.JWT_SECRET, { algorithm: 'HS256', expiresIn: '5m' });
     res.json({ path: `/api/esign/pdf?t=${t}`, expiresInSeconds: 300 });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -124,7 +124,7 @@ router.post('/pdf-link/:loanId', authMiddleware, async (req, res) => {
 
 router.get('/pdf', async (req, res) => {
   try {
-    const d = jwt.verify(String(req.query.t || ''), process.env.JWT_SECRET);
+    const d = jwt.verify(String(req.query.t || ''), process.env.JWT_SECRET, { algorithms: ['HS256'] });
     if (d.purpose !== 'agreement-pdf') throw new Error('wrong purpose');
     const loan = await Loan.findById(d.loanId).catch(() => null);
     if (!loan || String(loan.userId) !== d.userId) return res.status(404).send('Not found');

@@ -122,7 +122,7 @@ router.post('/verify', async (req, res) => {
   try {
     let challenge;
     try {
-      challenge = jwt.verify(String(req.body?.challengeToken || ''), process.env.JWT_SECRET);
+      challenge = jwt.verify(String(req.body?.challengeToken || ''), process.env.JWT_SECRET, { algorithms: ['HS256'] });
     } catch (e) {
       return bad(res, 401, 'Your sign-in expired. Please start again.');
     }

@@ -15,9 +15,9 @@ const call = async (method, path, token, body, headers = {}) => {
 let n = 0;
 const signup = (id, ip) => {
   n++;
-  return call('POST', '/auth/signup', null, { firstName: `Dev${n}`, lastName: 'Ice', email: `dev${n}@x.in`, phone: `98400000${String(n).padStart(2, '0')}`, password: 'password123', confirmPassword: 'password123' }, { ...(id ? { 'X-Install-Id': id } : {}), ...(ip ? { 'X-Forwarded-For': ip } : {}), 'X-Platform': 'android', 'X-App-Version': '1.0.0' });
+  return call('POST', '/auth/signup', null, { firstName: `Dev${n}`, lastName: 'Ice', email: `dev${n}@x.in`, phone: `98400000${String(n).padStart(2, '0')}`, password: 'Blue-Lantern-42', confirmPassword: 'Blue-Lantern-42' }, { ...(id ? { 'X-Install-Id': id } : {}), ...(ip ? { 'X-Forwarded-For': ip } : {}), 'X-Platform': 'android', 'X-App-Version': '1.0.0' });
 };
-const login = (email, id) => call('POST', '/auth/login', null, { email, password: 'password123' }, id ? { 'X-Install-Id': id } : {});
+const login = (email, id) => call('POST', '/auth/login', null, { email, password: 'Blue-Lantern-42' }, id ? { 'X-Install-Id': id } : {});
 const alerts = rule => AmlAlert.find({ rule }).lean();
 
 section('ONE PHONE, ONE ACCOUNT');

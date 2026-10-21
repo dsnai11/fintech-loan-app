@@ -90,6 +90,7 @@ import { metricsMiddleware } from './services/metrics.js';
 import { sanitizeInput, noStoreApi, errorHandler, maskServerErrors } from './middleware/hardening.js';
 import { isProduction } from './services/securityChecks.js';
 import { MongoRateLimitStore, sharedLimits } from './services/rateLimitStore.js';
+import { secretProblem, secretIsStrong } from './services/appSecret.js';
 
 dotenv.config();
 
@@ -97,6 +98,11 @@ dotenv.config();
 if (!process.env.JWT_SECRET) {
   if (isProduction()) { console.error('JWT_SECRET is not set. Set it in the host settings and restart.'); process.exit(1); }
   console.warn('JWT_SECRET is not set: sign-in will not work.');
+} else {
+  const why = secretProblem();
+  if (why && isProduction()) { console.error(`JWT_SECRET ${why}. Set a long random value in the host settings and restart.`); process.exit(1); }
+  if (why) console.warn(`JWT_SECRET ${why}.`);
+  else if (isProduction() && !secretIsStrong()) console.warn('WARNING: JWT_SECRET is shorter than 32 characters. Replace it with a random value of 64 characters in the host settings (everyone will need to sign in again).');
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -127,6 +133,17 @@ app.use(helmet({
     },
   },
 }));
+// Which features of the browser this site may use. The customer web app needs the camera (selfie, Aadhaar card) and the location;
+// nothing here needs the microphone, payments, USB or sensors, so those are switched off even if a script were injected.
+app.use((req, res, next) => {
+  res.setHeader('Permissions-Policy', 'camera=(self), geolocation=(self), microphone=(), payment=(), usb=(), bluetooth=(), accelerometer=(), gyroscope=(), magnetometer=(), serial=(), interest-cohort=()');
+  next();
+});
+// On a real deployment a request that arrived over plain http is sent to https (the host does this too; this is the second lock)
+app.use((req, res, next) => {
+  if (isProduction() && String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() === 'http' && req.method === 'GET') return res.redirect(301, `https://${req.headers.host}${req.originalUrl}`);
+  next();
+});
 app.use(cors({
   origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -141,6 +158,9 @@ const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: Number(process.en
 const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: Number(process.env.API_RATE_LIMIT) || 200, passOnStoreError: true, ...(shared ? { store: new MongoRateLimitStore('api') } : {}) });
 
 app.use(metricsMiddleware);
+// Account creation is limited more tightly than sign-in: a robot making thousands of accounts costs us SMS and storage.
+const signupLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: Number(process.env.SIGNUP_RATE_LIMIT) || 30, message: { error: 'Too many accounts were created from this connection. Try again later.' }, passOnStoreError: true, ...(shared ? { store: new MongoRateLimitStore('signup') } : {}) });
+app.use('/api/auth/signup', signupLimiter);
 app.use('/api/auth', authLimiter);
 app.use('/api', apiLimiter);
 
@@ -152,6 +172,14 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ limit: '5mb', extended: true }));
 app.use(sanitizeInput);
+// Optional: the back office answers only to the addresses listed in ADMIN_ALLOWED_IPS (comma separated). Empty means anyone who can sign in.
+app.use('/api/admin', (req, res, next) => {
+  const list = String(process.env.ADMIN_ALLOWED_IPS || '').split(',').map(s => s.trim()).filter(Boolean);
+  if (!list.length) return next();
+  const ip = String(req.ip || '').replace(/^::ffff:/, '');
+  if (list.includes(ip)) return next();
+  res.status(403).json({ error: 'The back office cannot be opened from this network.' });
+});
 app.use('/api', noStoreApi);
 app.use('/api', maskServerErrors);
 

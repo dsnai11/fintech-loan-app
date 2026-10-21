@@ -135,6 +135,7 @@ const RULES = [
   [/^\/api\/admin\/config(\/|$)/, 'config.manage', 'config.manage'],
   [/^\/api\/admin\/integrations(\/|$)/, 'config.manage', 'config.manage'],
   [/^\/api\/app-config\/admin(\/|$)/, 'config.manage', 'config.manage'],
+  [/^\/api\/app-config(\/|$)/, 'config.manage', 'config.manage'],
   [/^\/api\/admin\/builds(\/|$)/, 'config.manage', 'config.manage'],
   [/^\/api\/admin\/pricing(\/|$)/, 'pricing.view', 'pricing.view'], // PUT is checked by what it changes
   [/^\/api\/admin\/charges\/preview(\/|$)/, 'pricing.view', 'pricing.view'],

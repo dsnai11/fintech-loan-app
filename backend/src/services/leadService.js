@@ -1,3 +1,4 @@
+import { appSecret } from './appSecret.js';
 import crypto from 'crypto';
 import Lead from '../models/Lead.js';
 import { clientIp } from './auditService.js';
@@ -21,7 +22,7 @@ function amountOf(v, label, errors, { max = 1e10 } = {}) {
   return Math.round(n);
 }
 
-const ipHash = req => crypto.createHash('sha256').update(`${clientIp(req) || ''}|${process.env.JWT_SECRET || 'dev'}`).digest('hex').slice(0, 32);
+const ipHash = req => crypto.createHash('sha256').update(`${clientIp(req) || ''}|${appSecret()}`).digest('hex').slice(0, 32);
 
 // Common checks and saving. `who` is { name, phone, userId? }.
 async function save({ kind, source, page, who, body, req }) {

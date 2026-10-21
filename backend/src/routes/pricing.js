@@ -26,7 +26,7 @@ function userIdOf(req) {
   try {
     const t = req.headers.authorization?.split(' ')[1];
     if (!t) return null;
-    const d = jwt.verify(t, process.env.JWT_SECRET);
+    const d = jwt.verify(t, process.env.JWT_SECRET, { algorithms: ['HS256'] });
     return d.purpose || !d.userId ? null : d.userId;
   } catch { return null; }
 }

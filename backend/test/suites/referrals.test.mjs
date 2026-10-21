@@ -20,7 +20,7 @@ const { token: admin } = await makeAdmin();
 const bank = { accountHolder: 'R', accountNumber: '123456789012', ifscCode: 'SBIN0001234', bankName: 'SBI' };
 const mk = (n, over = {}) => User.create({ firstName: `Cust${n}`, lastName: 'Ref', email: `r${n}@x.in`, phone: `98100000${String(n).padStart(2, '0')}`, password: 'x12345678', kycStatus: 'approved', bankAccount: bank, ...over });
 const staff = async (role, n) => tokenFor(await User.create({ firstName: role, lastName: 'S', email: `${role}${n}@lifc.in`, phone: `97100000${n}`, password: 'x12345678', role, twoFactorEnabled: true }), true);
-const signup = (n, extra = {}) => call('POST', '/auth/signup', null, { firstName: `New${n}`, lastName: 'Friend', email: `new${n}@x.in`, phone: `98200000${String(n).padStart(2, '0')}`, password: 'password123', confirmPassword: 'password123', ...extra });
+const signup = (n, extra = {}) => call('POST', '/auth/signup', null, { firstName: `New${n}`, lastName: 'Friend', email: `new${n}@x.in`, phone: `98200000${String(n).padStart(2, '0')}`, password: 'Blue-Lantern-42', confirmPassword: 'Blue-Lantern-42', ...extra });
 
 const referrer = await mk(1);
 const tR = await tokenFor(referrer);

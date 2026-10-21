@@ -9,6 +9,8 @@ process.env.JWT_SECRET = 'test-secret';
 process.env.ADMIN_EMAIL = 'admin@lifc.in';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+// Passwords are hashed at the cheapest allowed work factor in tests, so the suites stay fast. The real default (12) has its own test.
+process.env.BCRYPT_COST ||= '10';
 export const backendDir = path.resolve(here, '..');
 export const MONGO = (process.env.TEST_MONGO_URL || 'mongodb://localhost:27017').replace(/\/$/, '');
 
@@ -74,6 +76,7 @@ export async function startServer(db, env = {}) {
         REQUIRE_ONBOARDING: 'false',
         // The built-in face engine is only used by the tests that ask for it (it loads large models)
         FACE_MATCH_ENGINE: 'aws',
+        BCRYPT_COST: process.env.BCRYPT_COST || '10',
         ...env,
       },
     });

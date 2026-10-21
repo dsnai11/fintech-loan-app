@@ -40,7 +40,7 @@ export async function deviceGate(req, user) {
     if (!installId) return null;
     const known = await DeviceBinding.find({ userId: user._id }).select('installId').lean();
     if (!known.length || known.some(b => b.installId === installId)) return null;
-    const deviceToken = jwt.sign({ userId: String(user._id), installId, purpose: DEVICE_PURPOSE }, process.env.JWT_SECRET, { expiresIn: '10m' });
+    const deviceToken = jwt.sign({ userId: String(user._id), installId, purpose: DEVICE_PURPOSE }, process.env.JWT_SECRET, { algorithm: 'HS256', expiresIn: '10m' });
     return { deviceVerificationRequired: true, deviceToken, phone: maskPhone(user.phone), message: 'You are signing in from a new phone. For your safety, we will send a code to your registered number.' };
   } catch (e) {
     return null; // a fault here must never lock customers out

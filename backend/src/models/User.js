@@ -1,3 +1,4 @@
+import { hashPassword } from '../services/passwordPolicy.js';
 import mongoose from 'mongoose';
 import bcryptjs from 'bcryptjs';
 
@@ -110,8 +111,7 @@ userSchema.pre('save', async function (next) {
   if (!this.isNew) this.passwordChangedAt = new Date();
 
   try {
-    const salt = await bcryptjs.genSalt(10);
-    this.password = await bcryptjs.hash(this.password, salt);
+    this.password = await hashPassword(this.password);
     next();
   } catch (error) {
     next(error);

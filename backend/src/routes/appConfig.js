@@ -4,8 +4,9 @@ import { adminMiddleware } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// GET all app configuration (public - for mobile apps)
-router.get('/', async (req, res) => {
+// The app's configuration document is read by staff only. (The customer apps get what they need from /api/app-settings, which shows
+// only the safe parts. This one is the raw document, so it is not public.)
+router.get('/', adminMiddleware, async (req, res) => {
   try {
     let config = await AppConfiguration.findOne({});
     if (!config) {
@@ -18,7 +19,7 @@ router.get('/', async (req, res) => {
 });
 
 // GET specific configuration section
-router.get('/:section', async (req, res) => {
+router.get('/:section', adminMiddleware, async (req, res) => {
   try {
     const { section } = req.params;
     const config = await AppConfiguration.findOne({});

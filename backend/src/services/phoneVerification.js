@@ -1,3 +1,4 @@
+import { appSecret } from './appSecret.js';
 import crypto from 'crypto';
 import PhoneOtp from '../models/PhoneOtp.js';
 import User from '../models/User.js';
@@ -11,7 +12,7 @@ const WINDOW_MS = 60 * 60 * 1000;
 const MAX_SENDS_PER_WINDOW = 5;
 const MAX_ATTEMPTS = 5;
 
-const hash = (phone, code) => crypto.createHmac('sha256', process.env.JWT_SECRET || 'dev-only').update(`${phone}|${code}`).digest('hex');
+const hash = (phone, code) => crypto.createHmac('sha256', appSecret()).update(`${phone}|${code}`).digest('hex');
 const mask = phone => String(phone).replace(/(\d{2})\d{6}(\d{2})/, '$1XXXXXX$2');
 const fail = (status, error, extra = {}) => ({ status, body: { error, ...extra } });
 

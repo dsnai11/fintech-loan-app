@@ -1,3 +1,4 @@
+import { appSecret } from './appSecret.js';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
 import AgreementAcceptance from '../models/AgreementAcceptance.js';
@@ -65,7 +66,7 @@ export async function acceptByClick(loan, user, { hash, confirmed }, req) {
 // ── otp ──────────────────────────────────────────────────────────────────────────────────────
 const CODE_MINUTES = 10, COOLDOWN = 30, MAX_ATTEMPTS = 5, MAX_PER_HOUR = 5;
 const key = loan => `sign:${loan._id}`;
-const hashCode = (k, code) => crypto.createHmac('sha256', process.env.JWT_SECRET || 'dev-only').update(`${k}|${code}`).digest('hex');
+const hashCode = (k, code) => crypto.createHmac('sha256', appSecret()).update(`${k}|${code}`).digest('hex');
 const otpSandbox = () => !smsConfigured() && process.env.PAYMENT_MODE !== 'PRODUCTION';
 
 export async function sendSigningCode(loan, user) {

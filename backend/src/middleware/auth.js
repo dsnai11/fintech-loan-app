@@ -32,7 +32,7 @@ export const authMiddleware = async (req, res, next) => {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) return res.status(401).json({ error: 'Please sign in to continue' });
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
     const problem = await accountProblem(decoded);
     if (problem) return res.status(problem.status).json({ error: problem.error });
     req.user = decoded;
@@ -46,7 +46,7 @@ export const adminMiddleware = async (req, res, next) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) return res.status(401).json({ error: 'Please sign in to continue' });
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
     const { problem, account } = await check(decoded);
     if (problem) return res.status(problem.status).json({ error: problem.error });
     await ensureRoles();
@@ -69,7 +69,7 @@ export const adminMiddleware = async (req, res, next) => {
 };
 
 export const generateToken = (userId, email, isAdmin = false) => {
-  return jwt.sign({ userId, email, isAdmin, iatMs: Date.now() }, process.env.JWT_SECRET, {
+  return jwt.sign({ userId, email, isAdmin, iatMs: Date.now() }, process.env.JWT_SECRET, { algorithm: 'HS256',
     expiresIn: isAdmin ? process.env.ADMIN_JWT_EXPIRE || '8h' : process.env.JWT_EXPIRE || '7d',
   });
 };
