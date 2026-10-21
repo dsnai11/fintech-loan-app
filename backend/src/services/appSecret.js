@@ -2,8 +2,10 @@ import { isProduction } from './securityChecks.js';
 
 // The secret that signs sign-in tokens, and that scrambles one-time codes and identity fingerprints before they are stored.
 // On a real deployment it must be set; the made-up fallback is only for a developer's own machine.
-export function appSecret() {
-  const s = process.env.JWT_SECRET;
+// appSecret('identity') is the key for identity fingerprints: it is IDENTITY_KEY when set, so that JWT_SECRET can be changed
+// without making old fingerprints (duplicate-Aadhaar detection) stop matching.
+export function appSecret(purpose) {
+  const s = (purpose === 'identity' && process.env.IDENTITY_KEY) || process.env.JWT_SECRET;
   if (s) return s;
   if (isProduction()) throw new Error('JWT_SECRET is not set');
   return 'dev-only';

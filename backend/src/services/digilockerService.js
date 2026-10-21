@@ -69,7 +69,7 @@ export async function completeSession(session, doc, req = null) {
   if (!dobOk) flags.push('no_date_of_birth');
 
   const last4 = String(doc.aadhaarLast4 ?? '').replace(/\D/g, '').slice(-4);
-  const key = crypto.createHmac('sha256', appSecret()).update(`${doc.aadhaarUid || ''}|${last4}|${dobOk ? day(dob) : ''}|${name.toLowerCase().replace(/\s+/g, ' ')}`).digest('hex');
+  const key = crypto.createHmac('sha256', appSecret('identity')).update(`${doc.aadhaarUid || ''}|${last4}|${dobOk ? day(dob) : ''}|${name.toLowerCase().replace(/\s+/g, ' ')}`).digest('hex');
   const dupe = await User.findOne({ _id: { $ne: user._id }, 'kycDigilocker.key': key }).select('_id');
   if (dupe) { flags.push('same_aadhaar_on_another_account'); await flagDuplicateAadhaar(user); }
 
