@@ -3,6 +3,7 @@ import WatchlistEntry from '../models/WatchlistEntry.js';
 import Loan from '../models/Loan.js';
 import User from '../models/User.js';
 import { audit } from './auditService.js';
+import { nameMatch } from './freeChecks.js';
 
 const DAY = 24 * 60 * 60 * 1000;
 const largeLoanThreshold = () => {
@@ -21,7 +22,7 @@ export const namesCompatible = (a, b) => {
   const x = norm(a), y = norm(b);
   if (!x.length || !y.length) return false;
   const [small, big] = x.length <= y.length ? [x, y] : [y, x];
-  return small.every(t => big.includes(t));
+  return small.every(t => big.includes(t)) || nameMatch(a, b).verdict === 'match';
 };
 
 // One open alert per rule + customer + loan, so re-running a check does not pile up duplicates.

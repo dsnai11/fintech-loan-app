@@ -4,6 +4,7 @@ import { authMiddleware } from '../middleware/auth.js';
 import { getConfig } from '../services/configService.js';
 import { audit } from '../services/auditService.js';
 import { sendCode, verifyCode } from '../services/phoneVerification.js';
+import { lookupIfsc, lookupPincode } from '../services/freeChecks.js';
 import { flagDuplicatePan, flagNameMismatch, namesCompatible } from '../services/amlService.js';
 import { verifyBank } from '../services/bankVerifyService.js';
 
@@ -109,6 +110,18 @@ router.post('/pan', authMiddleware, async (req, res) => {
   }
 });
 
+// GET /api/kyc/ifsc/:code - bank and branch for an IFSC code, so the form can show them as the customer types
+router.get('/ifsc/:code', authMiddleware, async (req, res) => {
+  const r = await lookupIfsc(req.params.code);
+  res.json(r.found ? { found: true, bank: r.bank, branch: r.branch, city: r.city, state: r.state } : { found: r.found, reason: r.reason });
+});
+
+// GET /api/kyc/pincode/:pin - city and state for a pincode
+router.get('/pincode/:pin', authMiddleware, async (req, res) => {
+  const r = await lookupPincode(req.params.pin);
+  res.json(r.found ? { found: true, city: r.city, district: r.district, state: r.state } : { found: r.found, reason: r.reason });
+});
+
 // POST /api/kyc/bank
 router.post('/bank', authMiddleware, async (req, res) => {
   try {
@@ -118,13 +131,11 @@ router.post('/bank', authMiddleware, async (req, res) => {
     const ifscRegex = /^[A-Z]{4}0[A-Z0-9]{6}$/;
     if (!ifscRegex.test(ifscCode.toUpperCase())) return res.status(400).json({ error: 'Invalid IFSC code format' });
 
-    // Always do free IFSC lookup
-    let bankName = 'Unknown Bank';
-    let branchInfo = null;
-    try {
-      const r = await fetch(`https://ifsc.razorpay.com/${ifscCode.toUpperCase()}`);
-      if (r.ok) { const d = await r.json(); bankName = d.BANK || bankName; branchInfo = { branch: d.BRANCH, city: d.CITY, state: d.STATE }; }
-    } catch (_) {}
+    // Free IFSC look-up (remembered for a day; if it cannot be reached we carry on without the bank name)
+    const ifsc = await lookupIfsc(ifscCode);
+    if (ifsc.found === false && ifsc.reason === 'not_listed') return res.status(400).json({ error: 'This IFSC code is not in the bank list. Please check it on your cheque book or passbook.' });
+    const bankName = ifsc.found ? ifsc.bank || 'Unknown Bank' : 'Unknown Bank';
+    const branchInfo = ifsc.found ? { branch: ifsc.branch, city: ifsc.city, state: ifsc.state } : null;
 
     // Save the account, then check it with the bank through the payment provider (or the test mode)
     const saved = await User.findByIdAndUpdate(req.user.userId, {
