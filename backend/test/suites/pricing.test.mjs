@@ -142,7 +142,7 @@ check('a loan that has not been paid out has no quote (400)', (await call('GET',
 check('a stale amount is refused (409) with the new quote', await (async () => { const r = await call('POST', `/emi/cooling-off/${a1.d.loan.id}`, ta, { expectedAmount: 100 }); return r.s === 409 && r.d.quote.total === co.d.total; })());
 check('no amount is refused (409)', (await call('POST', `/emi/cooling-off/${a1.d.loan.id}`, ta, {})).s === 409);
 const both = await Promise.all([1, 2].map(() => call('POST', `/emi/cooling-off/${a1.d.loan.id}`, ta, { expectedAmount: co.d.total })));
-check('double tap: exactly one success', both.map(r => r.s).sort().join() === '200,409', both.map(r => r.s).join());
+check('double tap: exactly one success (the other is refused, as busy or as already closed)', both.filter(r => r.s === 200).length === 1 && both.filter(r => r.s === 409 || r.s === 400).length === 1, both.map(r => r.s).join());
 const done = await Loan.findById(a1.d.loan.id);
 check('loan closed as a cooling-off exit, with the amounts recorded', done.status === 'closed' && done.closureType === 'cooling_off' && done.foreclosure.amount === co.d.total && done.foreclosure.fee === 0);
 check('all instalments waived', (await EMIPayment.find({ loanId: a1.d.loan.id })).every(e => e.status === 'WAIVED'));
